@@ -7,6 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:transite_way/core/resources/color_manager.dart';
 import 'package:transite_way/core/routes/routes_manager.dart';
 
+import '../../core/resources/assest_manager.dart';
+import '../role/role_select_screen.dart';
+
 class Splash extends StatefulWidget{
   const Splash({super.key});
 
@@ -28,7 +31,7 @@ class _SplashState extends State<Splash> {
 
     ));
     Timer(Duration(seconds: 3),(){
-      Navigator.pushReplacementNamed(context, RoutesManager.onboardingScreen);
+      Navigator.pushReplacementNamed(context, RoutesManager.role);
 
       });
   }
@@ -36,12 +39,9 @@ class _SplashState extends State<Splash> {
     return Scaffold(
       backgroundColor: ColorManager.green,
       body: Center(
-        child: Text('TransitWay',style: GoogleFonts.inter(
-          color: ColorManager.white,
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2),),
-      )
+        child:
+        Image.asset(ImageAssets.logo)
+      ),
 
     );
   }}

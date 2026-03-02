@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../profile/profile_screen.dart';
+import '../../../qr_scanner/qr.dart';
 import '../../../tickets/tickets.dart';
 import '../screens/home_screen.dart';
 
@@ -16,13 +17,13 @@ class _MainWrapperState extends State<MainWrapper> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
+  // ف
     const HomeScreen(),
     const MyTicketsScreen(),
-    const Center(child: Text("Scan QR Screen")),
+     QRScannerPage(),
     const ProfileScreen(),
-    const Center(child: Text("Tickets Screen")),
-    const Center(child: Text("Profile Screen")),
   ];
+
 
   @override
   Widget build(BuildContext context) {

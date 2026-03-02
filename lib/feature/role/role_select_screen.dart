@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:transite_way/core/routes/routes_manager.dart';
+
+import '../../core/resources/assest_manager.dart';
 
 class RoleSelectScreen extends StatelessWidget {
   @override
@@ -15,15 +18,9 @@ class RoleSelectScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  SizedBox(height: 60,),
 
-                  Text(
-                    "TransitWay",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Image.asset(ImageAssets.logo)
                 ],
               ),
             ),
