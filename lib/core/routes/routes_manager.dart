@@ -8,6 +8,8 @@ import 'package:transite_way/feature/home/presentation/screens/home_screen.dart'
 import 'package:transite_way/feature/home/presentation/screens/bus_tracking_screen.dart';
 import 'package:transite_way/feature/home/presentation/widgets/main_wrapper.dart';
 
+import '../../feature/login_driver/presentation/screens/home/driver_home_screen.dart';
+import '../../feature/login_driver/presentation/screens/login_driver_screen.dart';
 import '../../feature/profile/profile_screen.dart';
 import '../../feature/tickets/tickets.dart';
 
@@ -15,13 +17,14 @@ abstract class RoutesManager {
   static const String splash = "/splash";
   static const String onboardingScreen = "/onboardingScreen";
   static const String login = "/login";
-  static const String loginDriver = "/loginDriver";
+  static const String loginDriver = "/loginDriver"; // مسار تسجيل دخول السائق
   static const String signUp = "/signUp";
   static const String role = "/role";
   static const String forgetPassword = "/forgetPassword";
   static const String changePassword = "/changePassword";
   static const String mainWrapper = "/mainWrapper";
   static const String home = "/home";
+  static const String driverHome = "/driverHome"; // مسار صفحة السائق الرئيسية
   static const String busTracking = "/busTracking";
   static const String tickets = "/tickets";
   static const String profile = "/profile";
@@ -32,16 +35,17 @@ abstract class RoutesManager {
     role: (context) => RoleSelectScreen(),
     onboardingScreen: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
+    loginDriver: (context) => const DriverLoginScreen(), // ربط شاشة دخول السائق
     forgetPassword: (context) => const PasswordRecoveryScreen(),
     mainWrapper: (context) => const MainWrapper(),
 
     home: (context) => const HomeScreen(),
+    driverHome: (context) => const DriverHomeScreen(), // ربط شاشة السائق الترحيبية
     busTracking: (context) => const BusTrackingScreen(),
 
     tickets: (context) => const MyTicketsScreen(),
 
     profile: (context) => const ProfileScreen(),
-
   };
 
   static void navigateTo(BuildContext context, String routeName) {

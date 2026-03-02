@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:transite_way/feature/home/presentation/screens/bus_tracking_screen.dart';
 import 'package:transite_way/feature/login/login.dart';
-import 'package:transite_way/feature/qr_scanner/qr.dart';
-import 'package:transite_way/feature/tickets/tickets.dart';
 import '../model/onboarding_model.dart';
 
 class OnboardingItem extends StatelessWidget {
@@ -91,12 +88,12 @@ class OnboardingItem extends StatelessWidget {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => QRScannerPage() ),
+                          MaterialPageRoute(builder: (context) => LoginScreen() ),
                         );
                       },
 
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E4E45),
+                        backgroundColor: const Color(0XFF054F3A),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

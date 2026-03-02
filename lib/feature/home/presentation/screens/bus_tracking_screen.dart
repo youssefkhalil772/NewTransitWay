@@ -122,7 +122,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> {
           ElevatedButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TrackingView())),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B6A4C),
+              backgroundColor: const Color(0XFF054F3A),
               minimumSize: Size(double.infinity, 50.h),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
             ),

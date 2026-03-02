@@ -54,7 +54,7 @@ class RoleSelectScreen extends StatelessWidget {
 
                 buildSignButton(
                   text: "Sign In as Passenger",
-                  color: const Color(0xFF4C735B),
+                  color: const Color(0XFF054F3A),
                   onPressed: () {
                      Navigator.pushNamed(context,RoutesManager.onboardingScreen);
                   },
@@ -65,9 +65,9 @@ class RoleSelectScreen extends StatelessWidget {
 
                 buildSignButton(
                   text: "Sign In as Driver",
-                  color: const Color(0xFF4C735B),
+                  color: const Color(0XFF054F3A),
                   onPressed: () {
-
+                    Navigator.pushNamed(context,RoutesManager.loginDriver);
                   },
                 ),
                 SizedBox(height: 20),
