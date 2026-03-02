@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:transite_way/feature/login/login.dart';
 import 'package:transite_way/feature/onboarding/screen/onboarding_screen.dart';
+import 'package:transite_way/feature/role/role_select_screen.dart';
 import 'package:transite_way/feature/splash/splash.dart';
 import 'package:transite_way/feature/forget_password/presentation/screens/recovery_screen.dart';
 import 'package:transite_way/feature/home/presentation/screens/home_screen.dart';
@@ -28,6 +29,7 @@ abstract class RoutesManager {
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const Splash(),
+    role: (context) => RoleSelectScreen(),
     onboardingScreen: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
     forgetPassword: (context) => const PasswordRecoveryScreen(),
