@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 1.sh - MediaQuery.of(context).padding.top - 80.h,
                 child: Stack(
                   children: [
-                    Container(
+                    SizedBox(
                       height: 0.45.sh,
                       width: double.infinity,
                       child: Image.asset(
@@ -112,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pushNamed(context, RoutesManager.busTracking),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B6A4C),
+              backgroundColor: const Color(0XFF054F3A),
               minimumSize: Size(double.infinity, 55.h),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
             ),

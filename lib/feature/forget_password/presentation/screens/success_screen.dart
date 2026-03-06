@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../login/login.dart';
+
 class SuccessScreen extends StatelessWidget {
   const SuccessScreen({super.key});
 
@@ -74,15 +76,18 @@ class SuccessScreen extends StatelessWidget {
               height: 56.h,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF065D45),
+                  backgroundColor: const Color(0XFF054F3A),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12.w),
                   ),
                 ),
                 onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
+                  Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()), // استبدل LoginScreen باسم كلاس اللوجين عندك
+                          (route) => false,);
+                  },
                 child: Text(
                   "Back to Login",
                   style: TextStyle(

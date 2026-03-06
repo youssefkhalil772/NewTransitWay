@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -13,43 +14,66 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
+  late List<TextEditingController> _controllers;
+  late List<FocusNode> _focusNodes;
   bool _isLoading = false;
+  Timer? _timer;
+  int _secondsRemaining = 60;
+  bool _canResend = false;
 
-  bool isOtpComplete() => _controllers.every((c) => c.text.isNotEmpty);
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(6, (index) => TextEditingController());
+    _focusNodes = List.generate(6, (index) => FocusNode());
+    _startTimer();
+  }
+
+  void _startTimer() {
+    setState(() { _secondsRemaining = 60; _canResend = false; });
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining == 0) {
+        setState(() { _timer?.cancel(); _canResend = true; });
+      } else {
+        setState(() => _secondsRemaining--);
+      }
+    });
+  }
+
+  void _showCustomError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, textAlign: TextAlign.center),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(20.w),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      ),
+    );
+  }
 
   void _handleVerify() async {
-    if (isOtpComplete()) {
+    String fullCode = _controllers.map((e) => e.text).join();
+    if (fullCode.length == 6) {
       setState(() => _isLoading = true);
-
-      String fullCode = _controllers.map((e) => e.text).join();
-
-      bool isValid = await ForgetPasswordWebServices().verifyOtp(
-          email: widget.email,
-          otp: fullCode
-      );
-
-      if (!mounted) return;
-
+      bool isValid = await ForgetPasswordWebServices().verifyOtp(email: widget.email, otp: fullCode);
       setState(() => _isLoading = false);
-
       if (isValid) {
-        Navigator.push(context, MaterialPageRoute(
-            builder: (context) => ChangePasswordScreen(email: widget.email, code: fullCode)
-        ));
+        if (!mounted) return;
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ChangePasswordScreen(email: widget.email, code: fullCode)));
+      } else {
+        _showCustomError("The code is incorrect. Please try again.");
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please enter the 6-digit code"))
-      );
+      _showCustomError("Please enter the 6-digit code");
     }
   }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
+    _timer?.cancel();
+    for (var c in _controllers) c.dispose();
+    for (var n in _focusNodes) n.dispose();
     super.dispose();
   }
 
@@ -57,11 +81,7 @@ class _OtpScreenState extends State<OtpScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-          leading: const BackButton(color: Colors.black),
-          backgroundColor: Colors.transparent,
-          elevation: 0
-      ),
+      appBar: AppBar(leading: const BackButton(color: Colors.black), backgroundColor: Colors.transparent, elevation: 0),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
         child: Column(
@@ -70,26 +90,34 @@ class _OtpScreenState extends State<OtpScreen> {
             SizedBox(height: 20.w),
             Text("Enter the code", style: TextStyle(fontSize: 26.sp, fontWeight: FontWeight.bold)),
             SizedBox(height: 10.w),
-            Text("An authentication code has been sent to your email", style: TextStyle(fontSize: 14.sp, color: Colors.grey)),
+            Text("An authentification code has been\nsent to your email", style: TextStyle(fontSize: 14.sp, color: Colors.grey)),
             SizedBox(height: 40.w),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(6, (index) => _otpBox(index)),
             ),
+            SizedBox(height: 30.w),
+            Center(
+              child: Column(
+                children: [
+                  Text(_secondsRemaining > 0 ? "Resend in 00:${_secondsRemaining.toString().padLeft(2, '0')}" : "Didn't receive code?", style: TextStyle(color: Colors.grey)),
+                  TextButton(
+                    onPressed: _canResend ? () async {
+                      _startTimer();
+                      await ForgetPasswordWebServices().requestReset(widget.email);
+                    } : null,
+                    child: Text("Resend Code", style: TextStyle(color: _canResend ? const Color(0XFF054F3A) : Colors.grey, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
             const Spacer(),
             SizedBox(
-              width: double.infinity,
-              height: 55.w,
+              width: double.infinity, height: 55.w,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF065D45),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.w)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0XFF054F3A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.w))),
                 onPressed: _isLoading ? null : _handleVerify,
-                child: _isLoading
-                    ? SizedBox(width: 25.w, height: 25.w, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Text("Verify", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold)),
+                child: _isLoading ? SizedBox(width: 25.w, height: 25.w, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text("Verify", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold)),
               ),
             ),
             SizedBox(height: 30.w),
@@ -100,28 +128,29 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Widget _otpBox(int index) {
-    return Container(
-      width: 45.w,
-      height: 55.w,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10.w),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
-      ),
-      child: TextField(
-        controller: _controllers[index],
-        autofocus: index == 0,
-        onChanged: (value) {
-          if (value.length == 1 && index < 5) FocusScope.of(context).nextFocus();
-          if (value.isEmpty && index > 0) FocusScope.of(context).previousFocus();
+    return SizedBox(
+      width: 45.w, height: 55.w,
+      child: KeyboardListener(
+        focusNode: FocusNode(skipTraversal: true),
+        onKeyEvent: (event) {
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
+            if (_controllers[index].text.isEmpty && index > 0) _focusNodes[index - 1].requestFocus();
+          }
         },
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: const Color(0xFF065D45)),
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(1),
-          FilteringTextInputFormatter.digitsOnly
-        ],
-        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
+        child: TextField(
+          controller: _controllers[index],
+          focusNode: _focusNodes[index],
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: const Color(0XFF054F3A)),
+          keyboardType: TextInputType.number,
+          inputFormatters: [LengthLimitingTextInputFormatter(1), FilteringTextInputFormatter.digitsOnly],
+          onChanged: (v) { if (v.isNotEmpty && index < 5) _focusNodes[index + 1].requestFocus(); },
+          decoration: InputDecoration(
+            contentPadding: EdgeInsets.zero,
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.w), borderSide: BorderSide(color: Colors.grey.shade300)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.w), borderSide: const BorderSide(color: Color(0XFF054F3A), width: 1.5)),
+          ),
+        ),
       ),
     );
   }

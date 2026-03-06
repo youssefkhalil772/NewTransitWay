@@ -8,17 +8,17 @@ class CustomPointsBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
       decoration: BoxDecoration(
         color: const Color(0xFFCDDFDA),
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(12.r),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.star, color: Colors.amber, size: 20.sp),
           SizedBox(width: 5.w),
-          Text(points, style: TextStyle(color: const Color(0xFF1B5E20), fontWeight: FontWeight.bold, fontSize: 16.sp)),
+          Text(points, style: TextStyle(color: const Color(0xFF1B5E20), fontWeight: FontWeight.w500, fontSize: 17.sp)),
         ],
       ),
     );

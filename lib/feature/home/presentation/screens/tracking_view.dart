@@ -11,22 +11,25 @@ class TrackingView extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
+          // 1. الهيدر العلوي
           _buildHeader(context),
 
           Expanded(
             child: Stack(
               children: [
+                // 2. خريطة التتبع (صورة الباص والمسار)
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 0.61.sh,
+                  height: 0.60.sh, // تغطية مساحة أكبر للخريطة
                   child: Image.asset(
-                    'assets/images/track bus.png',
+                    'assets/images/tracking_view.png', // تأكد من اسم الصورة في الـ assets
                     fit: BoxFit.cover,
                   ),
                 ),
 
+                // 3. كارد تفاصيل الرحلة المباشرة (Bottom Card)
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Container(
@@ -49,34 +52,54 @@ class TrackingView extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // الوقت والمسافة المتبقية
                         Text(
                           "15 mins  1.3 km",
                           style: TextStyle(
                             fontSize: 22.sp,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
+                            color: Colors.black,
                           ),
                         ),
-                        SizedBox(height: 30.h),
+                        SizedBox(height: 25.h),
+
+                        // رقم الباص
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               "Bus Number",
-                              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87
+                              ),
                             ),
                             Text(
                               "359",
-                              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF1B6A4C) // نفس لون الثيم
+                              ),
                             ),
                           ],
                         ),
                         SizedBox(height: 25.h),
+
+                        // محطات البداية والنهاية
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             _buildLocationItem("From", "El Shorouk City"),
-                            Text("-", style: TextStyle(fontSize: 24.sp, color: Colors.black38)),
+                            Padding(
+                              padding: EdgeInsets.only(top: 20.h),
+                              child: Text(
+                                  "-",
+                                  style: TextStyle(fontSize: 24.sp, color: Colors.black26)
+                              ),
+                            ),
                             _buildLocationItem("To", "Fifth Settlement"),
                           ],
                         ),
@@ -93,9 +116,10 @@ class TrackingView extends StatelessWidget {
     );
   }
 
+  // ميثود بناء الهيدر
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10.h),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(20.r)),
@@ -108,7 +132,7 @@ class TrackingView extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
         child: Row(
           children: [
             IconButton(
@@ -117,6 +141,7 @@ class TrackingView extends StatelessWidget {
             ),
             Text("Transit", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold)),
             Text("Way", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: const Color(0xFF1B6A4C))),
+            SizedBox(width: 4.w),
             Icon(Icons.location_on, color: const Color(0xFF1B6A4C), size: 22.sp),
             const Spacer(),
             const CustomPointsBadge(),
@@ -126,17 +151,27 @@ class TrackingView extends StatelessWidget {
     );
   }
 
+  // ميثود بناء تفاصيل الموقع
   Widget _buildLocationItem(String label, String city) {
     return Column(
+      crossAxisAlignment: label == "From" ? CrossAxisAlignment.start : CrossAxisAlignment.end,
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.black54, fontSize: 14.sp, fontWeight: FontWeight.w500),
+          style: TextStyle(
+              color: Colors.black54,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500
+          ),
         ),
-        SizedBox(height: 40.h),
+        SizedBox(height: 8.h),
         Text(
           city,
-          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87
+          ),
         ),
       ],
     );

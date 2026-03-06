@@ -88,12 +88,12 @@ class OnboardingItem extends StatelessWidget {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          MaterialPageRoute(builder: (context) => LoginScreen() ),
                         );
                       },
 
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E4E45),
+                        backgroundColor: const Color(0XFF054F3A),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
