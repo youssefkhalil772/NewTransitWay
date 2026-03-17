@@ -43,7 +43,6 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
         elevation: 0,
         leading: const BackButton(color: Colors.black),
       ),
-      // الحل: SingleChildScrollView بيخلي الصفحة تترفع مع الكيبورد وسلسة في الحركة
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -71,7 +70,6 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                 ),
                 SizedBox(height: 40.h),
 
-                // حقل إدخال رقم الموبايل
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
@@ -105,7 +103,6 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                       : null,
                 ),
 
-                // المسافة اللي كانت مخلية الزرار "ثابت" في النص تم ضبطها هنا
                 SizedBox(height: 80.h),
 
                 SizedBox(
@@ -121,17 +118,19 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                       if (_formKey.currentState!.validate()) {
                         setState(() => _isLoading = true);
 
-                        // --- نظام الـ Skip مؤقتاً للتجربة ---
-                        await Future.delayed(const Duration(seconds: 1));
-                        String? fakeEmail = "youssefmahmoud772@gmail.com";
+                        // الربط الحقيقي بالـ API
+                        final webServices = ForgetPasswordWebServices();
+                        String? realEmail = await webServices.getEmailByPhone(
+                            _phoneController.text.trim()
+                        );
 
                         setState(() => _isLoading = false);
 
-                        if (fakeEmail != null && mounted) {
+                        if (realEmail != null && mounted) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ConfirmEmailScreen(fullEmail: fakeEmail),
+                              builder: (_) => ConfirmEmailScreen(fullEmail: realEmail),
                             ),
                           );
                         } else if (mounted) {
@@ -155,7 +154,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     ),
                   ),
                 ),
-                SizedBox(height: 40.h), // مسافة أمان في نهاية الصفحة
+                SizedBox(height: 40.h),
               ],
             ),
           ),

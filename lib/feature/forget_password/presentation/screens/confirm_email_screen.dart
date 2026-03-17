@@ -18,13 +18,15 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
   @override
   void initState() {
     super.initState();
+    // استخدام دالة الـ Masking من الـ WebServices الأصلية بتاعتك
     maskedEmail = ForgetPasswordWebServices().maskEmail(widget.fullEmail);
   }
 
   void _sendOtp() async {
     setState(() => _isLoading = true);
-    bool ok = true;
-    // bool ok = await ForgetPasswordWebServices().requestReset(widget.fullEmail);
+
+    // الربط الحقيقي بـ API الـ TransitWay لإرسال كود الـ OTP للإيميل
+    bool ok = await ForgetPasswordWebServices().requestReset(widget.fullEmail);
 
     setState(() => _isLoading = false);
 
@@ -37,7 +39,10 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error sending OTP. Please try again."))
+          const SnackBar(
+            content: Text("Error sending OTP. Please try again."),
+            backgroundColor: Colors.redAccent, // إضافة لون تنبيه للخطأ
+          )
       );
     }
   }

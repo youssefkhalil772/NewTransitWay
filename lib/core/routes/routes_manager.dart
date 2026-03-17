@@ -12,6 +12,7 @@ import '../../feature/login_driver/presentation/screens/home/driver_home_screen.
 import '../../feature/login_driver/presentation/screens/login_driver_screen.dart';
 import '../../feature/profile/profile_screen.dart';
 import '../../feature/tickets/tickets.dart';
+import '../../feature/tracking/presentation/screens/trip_tracking_screen.dart';
 
 abstract class RoutesManager {
   static const String splash = "/splash";
@@ -29,6 +30,7 @@ abstract class RoutesManager {
   static const String tickets = "/tickets";
   static const String profile = "/profile";
   static const String qrScanner = "/qrScanner";
+  static const String tripTracking = "/tripTracking";
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const Splash(),
@@ -38,7 +40,7 @@ abstract class RoutesManager {
     loginDriver: (context) => const DriverLoginScreen(), // ربط شاشة دخول السائق
     forgetPassword: (context) => const PasswordRecoveryScreen(),
     mainWrapper: (context) => const MainWrapper(),
-
+    tripTracking: (context) => const TripTrackingScreen(),
     home: (context) => const HomeScreen(),
     driverHome: (context) => const DriverHomeScreen(), // ربط شاشة السائق الترحيبية
     busTracking: (context) => const BusTrackingScreen(),
