@@ -10,6 +10,7 @@ import 'package:transite_way/feature/home/presentation/widgets/main_wrapper.dart
 
 import '../../feature/login_driver/presentation/screens/home/driver_home_screen.dart';
 import '../../feature/login_driver/presentation/screens/login_driver_screen.dart';
+import '../../feature/profile/Points.dart';
 import '../../feature/profile/profile_screen.dart';
 import '../../feature/tickets/tickets.dart';
 
@@ -29,6 +30,7 @@ abstract class RoutesManager {
   static const String tickets = "/tickets";
   static const String profile = "/profile";
   static const String qrScanner = "/qrScanner";
+  static const String points = "/points";
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const Splash(),
@@ -46,6 +48,7 @@ abstract class RoutesManager {
     tickets: (context) => const MyTicketsScreen(),
 
     profile: (context) => const ProfileScreen(),
+    points: (context) => const PointsScreen(),
   };
 
   static void navigateTo(BuildContext context, String routeName) {

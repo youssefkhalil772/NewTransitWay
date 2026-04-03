@@ -139,8 +139,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (widget.onViewTickets != null) {
             widget.onViewTickets!();
           }
-        } else if (item.route == RoutesManager.home && item.title != 'Home') {
-          // الحفاظ على رسائل التنبيه الأصلية من كودك
+        } else if (item.title == 'Charge My Points') {
+          // التنقل لشاشة الـ Points
+          RoutesManager.navigateTo(context, RoutesManager.points);
+        }
+        else if (item.route == RoutesManager.home && item.title != 'Home' && item.title != 'Charge My Points') {
+          // رسائل التنبيه للخيارات التانية
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("${item.title} is coming soon!"),
