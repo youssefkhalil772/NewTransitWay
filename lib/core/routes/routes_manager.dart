@@ -8,8 +8,11 @@ import 'package:transite_way/feature/home/presentation/screens/home_screen.dart'
 import 'package:transite_way/feature/home/presentation/screens/bus_tracking_screen.dart';
 import 'package:transite_way/feature/home/presentation/widgets/main_wrapper.dart';
 
+import '../../feature/forget_password/presentation/screens/success_screen.dart';
 import '../../feature/login_driver/presentation/screens/home/driver_home_screen.dart';
 import '../../feature/login_driver/presentation/screens/login_driver_screen.dart';
+import '../../feature/payMent/charge_point.dart';
+import '../../feature/payMent/pay_details.dart';
 import '../../feature/profile/profile_screen.dart';
 import '../../feature/tickets/tickets.dart';
 
@@ -29,6 +32,11 @@ abstract class RoutesManager {
   static const String tickets = "/tickets";
   static const String profile = "/profile";
   static const String qrScanner = "/qrScanner";
+  static const String chargePointsScreen = "/ChargePointsScreen";
+  static const String chargeMyPointsScreen = "/ChargeMyPointsScreen";
+
+
+
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const Splash(),
@@ -38,6 +46,12 @@ abstract class RoutesManager {
     loginDriver: (context) => const DriverLoginScreen(), // ربط شاشة دخول السائق
     forgetPassword: (context) => const PasswordRecoveryScreen(),
     mainWrapper: (context) => const MainWrapper(),
+    chargePointsScreen: (context) =>  ChargePointsScreen(),
+    chargePointsScreen: (context) =>  ChargeMyPointsScreen(),
+
+
+
+
 
     home: (context) => const HomeScreen(),
     driverHome: (context) => const DriverHomeScreen(), // ربط شاشة السائق الترحيبية

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:transite_way/feature/home/presentation/screens/home_screen.dart';
 import 'package:transite_way/feature/login/login.dart';
+import '../../payMent/charge_point.dart';
+import '../../payMent/pay_details.dart';
 import '../model/onboarding_model.dart';
 
 class OnboardingItem extends StatelessWidget {
@@ -88,7 +91,7 @@ class OnboardingItem extends StatelessWidget {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => LoginScreen() ),
+                          MaterialPageRoute(builder: (context) => ChargeMyPointsScreen() ),
                         );
                       },
 
