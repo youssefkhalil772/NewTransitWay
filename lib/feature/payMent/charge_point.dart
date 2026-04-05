@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/feature/payMent/pay_details.dart';
 // تأكدي من عمل import لملف الشاشة الثانية هنا
-// import 'package:transite_way/presentation/screens/payment_details_screen.dart';
 
 class ChargeMyPointsScreen extends StatefulWidget {
   const ChargeMyPointsScreen({super.key});

@@ -3,6 +3,7 @@ import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/feature/login/login.dart';
 
 import '../forget_password/presentation/screens/success_screen.dart';
+import 'Points.dart';
 
 class ChargePointsScreen extends StatelessWidget {
   @override
@@ -64,7 +65,7 @@ class ChargePointsScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => PointsScreen()));
                 },
                 child: Text("Pay Now", style: TextStyle(color: Colors.white, fontSize: 18)),
               ),

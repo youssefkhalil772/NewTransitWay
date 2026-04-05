@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../core/routes/routes_manager.dart';
 import '../home/presentation/widgets/custom_points_badge.dart';
+// أضف هذا الاستيراد
 
 class ProfileScreen extends StatefulWidget {
   // Callback لتغيير التبويب من الـ MainWrapper
@@ -18,7 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ProfileMenuItemModel(
         icon: Icons.star_border,
         title: 'Charge My Points',
-        route: RoutesManager.home,
+        route: RoutesManager.chargeMyPoints, // تم التعديل: استخدام المسار الصحيح
         iconColor: Colors.amber),
     ProfileMenuItemModel(
         icon: Icons.confirmation_number_outlined,
@@ -140,8 +141,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             widget.onViewTickets!();
           }
         } else if (item.title == 'Charge My Points') {
-          // التنقل لشاشة الـ Points
-          RoutesManager.navigateTo(context, RoutesManager.points);
+          // التنقل لشاشة الـ Points باستخدام المسار الصحيح
+          RoutesManager.navigateTo(context, RoutesManager.chargeMyPoints);
         }
         else if (item.route == RoutesManager.home && item.title != 'Home' && item.title != 'Charge My Points') {
           // رسائل التنبيه للخيارات التانية
