@@ -4,13 +4,13 @@ import 'package:http/http.dart' as http;
 class ForgetPasswordWebServices {
   final String baseUrl = "http://transit-way.runasp.net";
 
-  // البحث عن الإيميل الحقيقي باستخدام رقم الموبايل
+  // التعديل هنا: تم تغيير الـ Endpoint والـ Key ليتوافق مع الـ API الحقيقي
   Future<String?> getEmailByPhone(String phone) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/get-email-by-phone'),
+        Uri.parse('$baseUrl/api/Auth/get-email'), // تم التعديل لـ get-email
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': phone}),
+        body: jsonEncode({'PhoneNumber': phone}), // تم التعديل لـ PhoneNumber
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -23,7 +23,7 @@ class ForgetPasswordWebServices {
     }
   }
 
-  // دالة إخفاء الإيميل (تظهر أول حرف وآخر رقمين)
+  // دالة إخفاء الإيميل (تظهر أول حرف وآخر رقمين) - كما هي
   String maskEmail(String email) {
     final parts = email.split('@');
     final name = parts[0];
@@ -31,11 +31,10 @@ class ForgetPasswordWebServices {
 
     if (name.length <= 3) return email;
 
-    // تأخذ أول حرف + نجوم + آخر رقمين
     return "${name[0]}${'*' * (name.length - 3)}${name.substring(name.length - 2)}@$domain";
   }
 
-  // طلب إرسال الرمز (OTP)
+  // طلب إرسال الرمز (OTP) - كما هي
   Future<bool> requestReset(String email) async {
     try {
       final response = await http.post(
@@ -50,7 +49,7 @@ class ForgetPasswordWebServices {
     }
   }
 
-  // التحقق من الرمز
+  // التحقق من الرمز - كما هي
   Future<bool> verifyOtp({required String email, required String otp}) async {
     try {
       final response = await http.post(
@@ -64,7 +63,7 @@ class ForgetPasswordWebServices {
     }
   }
 
-  // تعيين كلمة المرور الجديدة
+  // تعيين كلمة المرور الجديدة - كما هي
   Future<bool> confirmReset(String email, String code, String newPassword) async {
     try {
       final response = await http.post(
