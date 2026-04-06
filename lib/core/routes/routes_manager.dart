@@ -7,6 +7,7 @@ import 'package:transite_way/feature/forget_password/presentation/screens/recove
 import 'package:transite_way/feature/home/presentation/screens/home_screen.dart';
 import 'package:transite_way/feature/home/presentation/screens/bus_tracking_screen.dart';
 import 'package:transite_way/feature/home/presentation/widgets/main_wrapper.dart';
+import 'package:transite_way/feature/payMent/charge_point.dart';
 
 import '../../feature/login_driver/presentation/screens/home/driver_home_screen.dart';
 import '../../feature/login_driver/presentation/screens/login_driver_screen.dart';
@@ -18,36 +19,43 @@ abstract class RoutesManager {
   static const String splash = "/splash";
   static const String onboardingScreen = "/onboardingScreen";
   static const String login = "/login";
-  static const String loginDriver = "/loginDriver"; // مسار تسجيل دخول السائق
+  static const String loginDriver = "/loginDriver";
   static const String signUp = "/signUp";
   static const String role = "/role";
   static const String forgetPassword = "/forgetPassword";
   static const String changePassword = "/changePassword";
   static const String mainWrapper = "/mainWrapper";
   static const String home = "/home";
-  static const String driverHome = "/driverHome"; // مسار صفحة السائق الرئيسية
+  static const String driverHome = "/driverHome";
   static const String busTracking = "/busTracking";
   static const String tickets = "/tickets";
   static const String profile = "/profile";
   static const String qrScanner = "/qrScanner";
+
+  // دمج الثوابت من الطرفين
   static const String tripTracking = "/tripTracking";
+  static const String chargeMyPoints = "/chargeMyPoints";
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const Splash(),
     role: (context) => RoleSelectScreen(),
     onboardingScreen: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
-    loginDriver: (context) => const DriverLoginScreen(), // ربط شاشة دخول السائق
+    loginDriver: (context) => const DriverLoginScreen(),
     forgetPassword: (context) => const PasswordRecoveryScreen(),
     mainWrapper: (context) => const MainWrapper(),
+
+    // إضافة شاشة التتبع الخاصة بك
     tripTracking: (context) => const TripTrackingScreen(),
+
     home: (context) => const HomeScreen(),
-    driverHome: (context) => const DriverHomeScreen(), // ربط شاشة السائق الترحيبية
+    driverHome: (context) => const DriverHomeScreen(),
     busTracking: (context) => const BusTrackingScreen(),
-
     tickets: (context) => const MyTicketsScreen(),
-
     profile: (context) => const ProfileScreen(),
+
+    // إضافة شاشة شحن النقاط من الـ develop
+    chargeMyPoints: (context) => const ChargeMyPointsScreen(),
   };
 
   static void navigateTo(BuildContext context, String routeName) {
