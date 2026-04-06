@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../core/routes/routes_manager.dart';
-import '../../core/resources/assest_manager.dart'; // أضف import routes
+import '../../core/resources/assest_manager.dart';
 
 const Color white = Color(0xFFFFFFFF);
-const Color darkGreen = Color(0xFF00661B);
+const Color darkGreen = Color(0xFF1B4D3E);
 
 class PointsScreen extends StatelessWidget {
   final int pointsAdded;
@@ -36,7 +36,7 @@ class PointsScreen extends StatelessWidget {
 
           // ── Step Indicator ──────────────────────────────────────
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 48.w),
+            padding: EdgeInsets.symmetric(horizontal: 100.w),
             child: Row(
               children: [
                 _StepCircle(number: 1, isActive: true),
