@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-
-import 'home/driver_home_screen.dart';
-// استيراد الخدمات والصفحة الجديدة (تأكد من المسارات في مشروعك)
-// import 'driver_home_screen.dart';
-// import 'driver_auth_services.dart';
+import 'package:transite_way/core/resources/color_manager.dart';
+import 'package:transite_way/core/routes/routes_manager.dart';
 
 class DriverLoginScreen extends StatefulWidget {
   const DriverLoginScreen({super.key});
@@ -30,26 +27,19 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
   void _handleDriverLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-
-      // محاكاة الاتصال بالـ API (سيتم ربطه لاحقاً)
       try {
-        // await DriverAuthServices().login(_emailController.text, _passwordController.text);
-        await Future.delayed(const Duration(seconds: 2)); // وهمي للتحميل
-
+        await Future.delayed(const Duration(seconds: 2));
         if (!mounted) return;
         setState(() => _isLoading = false);
-
-        // الانتقال لصفحة السائق
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-              (route) => false,
-        );
+        RoutesManager.navigateAndRemoveUntil(context, RoutesManager.driverHome);
       } catch (error) {
         if (!mounted) return;
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString()), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(error.toString()),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -58,7 +48,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: ColorManager.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: 30.w),
@@ -67,56 +57,107 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 100.h),
-                Text(
-                  'Driver Sign In',
-                  style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: const Color(0xFF1B1B1B)),
-                ),
-                SizedBox(height: 10.h),
-                Text(
-                  'Welcome back, Captain! Please enter your \ncredentials to start your shift.',
-                  style: TextStyle(fontSize: 15.sp, color: Colors.grey, height: 1.5),
-                ),
-                SizedBox(height: 50.h),
+                SizedBox(height: 60.h),
 
-                // حقل الإيميل
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: _buildInputDecoration('Driver Email', Icons.badge_outlined),
-                  validator: (value) => value!.isEmpty ? 'Please enter email' : null,
-                ),
-                SizedBox(height: 20.h),
-
-                // حقل الباسورد
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  decoration: _buildInputDecoration('Password', Icons.lock_outline).copyWith(
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                    ),
+                // ── Title ─────────────────────────────────────────
+                Text(
+                  'Please Sign In',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: ColorManager.black,
                   ),
-                  validator: (value) => value!.length < 6 ? 'Password is too short' : null,
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'Enter your account details for a personalised experience.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: ColorManager.grey1,
+                    height: 1.5,
+                  ),
                 ),
 
                 SizedBox(height: 40.h),
 
-                // زر الدخول
+                // ── Email Field ───────────────────────────────────
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: _buildInputDecoration('Email', Icons.email_outlined),
+                  validator: (value) =>
+                      value!.isEmpty ? 'Please enter your email' : null,
+                ),
+                SizedBox(height: 16.h),
+
+                // ── Password Field ────────────────────────────────
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: !_isPasswordVisible,
+                  decoration: _buildInputDecoration(
+                    'Password (at least 8 characters)',
+                    Icons.lock_outline,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: ColorManager.grey,
+                        size: 20.sp,
+                      ),
+                      onPressed: () => setState(
+                          () => _isPasswordVisible = !_isPasswordVisible),
+                    ),
+                  ),
+                  validator: (value) =>
+                      value!.length < 8 ? 'Password is too short' : null,
+                ),
+
+                SizedBox(height: 10.h),
+
+                // ── Forgot Password ───────────────────────────────
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => RoutesManager.navigateTo(
+                        context, RoutesManager.forgetPassword),
+                    child: Text(
+                      'Forgot Password?',
+                      style: TextStyle(
+                        color: ColorManager.lightGreen,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.sp,
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 24.h),
+
+                // ── Sign In Button ────────────────────────────────
                 SizedBox(
                   width: double.infinity,
-                  height: 55.h,
+                  height: 54.h,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleDriverLogin,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF064E3B),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                      backgroundColor: ColorManager.lightGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
                       elevation: 0,
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text('Login as Driver', style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                        : Text(
+                            'Sign In',
+                            style: TextStyle(
+                              color: ColorManager.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -130,11 +171,24 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
   InputDecoration _buildInputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, size: 22.sp),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
+      hintStyle: TextStyle(color: ColorManager.grey, fontSize: 14.sp),
+      prefixIcon: Icon(icon, size: 20.sp, color: ColorManager.grey),
+      contentPadding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+      ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12.r),
         borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: BorderSide(color: ColorManager.green, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: const BorderSide(color: Colors.red),
       ),
     );
   }
