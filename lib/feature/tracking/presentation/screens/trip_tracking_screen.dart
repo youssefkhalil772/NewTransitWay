@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/foundation.dart';
 import '../../data/tracking_service.dart';
 
 class TripTrackingScreen extends StatefulWidget {
@@ -16,7 +15,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   final TextEditingController _busIdController = TextEditingController();
 
   StreamSubscription<Position>? _positionStream;
-  Timer? _autoSendTimer;
+  DateTime? _lastSendTime; // للتحكم في معدل الإرسال (مثلاً كل ثانية)
 
   bool isRealTimeEnabled = false;
   bool isManualSending = false;
@@ -31,14 +30,23 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   }
 
   void _startLiveSpeedometer() {
-    final locationSettings = AndroidSettings(
+    // إعدادات الموقع للأندرويد لضمان استلام التحديثات بدقة
+    final androidSettings = AndroidSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: 0,
-      intervalDuration: const Duration(milliseconds: 500),
+      intervalDuration: const Duration(seconds: 1),
+    );
+    
+    // إعدادات الموقع للـ iOS
+    final appleSettings = AppleSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 0,
+      pauseLocationUpdatesAutomatically: false,
     );
 
-    _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
-        .listen((Position pos) {
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: androidSettings, // أو استخدم appleSettings لو شغال iOS
+    ).listen((Position pos) {
       if (mounted) {
         setState(() {
           double rawSpeed = pos.speed < 0 ? 0 : pos.speed * 3.6;
@@ -46,10 +54,26 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           lat = pos.latitude;
           lng = pos.longitude;
         });
+
+        if (isRealTimeEnabled) {
+          _sendDataLocally(pos);
+        }
       }
     }, onError: (error) {
       debugPrint("GPS Stream Error: $error");
     });
+  }
+
+  void _sendDataLocally(Position pos) {
+    final now = DateTime.now();
+    if (_lastSendTime == null || now.difference(_lastSendTime!) >= const Duration(seconds: 1)) {
+      _lastSendTime = now;
+      int id = int.tryParse(_busIdController.text.trim()) ?? 0;
+      if (id != 0) {
+        _service.sendToApi(id, pos.latitude, pos.longitude, pos.speed * 3.6);
+        debugPrint("📡 Real-Time Sync: Lat: ${pos.latitude}, Lng: ${pos.longitude}");
+      }
+    }
   }
 
   void toggleRealTime(bool value) {
@@ -63,14 +87,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
 
     if (isRealTimeEnabled) {
-      _autoSendTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-        int id = int.tryParse(_busIdController.text.trim()) ?? 0;
-        await _service.sendToApi(id, lat, lng, speed);
-        debugPrint("Auto-Sync: Data pushed to server.");
-      });
       _showSnackBar("Real-Time Tracking Active 📡");
     } else {
-      _autoSendTimer?.cancel();
       _showSnackBar("Real-Time Mode Disabled");
     }
   }
@@ -78,7 +96,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   @override
   void dispose() {
     _positionStream?.cancel();
-    _autoSendTimer?.cancel();
     _busIdController.dispose();
     _service.dispose();
     super.dispose();
@@ -100,11 +117,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isRealTimeEnabled ? Colors.blueAccent.withOpacity(0.1) : const Color(0xFF1E293B),
+                color: isRealTimeEnabled ? Colors.blueAccent.withAlpha(25) : const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: isRealTimeEnabled ? Colors.blueAccent : Colors.transparent),
               ),
@@ -116,21 +132,19 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                     children: [
                       const Text("REAL-TIME SYNC",
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      Text(isRealTimeEnabled ? "Updating every 1s" : "Manual mode active",
+                      Text(isRealTimeEnabled ? "Updating live from GPS" : "Manual mode active",
                           style: const TextStyle(color: Colors.blueGrey, fontSize: 11)),
                     ],
                   ),
                   Switch(
                     value: isRealTimeEnabled,
                     onChanged: toggleRealTime,
-                    activeColor: Colors.blueAccent,
+                    activeTrackColor: Colors.blueAccent,
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -157,10 +171,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 40),
-
-
             Stack(
               alignment: Alignment.center,
               children: [
@@ -168,7 +179,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                   height: 250, width: 250,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: isRealTimeEnabled ? Colors.blueAccent : Colors.blueAccent.withOpacity(0.1), width: 2),
+                    border: Border.all(color: isRealTimeEnabled ? Colors.blueAccent : Colors.blueAccent.withAlpha(25), width: 2),
                   ),
                 ),
                 Container(
@@ -176,11 +187,11 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [Colors.blueAccent.withOpacity(0.1), Colors.transparent],
+                      colors: [Colors.blueAccent.withAlpha(25), Colors.transparent],
                     ),
                     border: Border.all(color: isRealTimeEnabled ? Colors.blueAccent : Colors.blueAccent.withAlpha(100), width: 8),
                     boxShadow: isRealTimeEnabled ? [
-                      BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 40, spreadRadius: 5),
+                      BoxShadow(color: Colors.blueAccent.withAlpha(76), blurRadius: 40, spreadRadius: 5),
                     ] : [],
                   ),
                   child: Column(
@@ -196,9 +207,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 40),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -206,9 +215,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                 _buildInfoTile("LONGITUDE", lng.toStringAsFixed(5)),
               ],
             ),
-
             const SizedBox(height: 50),
-
             SizedBox(
               width: double.infinity,
               height: 65,

@@ -1,16 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../../core/networking/api_constants.dart';
 
 class ForgetPasswordWebServices {
-  final String baseUrl = "http://transit-way.runasp.net";
-
-  // التعديل هنا: تم تغيير الـ Endpoint والـ Key ليتوافق مع الـ API الحقيقي
   Future<String?> getEmailByPhone(String phone) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/get-email'), // تم التعديل لـ get-email
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.getEmail}'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'PhoneNumber': phone}), // تم التعديل لـ PhoneNumber
+        body: jsonEncode({'PhoneNumber': phone}),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -18,42 +16,35 @@ class ForgetPasswordWebServices {
       }
       return null;
     } catch (e) {
-      print("Error in getEmailByPhone: $e");
       return null;
     }
   }
 
-  // دالة إخفاء الإيميل (تظهر أول حرف وآخر رقمين) - كما هي
   String maskEmail(String email) {
     final parts = email.split('@');
     final name = parts[0];
     final domain = parts[1];
-
     if (name.length <= 3) return email;
-
     return "${name[0]}${'*' * (name.length - 3)}${name.substring(name.length - 2)}@$domain";
   }
 
-  // طلب إرسال الرمز (OTP) - كما هي
   Future<bool> requestReset(String email) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/request-reset'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.requestReset}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      print("Error in requestReset: $e");
       return false;
     }
   }
 
-  // التحقق من الرمز - كما هي
   Future<bool> verifyOtp({required String email, required String otp}) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/verify-code'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.verifyCode}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"code": otp, "Email": email}),
       );
@@ -63,11 +54,10 @@ class ForgetPasswordWebServices {
     }
   }
 
-  // تعيين كلمة المرور الجديدة - كما هي
   Future<bool> confirmReset(String email, String code, String newPassword) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/confirm-reset'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.confirmReset}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,

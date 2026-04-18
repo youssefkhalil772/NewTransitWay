@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../profile/profile_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../profile/profile_screen.dart'; 
 import '../../../qr_scanner/success_dialog.dart';
 import '../../../tickets/tickets.dart';
 import '../screens/home_screen.dart';
+import 'custom_points_badge.dart'; // نحتاجه لتحديث الرصيد
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -14,21 +16,43 @@ class MainWrapper extends StatefulWidget {
 
 class _MainWrapperState extends State<MainWrapper> {
   int _selectedIndex = 0;
+  int _userId = 1;
+  int _ticketsRefreshKey = 0;
+  int _qrRefreshKey = 0;
 
-  List<Widget> get _pages => [
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = prefs.getInt('userId') ?? 1;
+    });
+    // تحديث الرصيد عند فتح الأبلكيشن لأول مرة
+    CustomPointsBadge.fetchAndRefreshGlobalBalance();
+  }
+
+  List<Widget> _pages() => [
     const HomeScreen(),
-    // شاشة التذاكر
     MyTicketsScreen(
+      userId: _userId,
+      refreshTrigger: _ticketsRefreshKey,
       onBackToHome: () => setState(() => _selectedIndex = 0),
     ),
-    // شاشة الـ QR
     QRScannerPage(
-      key: _selectedIndex == 2 ? UniqueKey() : null,
+      key: _selectedIndex == 2 ? ValueKey('qr_active_$_qrRefreshKey') : const ValueKey('qr_inactive'),
       isActive: _selectedIndex == 2,
       onBackToHome: () => setState(() => _selectedIndex = 0),
-      onViewTickets: () => setState(() => _selectedIndex = 1),
+      onViewTickets: () {
+        setState(() {
+          _selectedIndex = 1;
+          _ticketsRefreshKey++;
+        });
+      },
     ),
-    // شاشة البروفايل
     ProfileScreen(
       onViewTickets: () => setState(() => _selectedIndex = 1),
     ),
@@ -39,11 +63,20 @@ class _MainWrapperState extends State<MainWrapper> {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: _pages(),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+            if (index == 1) _ticketsRefreshKey++;
+            if (index == 2) _qrRefreshKey++;
+          });
+          // التعديل هنا: تحديث الرصيد تلقائياً في كل مرة المستخدم يغير التبويب (Tab)
+          // ده بيضمن إن لو الأدمن غير حاجة، اليوزر يشوفها فوراً وهو بيتجول في الأبلكيشن
+          CustomPointsBadge.fetchAndRefreshGlobalBalance();
+        },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF1B6A4C),
         unselectedItemColor: Colors.grey,

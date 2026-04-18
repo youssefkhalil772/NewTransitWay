@@ -1,37 +1,52 @@
 class BusModel {
   final String busNumber;
-  final String driverName;
-  final String arrivalTime;
-  final String status;
-  final double lat; // لإحداثيات الخريطة
+  final String? driverName;
+  final String? arrivalTime;
+  final String? status;
+  final double lat;
   final double lng;
+  // الحقول الجديدة اللي زادت في الـ API التحديث الأخير
+  final String? distanceToStation;
+  final String? tripDistance;
 
   BusModel({
     required this.busNumber,
-    required this.driverName,
-    required this.arrivalTime,
-    required this.status,
-    required this.lat,
-    required this.lng,
+    this.driverName,
+    this.arrivalTime,
+    this.status,
+    this.lat = 0.0,
+    this.lng = 0.0,
+    this.distanceToStation,
+    this.tripDistance,
   });
 
   factory BusModel.fromJson(Map<String, dynamic> json) {
     return BusModel(
-      busNumber: json['bus_number'] ?? '',
-      driverName: json['driver_name'] ?? 'Unknown',
-      arrivalTime: json['arrival_time'] ?? '--',
+      // بنستخدم الأسماء اللي السيرفر بيبعتها فعلياً
+      busNumber: json['busNumber']?.toString() ?? json['bus_number']?.toString() ?? '',
+      driverName: json['driverName'] ?? json['driver_name'] ?? 'Unknown',
+
+      // الداتا دي جاية من الـ Search API الجديد
+      arrivalTime: json['estimatedArrivalTime'] ?? json['arrival_time'] ?? '--',
+      distanceToStation: json['distanceToStationKm']?.toString(),
+      tripDistance: json['tripDistanceKm']?.toString(),
+
       status: json['status'] ?? 'On Way',
-      lat: (json['lat'] as num).toDouble(),
-      lng: (json['lng'] as num).toDouble(),
+
+      // بنستخدم num عشان يقبل int أو double من غير مشاكل
+      lat: (json['latitude'] ?? json['lat'] ?? 0.0) as double,
+      lng: (json['longitude'] ?? json['lng'] ?? 0.0) as double,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'bus_number': busNumber,
-    'driver_name': driverName,
-    'arrival_time': arrivalTime,
+    'busNumber': busNumber,
+    'driverName': driverName,
+    'estimatedArrivalTime': arrivalTime,
     'status': status,
-    'lat': lat,
-    'lng': lng,
+    'latitude': lat,
+    'longitude': lng,
+    'distanceToStationKm': distanceToStation,
+    'tripDistanceKm': tripDistance,
   };
 }

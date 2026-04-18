@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:transite_way/feature/login/login.dart';
 import 'package:transite_way/feature/onboarding/screen/onboarding_screen.dart';
@@ -31,32 +32,43 @@ abstract class RoutesManager {
   static const String tickets = "/tickets";
   static const String profile = "/profile";
   static const String qrScanner = "/qrScanner";
-
-  // دمج الثوابت من الطرفين
   static const String tripTracking = "/tripTracking";
   static const String chargeMyPoints = "/chargeMyPoints";
 
-  static Map<String, WidgetBuilder> routes = {
-    splash: (context) => const Splash(),
-    role: (context) => RoleSelectScreen(),
-    onboardingScreen: (context) => const OnboardingScreen(),
-    login: (context) => const LoginScreen(),
-    loginDriver: (context) => const DriverLoginScreen(),
-    forgetPassword: (context) => const PasswordRecoveryScreen(),
-    mainWrapper: (context) => const MainWrapper(),
-
-    // إضافة شاشة التتبع الخاصة بك
-    tripTracking: (context) => const TripTrackingScreen(),
-
-    home: (context) => const HomeScreen(),
-    driverHome: (context) => const DriverHomeScreen(),
-    busTracking: (context) => const BusTrackingScreen(),
-    tickets: (context) => const MyTicketsScreen(),
-    profile: (context) => const ProfileScreen(),
-
-    // إضافة شاشة شحن النقاط من الـ develop
-    chargeMyPoints: (context) => const ChargeMyPointsScreen(),
-  };
+  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case splash:
+        return CupertinoPageRoute(builder: (_) => const Splash());
+      case role:
+        return CupertinoPageRoute(builder: (_) => RoleSelectScreen());
+      case onboardingScreen:
+        return CupertinoPageRoute(builder: (_) => const OnboardingScreen());
+      case login:
+        return CupertinoPageRoute(builder: (_) => const LoginScreen());
+      case loginDriver:
+        return CupertinoPageRoute(builder: (_) => const DriverLoginScreen());
+      case forgetPassword:
+        return CupertinoPageRoute(builder: (_) => const PasswordRecoveryScreen());
+      case mainWrapper:
+        return CupertinoPageRoute(builder: (_) => const MainWrapper());
+      case tripTracking:
+        return CupertinoPageRoute(builder: (_) => const TripTrackingScreen());
+      case home:
+        return CupertinoPageRoute(builder: (_) => const HomeScreen());
+      case driverHome:
+        return CupertinoPageRoute(builder: (_) => const DriverHomeScreen());
+      case busTracking:
+        return CupertinoPageRoute(builder: (_) => const BusTrackingScreen(), settings: settings);
+      case tickets:
+        return CupertinoPageRoute(builder: (_) => const MyTicketsScreen());
+      case profile:
+        return CupertinoPageRoute(builder: (_) => const ProfileScreen());
+      case chargeMyPoints:
+        return CupertinoPageRoute(builder: (_) => const ChargeMyPointsScreen());
+      default:
+        return CupertinoPageRoute(builder: (_) => const Splash());
+    }
+  }
 
   static void navigateTo(BuildContext context, String routeName) {
     Navigator.pushNamed(context, routeName);

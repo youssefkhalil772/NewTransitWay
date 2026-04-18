@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transite_way/feature/sign_up/presentation/screens/sign_up_screen.dart';
 import '../../core/routes/routes_manager.dart';
 import '../home/presentation/widgets/main_wrapper.dart';
@@ -27,14 +28,34 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _saveUserData(Map<String, dynamic> userData) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = userData['id'];
+    final fullName = userData['fullName'];
+    final email = userData['email'];
+
+    if (userId != null) {
+      await prefs.setInt('userId', userId);
+    }
+    if (fullName != null) {
+      await prefs.setString('fullName', fullName);
+    }
+    if (email != null) {
+      await prefs.setString('email', email);
+    }
+  }
+
   void _handleSignIn() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        await LoginWebServices().login(
+        final response = await LoginWebServices().login(
           _emailController.text,
           _passwordController.text,
         );
+        
+        await _saveUserData(response);
+
         if (!mounted) return;
         setState(() => _isLoading = false);
         Navigator.pushAndRemoveUntil(
@@ -66,7 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      await LoginWebServices().loginWithGoogle(googleAuth.idToken!);
+      final response = await LoginWebServices().loginWithGoogle(googleAuth.idToken!);
+      
+      await _saveUserData(response);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -198,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 55,
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _handleGoogleSignIn,
-                      icon: Image.network('https://img.icons8.com/color/48/000000/google-logo.png', height: 24),
+                      icon: Image.asset('assets/icons/google.png', height: 24, errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, color: Colors.blue, size: 24)),
                       label: const Text('Sign in with Google', style: TextStyle(color: Colors.black87, fontSize: 16)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFE0E0E0)),
