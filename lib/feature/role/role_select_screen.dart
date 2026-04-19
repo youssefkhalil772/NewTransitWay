@@ -67,7 +67,7 @@ class RoleSelectScreen extends StatelessWidget {
                   text: "Sign In as Driver",
                   color: const Color(0XFF054F3A),
                   onPressed: () {
-                    Navigator.pushNamed(context,RoutesManager.loginDriver);
+                    Navigator.pushNamed(context,RoutesManager.driverSplash);
                   },
                 ),
                 SizedBox(height: 20),
