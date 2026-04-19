@@ -7,7 +7,6 @@ import 'package:transite_way/feature/sign_up/data/web_services/sign_up_web_servi
 import 'package:transite_way/feature/sign_up/presentation/cubit/sign_up_cubit.dart';
 import 'package:transite_way/feature/sign_up/presentation/cubit/sign_up_state.dart';
 
-
 class SignUpPage extends StatelessWidget {
   const SignUpPage({super.key});
 
@@ -44,6 +43,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _hasMinLength = false;
   bool _hasLetterAndNumber = false;
   bool _hasSpecialChar = false;
+
+  String _selectedAvatar = 'assets/logo/3.png';
 
   @override
   void dispose() {
@@ -102,7 +103,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildBackButton(),
                       const SizedBox(height: 20),
                       _buildHeader(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 30),
+                      Center(child: _buildAvatarPicker()),
+                      const SizedBox(height: 30),
                       _buildForm(),
                       const SizedBox(height: 24),
                       _buildContinueButton(),
@@ -119,6 +122,82 @@ class _SignUpScreenState extends State<SignUpScreen> {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarPicker() {
+    return Column(
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFFFC107),
+              ),
+              child: ClipOval(
+                child: Image.asset(_selectedAvatar, fit: BoxFit.cover),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: GestureDetector(
+                onTap: _showAvatarSelectionDialog,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: Color(0xFF065F46), shape: BoxShape.circle),
+                  child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text("Choose your avatar", style: TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
+    );
+  }
+
+  void _showAvatarSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Avatar'),
+        content: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildAvatarOption('assets/logo/3.png'),
+            _buildAvatarOption('assets/images/Avatar.png'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarOption(String path) {
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedAvatar = path);
+        Navigator.pop(context);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _selectedAvatar == path ? const Color(0xFF065F46) : Colors.transparent,
+            width: 2,
+          ),
+          shape: BoxShape.circle,
+        ),
+        child: CircleAvatar(
+          radius: 35,
+          backgroundColor: const Color(0xFFFFC107),
+          backgroundImage: AssetImage(path),
         ),
       ),
     );
@@ -141,7 +220,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             TextButton(
               child: const Text('Go to Sign In'),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop(); 
                 Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
               },
             ),
@@ -449,6 +528,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               email: _emailController.text,
               phone: _phoneController.text,
               password: _passwordController.text,
+              avatar: _selectedAvatar,
             );
             context.read<SignUpCubit>().signUp(requestBody);
           }
@@ -485,7 +565,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       height: 50,
       child: OutlinedButton.icon(
         onPressed: () {},
-        icon: Image.asset('assets/icons/icons_google.png', height: 20),
+        icon: Image.asset('assets/icons/google.png', height: 20),
         label: const Text(
           'Continue with Google',
           style: TextStyle(color: Colors.black),

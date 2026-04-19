@@ -11,66 +11,74 @@ class RoleSelectScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF1B5E37),
       body: Column(
         children: [
-
           Expanded(
             flex: 2,
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(height: 60,),
-
+                  const SizedBox(height: 60),
                   Image.asset(ImageAssets.logo)
                 ],
               ),
             ),
           ),
-
-
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(30),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+            decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(40),
-                topRight: Radius.circular(40),
+                topLeft: Radius.circular(60),
+                topRight: Radius.circular(60),
               ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                const Text(
                   "Welcome to TransitWay",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   "Choose how you want to Sign In",
                   style: TextStyle(color: Colors.grey[600], fontSize: 16),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-
+                // Passenger Image
+                Image.asset(
+                  'assets/images/sgin in user.png',
+                  height: 100,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 10),
                 buildSignButton(
                   text: "Sign In as Passenger",
                   color: const Color(0XFF054F3A),
                   onPressed: () {
-                     Navigator.pushNamed(context,RoutesManager.onboardingScreen);
+                    Navigator.pushNamed(context, RoutesManager.onboardingScreen);
                   },
                 ),
 
-                SizedBox(height: 15),
+                const SizedBox(height: 30),
 
-
+                // Driver Image
+                Image.asset(
+                  'assets/images/sgin in driver.png',
+                  height: 100,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 10),
                 buildSignButton(
                   text: "Sign In as Driver",
                   color: const Color(0XFF054F3A),
                   onPressed: () {
-                    Navigator.pushNamed(context,RoutesManager.driverSplash);
+                    Navigator.pushNamed(context, RoutesManager.loginDriver);
                   },
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -78,7 +86,6 @@ class RoleSelectScreen extends StatelessWidget {
       ),
     );
   }
-
 
   Widget buildSignButton({required String text, required Color color, required VoidCallback onPressed}) {
     return SizedBox(
@@ -94,7 +101,7 @@ class RoleSelectScreen extends StatelessWidget {
         onPressed: onPressed,
         child: Text(
           text,
-          style: TextStyle(color: Colors.white, fontSize: 16),
+          style: const TextStyle(color: Colors.white, fontSize: 16),
         ),
       ),
     );

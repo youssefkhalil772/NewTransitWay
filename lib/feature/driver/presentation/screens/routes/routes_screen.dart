@@ -98,7 +98,7 @@ class RoutesScreen extends StatelessWidget {
                     Container(
                       padding: EdgeInsets.all(20.w),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
+                        color: Colors.green.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20.r),
                       ),
                       margin: EdgeInsets.all(20.w),
@@ -115,8 +115,8 @@ class RoutesScreen extends StatelessWidget {
                             height: 50.h,
                             child: ElevatedButton(
                               onPressed: () {
-                                // الانتقال لشاشة البروفايل عند الضغط على End Trip
-                                RoutesManager.navigateTo(context, RoutesManager.driverProfile);
+                                // تم التعديل للاسم الصحيح الموجود في RoutesManager
+                                RoutesManager.navigateTo(context, RoutesManager.profile);
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF2E7D32),

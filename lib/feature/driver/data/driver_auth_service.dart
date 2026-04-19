@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../../core/networking/api_constants.dart';
 
 class DriverAuthServices {
-  final String baseUrl = "http://transit-way.runasp.net";
-
   Future<Map<String, dynamic>> login(String email, String password) async {
-    // هنا مستقبلاً هتضيف كود الـ http.post زي اللي عملناه في صفحة اليوزر
-    // حالياً هنرجّع قيمة نجاح وهمية للتجربة
+    // تم توحيد الـ Base URL هنا أيضاً
     await Future.delayed(const Duration(seconds: 1));
     return {'status': 'success', 'role': 'driver'};
   }

@@ -192,7 +192,8 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
               height: 56.h,
               child: ElevatedButton(
                 onPressed: () {
-                  RoutesManager.navigateTo(context, RoutesManager.driverRoutes);
+                  // تم التعديل من driverRoutes إلى driverHome
+                  RoutesManager.navigateTo(context, RoutesManager.driverHome);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: green,
