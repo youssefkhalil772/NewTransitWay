@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../../core/routes/routes_manager.dart';
+import '../../../notifications/data/notification_service.dart';
 import '../widgets/custom_points_badge.dart';
 import '../../data/home_repository.dart';
 import '../../data/models/station_model.dart';
@@ -205,14 +206,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (result == "OPEN_QR" && widget.onScanRequested != null) widget.onScanRequested!();
       }
     } catch (e) {
-      if (mounted) _showErrorDialog("Bus Not Found", "No available buses on this route currently.");
+      if (mounted) {
+         _showErrorDialog("Trip Notice", e.toString());
+      }
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }
   }
 
   void _showErrorDialog(String title, String message) {
-    showDialog(context: context, builder: (context) => AlertDialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)), content: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.bus_alert, color: const Color(0xFFB71C1C), size: 50.sp), SizedBox(height: 15.h), Text(title, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)), SizedBox(height: 8.h), Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey)), SizedBox(height: 20.h), ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: const Color(0XFF054F3A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r))), child: const Text("OK", style: TextStyle(color: Colors.white)))])));
+    showDialog(
+      context: context, 
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)), 
+        contentPadding: EdgeInsets.all(20.w),
+        content: Column(
+          mainAxisSize: MainAxisSize.min, 
+          children: [
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDF2F2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.info_outline_rounded, color: const Color(0xFFE24B4A), size: 30.sp),
+            ),
+            SizedBox(height: 16.h), 
+            Text(title, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.black)), 
+            SizedBox(height: 10.h), 
+            Text(
+              message, 
+              textAlign: TextAlign.center, 
+              style: TextStyle(fontSize: 14.sp, color: Colors.grey[700], height: 1.4),
+            ), 
+            SizedBox(height: 24.h), 
+            SizedBox(
+              width: double.infinity,
+              height: 45.h,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context), 
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0XFF054F3A), 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                  elevation: 0,
+                ), 
+                child: const Text("Got it", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            )
+          ]
+        )
+      )
+    );
   }
 
   @override
@@ -365,10 +409,49 @@ class _StaticHeader extends StatelessWidget {
               SizedBox(width: 4.w),
               Icon(Icons.location_on, color: const Color(0xFF1B6A4C), size: 24.sp)
             ]),
-            const CustomPointsBadge()
+            Row(
+              children: [
+                _buildNotificationIcon(context),
+                SizedBox(width: 12.w),
+                const CustomPointsBadge(),
+              ],
+            )
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildNotificationIcon(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: InAppNotificationService().unreadCountStream,
+      builder: (context, snapshot) {
+        int count = snapshot.data ?? 0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              icon: Icon(Icons.notifications_none_rounded, color: Colors.black, size: 28.sp),
+              onPressed: () => Navigator.pushNamed(context, RoutesManager.notifications),
+            ),
+            if (count > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                  constraints: BoxConstraints(minWidth: 16.w, minHeight: 16.w),
+                  child: Text(
+                    count > 9 ? '+9' : count.toString(),
+                    style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

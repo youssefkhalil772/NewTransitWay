@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
 class ApiService {
   final http.Client _client = http.Client();
 
-  // زيادة الوقت لـ 30 ثانية عشان ندي فرصة للسيرفر يرد في حالة الضغط
   static const Duration _timeoutDuration = Duration(seconds: 30);
 
   Future<dynamic> get(String endpoint, {Map<String, String>? headers, String? fullUrl}) async {
@@ -19,7 +19,7 @@ class ApiService {
       
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception("Connection timeout. The server is taking too long to respond.");
+      throw "Connection timeout. The server is taking too long to respond.";
     } catch (e) {
       rethrow;
     }
@@ -36,18 +36,65 @@ class ApiService {
       
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception("Request timeout. The server is taking too long to respond.");
+      throw "Request timeout. The server is taking too long to respond.";
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // دالة جديدة لتحديث البيانات مع صورة (Multipart Request)
+  Future<dynamic> putMultipart(String endpoint, {
+    Map<String, String>? fields,
+    File? file,
+    String fileKey = "Photo",
+  }) async {
+    final url = Uri.parse("${ApiConstants.baseUrl}$endpoint");
+    try {
+      var request = http.MultipartRequest('PUT', url);
+      
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+      
+      if (file != null) {
+        request.files.add(await http.MultipartFile.fromPath(fileKey, file.path));
+      }
+
+      var streamedResponse = await request.send().timeout(_timeoutDuration);
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw "Request timeout. The server is taking too long to respond.";
     } catch (e) {
       rethrow;
     }
   }
 
   dynamic _handleResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
+    final bool isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+    
+    if (isSuccess) {
       if (response.body.isEmpty) return {};
       return jsonDecode(response.body);
     } else {
-      throw Exception("Server Error: ${response.statusCode}");
+      if (response.body.isEmpty) {
+        throw "Server Error: ${response.statusCode}";
+      }
+
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map) {
+          String msg = errorData['message'] ?? "";
+          if (errorData.containsKey('workingHours')) {
+            msg += "\n\nWorking Hours: ${errorData['workingHours']}";
+          }
+          if (msg.isNotEmpty) throw msg;
+        }
+      } catch (e) {
+        if (e is String) rethrow;
+      }
+      throw response.body;
     }
   }
 }

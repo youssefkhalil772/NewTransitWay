@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import 'package:transite_way/feature/sign_up/data/models/sign_up_request_body.dart';
@@ -10,12 +11,12 @@ class SignUpCubit extends Cubit<SignUpState> {
 
   SignUpCubit(this._signUpRepository) : super(SignUpInitial());
 
-  void signUp(SignUpRequestBody signUpRequestBody) async {
+  void signUp(SignUpRequestBody signUpRequestBody, File? photo) async {
     emit(SignUpLoading());
     try {
-      final http.Response response = await _signUpRepository.signUp(signUpRequestBody);
+      final http.Response response = await _signUpRepository.signUp(signUpRequestBody, photo);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         emit(SignUpSuccess());
       } else {
         try {
@@ -28,7 +29,7 @@ class SignUpCubit extends Cubit<SignUpState> {
             emit(SignUpFailure(errorMessage: message));
           }
         } catch (e) {
-          emit(SignUpFailure(errorMessage: "email already exited please login to continue."));
+          emit(SignUpFailure(errorMessage: "Registration failed. Please try again."));
         }
       }
     } catch (e) {

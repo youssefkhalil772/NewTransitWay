@@ -5,6 +5,8 @@ import 'package:transite_way/feature/driver/presentation/screens/add_tickets/add
 import 'package:transite_way/feature/driver/presentation/screens/home/widgets/home_widgets.dart';
 import 'package:transite_way/feature/driver/presentation/screens/profile/profile_screen_driver.dart';
 import 'package:transite_way/feature/driver/presentation/screens/routes/routes_screen.dart';
+import 'package:transite_way/feature/home/data/models/station_model.dart';
+import 'package:transite_way/feature/home/presentation/widgets/custom_app_bar.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -15,60 +17,76 @@ class DriverHomeScreen extends StatefulWidget {
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _selectedIndex = 0;
+  int _routesRefreshKey = 0; 
+  List<StationModel> _currentTripStations = []; 
 
-  final List<Widget> _pages = const [
-    HomeTabBody(),
-    AddTicketsScreen(),
-    RoutesScreen(),
-    ProfileScreenDriver(),
-  ];
+  void _onTabChanged(int index, {List<StationModel>? stations}) {
+    setState(() {
+      _selectedIndex = index;
+      
+      // لو فيه stations مبعوتة، ده معناه إننا بدأنا رحلة جديدة فعلاً من صفحة الـ Home
+      if (stations != null) {
+        _currentTripStations = stations;
+        _routesRefreshKey++; // بنزود الـ Key هنا بس عشان نصفر حالة الخريطة للرحلة الجديدة
+      }
+      
+      // شلنا الـ increment اللي كان هنا لما index == 2
+      // عشان لما تتنقل للـ tab بتاع الـ routes ميصفرش الحالة
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // استخدمنا IndexedStack عشان يحافظ على حالة الصفحات في الذاكرة وميعدش بنائهم
+    final List<Widget> pages = [
+      HomeTabBody(
+        onStartTrip: (stations) => _onTabChanged(2, stations: stations),
+      ),
+      const AddTicketsScreen(isTab: true),
+      RoutesScreen(
+        onEndTrip: () => _onTabChanged(0),
+        onGoHome: () => _onTabChanged(0),
+        isTab: true,
+        refreshTrigger: _routesRefreshKey,
+        stations: _currentTripStations,
+      ),
+      ProfileScreenDriver(
+        isTab: true,
+        onAddTicketsTap: () => _onTabChanged(1),
+      ),
+    ];
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF),
-      body: _pages[_selectedIndex],
+      backgroundColor: Colors.white,
+      appBar: _selectedIndex == 0 
+          ? null 
+          : CustomAppBar(isDriver: true, showPoints: false),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: pages,
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: ColorManager.white,
-          border: Border(
-            top: BorderSide(color: const Color(0xffDADADA), width: 2),
+          border: const Border(
+            top: BorderSide(color: Color(0xffDADADA), width: 1),
           ),
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
-          onTap: (i) => setState(() => _selectedIndex = i),
+          onTap: (i) => _onTabChanged(i),
           type: BottomNavigationBarType.fixed,
           backgroundColor: ColorManager.white,
-          selectedItemColor: ColorManager.lightGreen,
+          selectedItemColor: const Color(0xFF39C449),
           unselectedItemColor: ColorManager.grey,
           elevation: 0,
-          selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 12,
-          ),
+          selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.sp),
           unselectedLabelStyle: TextStyle(fontSize: 11.sp),
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.confirmation_number_outlined),
-              activeIcon: Icon(Icons.confirmation_number),
-              label: 'Add Tickets',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined),
-              activeIcon: Icon(Icons.map),
-              label: 'Routes',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.confirmation_number_outlined), activeIcon: Icon(Icons.confirmation_number), label: 'Add Tickets'),
+            BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Routes'),
+            BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),

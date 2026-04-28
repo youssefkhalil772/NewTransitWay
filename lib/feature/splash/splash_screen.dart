@@ -4,14 +4,23 @@ import 'package:transite_way/core/resources/color_manager.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/core/routes/routes_manager.dart';
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class CommonSplashScreen extends StatefulWidget {
+  final String? subTitle;
+  final String nextRoute;
+  final Color? backgroundColor;
+
+  const CommonSplashScreen({
+    super.key,
+    this.subTitle,
+    required this.nextRoute,
+    this.backgroundColor,
+  });
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<CommonSplashScreen> createState() => _CommonSplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _CommonSplashScreenState extends State<CommonSplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fade;
@@ -30,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
-        RoutesManager.navigateAndRemoveUntil(context, RoutesManager.loginDriver);
+        RoutesManager.navigateAndRemoveUntil(context, widget.nextRoute);
       }
     });
   }
@@ -44,31 +53,66 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ColorManager.green,
+      backgroundColor: widget.backgroundColor ?? ColorManager.green,
       body: Center(
         child: FadeTransition(
           opacity: _fade,
           child: ScaleTransition(
             scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(ImageAssets.logo1, height: 120.h),
-                SizedBox(height: 16.h),
-                Text(
-                  'Driver',
-                  style: TextStyle(
-                    color: ColorManager.white,
-                    fontSize: 16.sp,
-                    letterSpacing: 3,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
+            child: widget.subTitle == 'Driver' 
+              ? _buildDriverSplashContent() 
+              : _buildDefaultSplashContent(),
           ),
         ),
       ),
+    );
+  }
+
+  // محتوى السبلاش الخاص بالدرايفر طبق الأصل من الصورة
+  Widget _buildDriverSplashContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Image.asset(ImageAssets.logo, height: 180.h), // اللوجو الأساسي الذي يحتوي على الأتوبيس والمارك
+            Positioned(
+              right: 90.w, // تم تحريك الكلمة لليسار لتكون بجانب المارك الموجود في اللوجو
+              top: 50.h,  // ضبط الارتفاع ليتماشى مع مكان المارك في الصورة
+              child: Text(
+                'Driver',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDefaultSplashContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(ImageAssets.logo, height: 120.h),
+      ],
+    );
+  }
+}
+
+class DriverSplash extends StatelessWidget {
+  const DriverSplash({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return const CommonSplashScreen(
+      subTitle: 'Driver',
+      backgroundColor: Color(0XFF34C759), // لون الـ lightGreen المطلوب #34C759
+      nextRoute: RoutesManager.loginDriver,
     );
   }
 }

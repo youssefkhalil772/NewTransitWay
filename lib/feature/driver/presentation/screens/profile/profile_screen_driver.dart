@@ -1,122 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
+import 'package:transite_way/core/widgets/common_profile_view.dart';
+import 'edit_profile_screen.dart';
+import 'ticket_history_screen.dart';
 
-class ProfileScreenDriver extends StatelessWidget {
-  const ProfileScreenDriver({super.key});
+class ProfileScreenDriver extends StatefulWidget {
+  final bool isTab;
+  final VoidCallback? onAddTicketsTap;
+
+  const ProfileScreenDriver({
+    super.key, 
+    this.isTab = false,
+    this.onAddTicketsTap,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
+  State<ProfileScreenDriver> createState() => _ProfileScreenDriverState();
+}
+
+class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
+  String _driverName = "";
+  String _driverEmail = "";
+  String _driverPhone = "";
+  String _licenseNumber = "";
+  String _profileImagePath = ImageAssets.boy;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriverData();
+  }
+
+  Future<void> _loadDriverData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _driverName = prefs.getString('driverName') ?? "Driver";
+      _driverEmail = prefs.getString('driverEmail') ?? "";
+      _driverPhone = prefs.getString('driverPhone') ?? "";
+      _licenseNumber = prefs.getString('licenseNumber') ?? "";
+      
+      String? serverPhoto = prefs.getString('driverPhoto');
+      if (serverPhoto != null && serverPhoto.isNotEmpty) {
+        _profileImagePath = serverPhoto;
+      } else {
+        _profileImagePath = prefs.getString('selected_driver_avatar') ?? ImageAssets.boy;
+      }
+    });
+  }
+
+  void _viewImage() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.all(20.w),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
-            Padding(
-              padding: EdgeInsets.all(16.w),
-              child: Row(
-                children: [
-                  Text(
-                    'TransitWay',
-                    style: TextStyle(
-                      fontSize: 22.sp,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF2E7D32),
-                    ),
-                  ),
-                  SizedBox(width: 4.w),
-                  Icon(Icons.location_on, color: Colors.green, size: 20.sp),
-                  Text(
-                    ' Driver',
-                    style: TextStyle(fontSize: 18.sp, color: Colors.black54),
-                  ),
-                ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20.r),
+              child: _profileImagePath.startsWith('http')
+                  ? Image.network(_profileImagePath, fit: BoxFit.contain)
+                  : Image.asset(_profileImagePath, fit: BoxFit.contain),
+            ),
+            SizedBox(height: 15.h),
+            CircleAvatar(
+              backgroundColor: Colors.white,
+              child: IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close, color: Colors.black),
               ),
-            ),
-
-            SizedBox(height: 30.h), // مسافة أكبر تحت الهيدر
-
-            // Profile Section
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 25.w), // تحريك الكلام يمين شوية
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 45.r,
-                    backgroundColor: Colors.orange.shade100,
-                    backgroundImage: AssetImage(ImageAssets.boy), // حطي صورة السيد علي هنا
-                  ),
-                  SizedBox(width: 25.w), // مسافة أكبر بين الصورة والاسم
-                  Text(
-                    'Sayed Ali',
-                    style: TextStyle(
-                      fontSize: 22.sp, // تكبير الخط شوية
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 50.h), // مسافة قبل بداية القائمة
-
-            // Menu Items
-            _buildMenuItem(
-              icon: Icons.ads_click,
-              text: 'Activity Status',
-              iconColor: Colors.green,
-            ),
-            _buildMenuItem(
-              icon: Icons.confirmation_number_outlined,
-              text: 'Add Tickets',
-              iconColor: Colors.green,
-            ),
-            _buildMenuItem(
-              icon: Icons.logout,
-              text: 'Log Out',
-              iconColor: Colors.red,
-              textColor: Colors.red,
-            ),
+            )
           ],
         ),
       ),
     );
   }
 
-  // Widget مخصص لكل عنصر في القائمة عشان نتحكم في المسافات والخطوط
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String text,
-    required Color iconColor,
-    Color textColor = Colors.black,
-  }) {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 10.h), // زيادة الـ Padding عشان يبعد عن الحافة
-          leading: Icon(icon, color: iconColor, size: 28.sp), // تكبير الأيقونة شوية
-          title: Text(
-            text,
-            style: TextStyle(
-              fontSize: 18.sp, // تكبير الخط
-              fontWeight: FontWeight.w500,
-              color: textColor,
-            ),
-          ),
-          onTap: () {},
+  @override
+  Widget build(BuildContext context) {
+    Widget body = CommonProfileView(
+      name: _driverName,
+      email: _driverEmail,
+      phone: _driverPhone,
+      license: _licenseNumber,
+      imagePath: _profileImagePath,
+      isDriver: true,
+      onImageTap: _viewImage,
+      menuItems: [
+        ProfileMenuItem(
+          icon: Icons.edit_note_rounded,
+          text: 'Edit Profile',
+          iconColor: const Color(0xFF1B4D3E),
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditProfileScreen(
+                  currentName: _driverName,
+                  currentPhone: _driverPhone,
+                  currentEmail: _driverEmail,
+                  currentPhoto: _profileImagePath,
+                ),
+              ),
+            );
+            if (result == true) {
+              _loadDriverData(); // تحديث البيانات لو رجع true
+            }
+          },
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 25.w),
-          child: Divider(
-            thickness: 2, // تخانة الخط زي ما طلبتي
-            color: Colors.grey, // لون الخط الفاصل
-          ),
+        ProfileMenuItem(
+          icon: Icons.confirmation_number_outlined,
+          text: 'Add Tickets',
+          iconColor: Colors.green,
+          onTap: widget.onAddTicketsTap,
         ),
-        SizedBox(height: 10.h), // مسافة إضافية بين كل عنصر والتاني
+        ProfileMenuItem(
+          icon: Icons.history_outlined,
+          text: 'Ticket History',
+          iconColor: Colors.green,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TicketHistoryScreen()),
+            );
+          },
+        ),
+        ProfileMenuItem(
+          icon: Icons.logout,
+          text: 'Log Out',
+          iconColor: Colors.red,
+          isLogout: true,
+        ),
       ],
+    );
+
+    if (widget.isTab) return body;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: body,
     );
   }
 }

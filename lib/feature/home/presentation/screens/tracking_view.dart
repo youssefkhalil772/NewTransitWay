@@ -35,6 +35,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   
   int _nextStationIndex = 0;
   bool _isFirstUpdate = true;
+  double? _busHeading; // لحفظ اتجاه الباص
 
   final Color appGreen = const Color(0xFF1B4D3E);
 
@@ -97,6 +98,21 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     controller.forward();
   }
 
+  // دالة لمسح النقاط التي تجاوزها الباص من المسار
+  void _prunePathBehindBus(LatLng busPos) {
+    if (_polylinePoints.length < 2) return;
+    while (_polylinePoints.length > 1) {
+      double distToFirst = Geolocator.distanceBetween(busPos.latitude, busPos.longitude, _polylinePoints[0].latitude, _polylinePoints[0].longitude);
+      double distToSecond = Geolocator.distanceBetween(busPos.latitude, busPos.longitude, _polylinePoints[1].latitude, _polylinePoints[1].longitude);
+      if (distToSecond < distToFirst || distToFirst < 5) {
+        _polylinePoints.removeAt(0);
+      } else {
+        break;
+      }
+    }
+    _polylinePoints[0] = busPos;
+  }
+
   Future<void> _updateBusAndRoute() async {
     if (_busLocation == null) return;
     try {
@@ -145,7 +161,8 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       }
 
       if (routeWaypoints.length >= 2) {
-        final routeData = await _repository.getRouteBetweenStations(routeWaypoints, isLiveTracking: true);
+        // تم تصحيح الخطأ هنا: إزالة isLiveTracking وإضافة heading
+        final routeData = await _repository.getRouteBetweenStations(routeWaypoints, heading: _busHeading);
         if (mounted) {
           setState(() {
             _polylinePoints = routeData.points;
@@ -180,8 +197,11 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
     controller.addListener(() {
       if (mounted) {
+        LatLng animatedPos = LatLng(latTween.evaluate(animation), lngTween.evaluate(animation));
         setState(() {
-          _busLocation = LatLng(latTween.evaluate(animation), lngTween.evaluate(animation));
+          _busLocation = animatedPos;
+          // مسح المسار من خلف الباص في الوقت الفعلي أثناء الأنيميشن
+          _prunePathBehindBus(animatedPos);
         });
         _mapController.move(_busLocation!, _mapController.camera.zoom);
       }
@@ -206,6 +226,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         if (bus != null && mounted) {
           final latest = bus['latestLocation'];
           LatLng newLoc = LatLng((latest['latitude'] as num).toDouble(), (latest['longitude'] as num).toDouble());
+          
+          // تحديث الـ heading لو متاح من السيرفر لضمان سلاسة الخط
+          _busHeading = latest['heading']?.toDouble();
+
           if (isFirstLocation) {
             setState(() { _busLocation = newLoc; isFirstLocation = false; });
             _mapController.move(_busLocation!, 15);
@@ -249,6 +273,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                       subdomains: const ['a', 'b', 'c', 'd'],
                       keepBuffer: 5,
                       tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 200)),
+                      retinaMode: RetinaMode.isHighDensity(context),
                     ),
                     if (_polylinePoints.isNotEmpty) PolylineLayer(polylines: [Polyline(points: _polylinePoints, color: routeColor, strokeWidth: 5)]),
                     MarkerLayer(markers: [
@@ -268,13 +293,16 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   }
 
   Widget _buildBusMarker(String busNum, Color color) {
-    return Stack(alignment: Alignment.center, children: [
-      Positioned(top: 0, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8.r)), child: Text("Bus $busNum", style: TextStyle(color: Colors.white, fontSize: 11.sp, fontWeight: FontWeight.bold))),
-        Icon(Icons.arrow_drop_down, color: color, size: 20.sp),
-      ])),
-      Positioned(bottom: 10.h, child: Container(padding: EdgeInsets.all(5.w), decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(Icons.directions_bus, color: color, size: 26.sp))),
-    ]);
+    return Transform.rotate(
+      angle: (_busHeading ?? 0) * (3.14159 / 180), // تدوير الباص في تطبيق اليوزر أيضاً
+      child: Stack(alignment: Alignment.center, children: [
+        Positioned(top: 0, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8.r)), child: Text("Bus $busNum", style: TextStyle(color: Colors.white, fontSize: 11.sp, fontWeight: FontWeight.bold))),
+          Icon(Icons.arrow_drop_down, color: color, size: 20.sp),
+        ])),
+        Positioned(bottom: 10.h, child: Container(padding: EdgeInsets.all(5.w), decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(Icons.directions_bus, color: color, size: 26.sp))),
+      ]),
+    );
   }
 
   Widget _buildTrackingDetailsCard() {
@@ -341,10 +369,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                   Navigator.pop(context, "OPEN_QR");
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: appGreen, minimumSize: Size(double.infinity, 45.h), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r))),
-                child: Text("Scan QR to Pay", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.sp)),
+                child: const Text("Scan QR to Pay", style: TextStyle(fontWeight: FontWeight.bold)),
               )
             else
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => setState(() => _showArrivalPopup = false), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: appGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r))), child: Text("OK", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp)))),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => setState(() => _showArrivalPopup = false), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: appGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r))), child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold)))),
           ],
         ),
       ),

@@ -8,34 +8,51 @@ import '../../../../core/networking/api_constants.dart';
 class CustomPointsBadge extends StatefulWidget {
   const CustomPointsBadge({super.key});
 
-  // مُnotifier عالمي لمراقبة الرصيد في كل صفحات الأبلكيشن لحظياً
   static ValueNotifier<int> balanceNotifier = ValueNotifier<int>(0);
 
-  // دالة ذكية لتحديث الرصيد من السيرفر وتحديث كل الصفحات فوراً
   static Future<void> fetchAndRefreshGlobalBalance() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getInt('userId') ?? 0;
-      if (userId == 0) return;
+      
+      // طباعة كل الداتا المتسيفة للتأكد
+      debugPrint("🔍 All Prefs Keys: ${prefs.getKeys()}");
+
+      // محاولة جلب الـ ID بأكثر من مسمى
+      final dynamic rawId = prefs.get('userId') ?? prefs.get('id') ?? prefs.get('driverId');
+      int? userId;
+      if (rawId is int) userId = rawId;
+      else if (rawId is String) userId = int.tryParse(rawId);
+
+      if (userId == null || userId == 0) {
+        debugPrint("⚠️ PointsBadge: No userId found in prefs. Found rawId: $rawId");
+        return;
+      }
 
       final url = "${ApiConstants.baseUrl}${ApiConstants.userBalance(userId)}";
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      debugPrint("📡 Fetching balance from: $url");
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {"Content-Type": "application/json"},
+      ).timeout(const Duration(seconds: 5));
+
+      debugPrint("📡 Balance Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final dynamic data = jsonDecode(response.body);
         int latest = 0;
-        if (data is num) {
+        if (data is Map) {
+          latest = (data['balancePoints'] ?? 0).toInt();
+        } else if (data is num) {
           latest = data.toInt();
-        } else if (data is Map) {
-          latest = (data['balancePoints'] ?? data['balance'] ?? 0).toInt();
         }
 
-        // تحديث القيمة العالمية فوراً لتسمع في كل الأبلكيشن
         balanceNotifier.value = latest;
         await prefs.setInt('userPoints', latest);
+        debugPrint("✅ Balance Linked: $latest");
       }
     } catch (e) {
-      debugPrint("Points Refresh Error: $e");
+      debugPrint("🛑 Points Link Error: $e");
     }
   }
 
@@ -60,7 +77,6 @@ class _CustomPointsBadgeState extends State<CustomPointsBadge> {
     if (CustomPointsBadge.balanceNotifier.value == 0) {
       CustomPointsBadge.updateGlobalBalance(saved);
     }
-    // تحديث من السيرفر عند أول بناء للويدجيت
     CustomPointsBadge.fetchAndRefreshGlobalBalance();
   }
 

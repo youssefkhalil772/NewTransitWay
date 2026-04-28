@@ -14,13 +14,9 @@ class LoginWebServices {
         }),
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        throw "Invalid email or password";
-      }
+      return _handleResponse(response);
     } catch (e) {
-      if (e.toString() == "Invalid email or password") rethrow;
+      if (e is String) rethrow;
       throw "Check your internet connection and try again";
     }
   }
@@ -29,17 +25,47 @@ class LoginWebServices {
     try {
       final response = await http.post(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.googleLogin}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'idToken': idToken}),
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+        },
+        body: jsonEncode({
+          'idToken': idToken,
+        }),
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      print("Server Google Login Status: ${response.statusCode}");
+      print("Server Google Login Body: ${response.body}");
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is String) rethrow;
+      throw "Google authentication error: $e";
+    }
+  }
+
+  // دالة موحدة للتعامل مع الردود ومنع أخطاء الـ FormatException
+  Map<String, dynamic> _handleResponse(http.Response response) {
+    if (response.body.isEmpty) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {}; // ارجاع خريطة فارغة لو مفيش بيانات والعملية ناجحة
       } else {
-        throw "Google authentication failed on server";
+        throw "Server returned error ${response.statusCode} with no message";
+      }
+    }
+
+    try {
+      final data = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return data;
+      } else {
+        if (data['errors'] != null) {
+          throw "Validation Error: ${data['errors']}";
+        }
+        throw data['message'] ?? "Request failed on server";
       }
     } catch (e) {
-      throw e.toString();
+      throw "Error parsing server response: $e";
     }
   }
 }

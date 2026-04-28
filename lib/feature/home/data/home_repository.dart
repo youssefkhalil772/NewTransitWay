@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../core/networking/api_constants.dart';
 import '../../../core/networking/api_service.dart';
 import 'models/station_model.dart';
@@ -37,22 +36,31 @@ class HomeRepository {
     }
   }
 
-  /// رسم المسار: يمر بكل المحطات مع منع الدخول في الشوارع الجانبية الضيقة
-  Future<RouteData> getRouteBetweenStations(List<LatLng> waypoints, {bool isLiveTracking = false}) async {
+  /// رسم المسار: تم تحسينه لمنع الدوائر (Looping) حول المحطات
+  Future<RouteData> getRouteBetweenStations(List<LatLng> waypoints, {double? heading}) async {
     if (waypoints.length < 2) return RouteData(points: waypoints);
 
     final String coords = waypoints.map((p) => "${p.longitude},${p.latitude}").join(';');
     
-    // overview=full لدقة الخط، continue_straight لمنع اللفات غير المنطقية
+    // استخدام geometries=polyline لتقليل حجم البيانات وسرعة الرسم
     String url = "${ApiConstants.osrmBaseUrl}$coords?geometries=geojson&overview=full&continue_straight=true";
 
-    // استخدام Radius كبير جداً (1000م) للمحطات لضمان بقاء المسار على الطريق الرئيسي
-    // بينما نترك الباص (النقطة الأولى) بـ Radius أصغر (100م) لضمان دقة مكانه
     List<String> radiusList = [];
+    List<String> bearingList = [];
+    
     for (int i = 0; i < waypoints.length; i++) {
-      radiusList.add(i == 0 ? "100" : "1000");
+      // زيادة الـ Radius للباص والمحطات لمنع الـ Looping (الدوران)
+      radiusList.add(i == 0 ? "100" : "500"); 
+      
+      if (i == 0 && heading != null && heading > 0) {
+        bearingList.add("${heading.round()},45"); // زيادة زاوية السماح لـ 45 درجة
+      } else {
+        bearingList.add(""); 
+      }
     }
+    
     url += "&radiuses=${radiusList.join(";")}";
+    if (heading != null) url += "&bearings=${bearingList.join(";")}";
 
     try {
       final response = await _apiService.get("", fullUrl: url);

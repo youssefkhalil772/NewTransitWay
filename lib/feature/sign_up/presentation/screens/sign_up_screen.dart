@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:crop/crop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:transite_way/feature/login/login.dart';
 import 'package:transite_way/feature/sign_up/data/models/sign_up_request_body.dart';
 import 'package:transite_way/feature/sign_up/data/repository/sign_up_repository_impl.dart';
@@ -44,7 +49,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _hasLetterAndNumber = false;
   bool _hasSpecialChar = false;
 
-  String _selectedAvatar = 'assets/logo/3.png';
+  File? _selectedImage;
 
   @override
   void dispose() {
@@ -65,6 +70,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
               password.contains(RegExp(r'[0-9]'));
       _hasSpecialChar = password.contains(RegExp(r'[!@#\$%^&*]'));
     });
+  }
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      _cropImage(image.path);
+    }
+  }
+
+  Future<void> _cropImage(String filePath) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _CropScreen(imagePath: filePath),
+      ),
+    );
+    if (result != null && result is String) {
+      setState(() => _selectedImage = File(result));
+    }
   }
 
   @override
@@ -104,15 +130,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 20),
                       _buildHeader(),
                       const SizedBox(height: 30),
-                      Center(child: _buildAvatarPicker()),
+                      Center(child: _buildImagePicker()),
                       const SizedBox(height: 30),
                       _buildForm(),
                       const SizedBox(height: 24),
                       _buildContinueButton(),
-                      const SizedBox(height: 24),
-                      _buildOrDivider(),
-                      const SizedBox(height: 24),
-                      _buildGoogleButton(),
                       const SizedBox(height: 24),
                       _buildSignInText(),
                       const SizedBox(height: 20),
@@ -127,7 +149,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildAvatarPicker() {
+  Widget _buildImagePicker() {
     return Column(
       children: [
         Stack(
@@ -135,71 +157,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Container(
               width: 100,
               height: 100,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFFFFC107),
+                color: Colors.grey.shade200,
+                image: _selectedImage != null
+                    ? DecorationImage(
+                        image: FileImage(_selectedImage!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: ClipOval(
-                child: Image.asset(_selectedAvatar, fit: BoxFit.cover),
-              ),
+              child: _selectedImage == null
+                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  : null,
             ),
             Positioned(
               bottom: 0,
               right: 0,
               child: GestureDetector(
-                onTap: _showAvatarSelectionDialog,
+                onTap: _pickImage,
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(color: Color(0xFF065F46), shape: BoxShape.circle),
-                  child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        const Text("Choose your avatar", style: TextStyle(color: Colors.grey, fontSize: 12)),
+        const Text("Upload your photo", style: TextStyle(color: Colors.grey, fontSize: 12)),
       ],
-    );
-  }
-
-  void _showAvatarSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Avatar'),
-        content: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildAvatarOption('assets/logo/3.png'),
-            _buildAvatarOption('assets/images/Avatar.png'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAvatarOption(String path) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedAvatar = path);
-        Navigator.pop(context);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: _selectedAvatar == path ? const Color(0xFF065F46) : Colors.transparent,
-            width: 2,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: CircleAvatar(
-          radius: 35,
-          backgroundColor: const Color(0xFFFFC107),
-          backgroundImage: AssetImage(path),
-        ),
-      ),
     );
   }
 
@@ -528,9 +516,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               email: _emailController.text,
               phone: _phoneController.text,
               password: _passwordController.text,
-              avatar: _selectedAvatar,
             );
-            context.read<SignUpCubit>().signUp(requestBody);
+            context.read<SignUpCubit>().signUp(requestBody, _selectedImage);
           }
         },
         style: ElevatedButton.styleFrom(
@@ -541,38 +528,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         child: const Text(
           'Continue',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrDivider() {
-    return const Row(
-      children: [
-        Expanded(child: Divider()),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text('Or continue with', style: TextStyle(color: Colors.grey)),
-        ),
-        Expanded(child: Divider()),
-      ],
-    );
-  }
-
-  Widget _buildGoogleButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: OutlinedButton.icon(
-        onPressed: () {},
-        icon: Image.asset('assets/icons/google.png', height: 20),
-        label: const Text(
-          'Continue with Google',
-          style: TextStyle(color: Colors.black),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.grey),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -599,6 +554,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CropScreen extends StatefulWidget {
+  final String imagePath;
+  const _CropScreen({required this.imagePath});
+
+  @override
+  State<_CropScreen> createState() => _CropScreenState();
+}
+
+class _CropScreenState extends State<_CropScreen> {
+  final _controller = CropController(aspectRatio: 1.0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF065F46),
+        title: const Text('Crop Photo', style: TextStyle(color: Colors.white, fontSize: 18)),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                final bitmap = await _controller.crop();
+                
+                final dir = await getTemporaryDirectory();
+                final file = File('${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                final data = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+                
+                if (data != null) {
+                  await file.writeAsBytes(data.buffer.asUint8List());
+                  if (context.mounted) {
+                    Navigator.pop(context, file.path);
+                  }
+                }
+              } catch (e) {
+                debugPrint("Crop Error: $e");
+              }
+            },
+            child: const Text('DONE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: Crop(
+        controller: _controller,
+        shape: BoxShape.circle,
+        child: Image.file(File(widget.imagePath)),
+      ),
     );
   }
 }
