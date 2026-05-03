@@ -1,100 +1,206 @@
-import 'dart:convert';
-import 'dart:async';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_init.dart';
 import 'api_constants.dart';
 
 class ApiService {
-  final http.Client _client = http.Client();
+  final SupabaseClient _client = SupabaseConfig.client;
 
-  static const Duration _timeoutDuration = Duration(seconds: 30);
-
-  Future<dynamic> get(String endpoint, {Map<String, String>? headers, String? fullUrl}) async {
-    final url = fullUrl ?? "${ApiConstants.baseUrl}$endpoint";
-    try {
-      final response = await _client.get(
-        Uri.parse(url), 
-        headers: headers
-      ).timeout(_timeoutDuration);
-      
-      return _handleResponse(response);
-    } on TimeoutException {
-      throw "Connection timeout. The server is taking too long to respond.";
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<dynamic> post(String endpoint, {Map<String, String>? headers, dynamic body}) async {
-    final url = "${ApiConstants.baseUrl}$endpoint";
-    try {
-      final response = await _client.post(
-        Uri.parse(url),
-        headers: headers ?? {"Content-Type": "application/json"},
-        body: jsonEncode(body),
-      ).timeout(_timeoutDuration);
-      
-      return _handleResponse(response);
-    } on TimeoutException {
-      throw "Request timeout. The server is taking too long to respond.";
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // دالة جديدة لتحديث البيانات مع صورة (Multipart Request)
-  Future<dynamic> putMultipart(String endpoint, {
-    Map<String, String>? fields,
-    File? file,
-    String fileKey = "Photo",
+  // ── SELECT (GET equivalent) ─────────────────────────────────────
+  Future<List<dynamic>> getAll(
+    String table, {
+    String select = '*',
+    Map<String, dynamic>? filters,
   }) async {
-    final url = Uri.parse("${ApiConstants.baseUrl}$endpoint");
     try {
-      var request = http.MultipartRequest('PUT', url);
-      
-      if (fields != null) {
-        request.fields.addAll(fields);
-      }
-      
-      if (file != null) {
-        request.files.add(await http.MultipartFile.fromPath(fileKey, file.path));
+      var query = _client.from(table).select(select);
+
+      if (filters != null) {
+        filters.forEach((key, value) {
+          query = query.eq(key, value);
+        });
       }
 
-      var streamedResponse = await request.send().timeout(_timeoutDuration);
-      var response = await http.Response.fromStream(streamedResponse);
-      
-      return _handleResponse(response);
-    } on TimeoutException {
-      throw "Request timeout. The server is taking too long to respond.";
+      final response = await query;
+      return response as List<dynamic>;
     } catch (e) {
+      debugPrint("🛑 Supabase getAll($table) Error: $e");
       rethrow;
     }
   }
 
-  dynamic _handleResponse(http.Response response) {
-    final bool isSuccess = response.statusCode >= 200 && response.statusCode < 300;
-    
-    if (isSuccess) {
-      if (response.body.isEmpty) return {};
-      return jsonDecode(response.body);
-    } else {
-      if (response.body.isEmpty) {
-        throw "Server Error: ${response.statusCode}";
+  // ── SELECT single row ───────────────────────────────────────────
+  Future<Map<String, dynamic>> getOne(
+    String table, {
+    String select = '*',
+    required Map<String, dynamic> filters,
+  }) async {
+    try {
+      var query = _client.from(table).select(select);
+
+      filters.forEach((key, value) {
+        query = query.eq(key, value);
+      });
+
+      final response = await query.single();
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase getOne($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── SELECT with maybeSingle (can return null) ───────────────────
+  Future<Map<String, dynamic>?> getOneOrNull(
+    String table, {
+    String select = '*',
+    required Map<String, dynamic> filters,
+  }) async {
+    try {
+      var query = _client.from(table).select(select);
+
+      filters.forEach((key, value) {
+        query = query.eq(key, value);
+      });
+
+      final response = await query.maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase getOneOrNull($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── INSERT (POST equivalent) ────────────────────────────────────
+  Future<Map<String, dynamic>> insert(
+    String table,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await _client.from(table).insert(data).select().single();
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase insert($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── UPDATE (PUT equivalent) ─────────────────────────────────────
+  Future<Map<String, dynamic>> update(
+    String table,
+    Map<String, dynamic> data, {
+    required Map<String, dynamic> filters,
+  }) async {
+    try {
+      var query = _client.from(table).update(data);
+
+      filters.forEach((key, value) {
+        query = query.eq(key, value);
+      });
+
+      final response = await query.select().single();
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase update($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── UPDATE multiple rows ────────────────────────────────────────
+  Future<void> updateMany(
+    String table,
+    Map<String, dynamic> data, {
+    required Map<String, dynamic> filters,
+  }) async {
+    try {
+      var query = _client.from(table).update(data);
+
+      filters.forEach((key, value) {
+        query = query.eq(key, value);
+      });
+
+      await query;
+    } catch (e) {
+      debugPrint("🛑 Supabase updateMany($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── UPSERT ──────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> upsert(
+    String table,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await _client.from(table).upsert(data).select().single();
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase upsert($table) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── RPC (Remote Procedure Call) ─────────────────────────────────
+  Future<dynamic> rpc(
+    String functionName, {
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      final response = await _client.rpc(functionName, params: params ?? {});
+      return response;
+    } catch (e) {
+      debugPrint("🛑 Supabase rpc($functionName) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── File Upload to Supabase Storage ─────────────────────────────
+  Future<String?> uploadFile(String bucket, String path, File file) async {
+    try {
+      await _client.storage
+          .from(bucket)
+          .upload(path, file, fileOptions: const FileOptions(upsert: true));
+      final publicUrl = _client.storage.from(bucket).getPublicUrl(path);
+      return publicUrl;
+    } catch (e) {
+      debugPrint("🛑 Supabase uploadFile($bucket/$path) Error: $e");
+      rethrow;
+    }
+  }
+
+  // ── PUT with file upload (profile update replacement) ───────────
+  Future<Map<String, dynamic>> updateProfile({
+    required String table,
+    required Map<String, dynamic> fields,
+    required Map<String, dynamic> filters,
+    File? file,
+    String fileKey = 'photo',
+  }) async {
+    try {
+      // Upload photo if provided
+      if (file != null) {
+        // Generate unique path
+        final String filtersKey = filters.values.join('_');
+        final String ext = file.path.split('.').last;
+        final String storagePath =
+            '$table/$filtersKey/profile_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+        final photoUrl = await uploadFile(
+          ApiConstants.avatarsBucket,
+          storagePath,
+          file,
+        );
+        if (photoUrl != null) {
+          fields[fileKey] = photoUrl;
+        }
       }
 
-      try {
-        final errorData = jsonDecode(response.body);
-        if (errorData is Map) {
-          String msg = errorData['message'] ?? "";
-          if (errorData.containsKey('workingHours')) {
-            msg += "\n\nWorking Hours: ${errorData['workingHours']}";
-          }
-          if (msg.isNotEmpty) throw msg;
-        }
-      } catch (e) {
-        if (e is String) rethrow;
-      }
-      throw response.body;
+      // Update the table
+      return await update(table, fields, filters: filters);
+    } catch (e) {
+      debugPrint("🛑 Supabase updateProfile($table) Error: $e");
+      rethrow;
     }
   }
 }

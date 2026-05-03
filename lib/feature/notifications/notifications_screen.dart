@@ -42,18 +42,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _onNotificationTap(NotificationModel notification) async {
-    // الانتقال لصفحة التفاصيل
+    // Navigate to notification details page
     RoutesManager.navigateTo(
       context,
       RoutesManager.notificationDetails,
       arguments: notification,
     );
 
-    // لو الإشعار مش مقروء، نخليه مقروء في الخلفية
+    // If notification is unread, mark it as read in background
     if (!notification.isRead) {
       final success = await _notificationService.markAsRead(notification.id);
       if (success && mounted) {
-        // نحدث القائمة محلياً عشان لما يرجع يلاقيها مقروءة
+        // Refresh the list locally so it appears read when user returns
         _loadNotifications();
       }
     }
@@ -100,14 +100,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none_outlined, size: 80.sp, color: Colors.grey),
-          SizedBox(height: 16.h),
-          const Text("No notifications yet", style: TextStyle(color: Colors.grey, fontSize: 16)),
-        ],
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7, // Take up most of the screen to allow scrolling
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.notifications_none_outlined, size: 80.sp, color: Colors.grey),
+            SizedBox(height: 16.h),
+            const Text("No notifications yet", style: TextStyle(color: Colors.grey, fontSize: 16)),
+            SizedBox(height: 8.h),
+            const Text("Pull down to refresh", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }
@@ -118,15 +125,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     Color bgColor = Colors.white;
 
     final title = notification.title.toLowerCase();
-    if (title.contains('warning') || title.contains('تحذير') || title.contains('suspended')) {
+    final type = notification.type.toLowerCase();
+    
+    if (type == 'ban' || title.contains('suspended') || title.contains('banned')) {
+      color = Colors.red;
+      icon = Icons.block;
+      bgColor = const Color(0xFFFCEBEB);
+    } else if (type == 'warning' || title.contains('warning')) {
       color = Colors.orange;
       icon = Icons.warning_amber_rounded;
       bgColor = const Color(0xFFFFF9F0);
-    } else if (title.contains('restored') || title.contains('تم') || title.contains('success')) {
+    } else if (type == 'success' || title.contains('restored') || title.contains('success')) {
       color = Colors.green;
       icon = Icons.check_circle_outline;
       bgColor = const Color(0xFFF0FFF4);
-    } else if (title.contains('info') || title.contains('تحديث')) {
+    } else if (type == 'info' || title.contains('info') || title.contains('update')) {
       color = Colors.blue;
       icon = Icons.info_outline;
       bgColor = const Color(0xFFF0F7FF);

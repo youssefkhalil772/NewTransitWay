@@ -31,16 +31,16 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
     final prefs = await SharedPreferences.getInstance();
     
     if (data['id'] != null) {
-      await prefs.setInt('driverId', data['id']);
-      await prefs.setInt('userId', data['id']); 
+      await prefs.setString('driverId', data['id'].toString());
+      await prefs.setString('userId', data['id'].toString()); 
     }
     
-    await prefs.setString('driverName', data['name'] ?? "");
+    await prefs.setString('driverName', data['name'] ?? data['full_name'] ?? data['fullName'] ?? "");
     await prefs.setString('driverEmail', data['email'] ?? "");
-    await prefs.setString('driverPhone', data['phone'] ?? "");
-    await prefs.setString('licenseNumber', data['licenseNumber'] ?? "");
+    await prefs.setString('driverPhone', data['phone'] ?? data['phone_number'] ?? "");
+    await prefs.setString('licenseNumber', data['licenseNumber'] ?? data['license_number'] ?? "");
     await prefs.setString('driverStatus', data['status'] ?? "Inactive");
-    await prefs.setString('driverPhoto', data['photo'] ?? "");
+    await prefs.setString('driverPhoto', data['photo'] ?? data['image'] ?? "");
     
     if (data['busId'] != null) {
       await prefs.setInt('busId', data['busId']);
@@ -176,7 +176,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                               : () {
                             if (_formKey.currentState!.validate()) {
                               context.read<DriverLoginCubit>().login(
-                                _emailController.text,
+                                _emailController.text.trim(),
                                 _passwordController.text,
                               );
                             }

@@ -7,6 +7,8 @@ import 'package:latlong2/latlong.dart';
 import '../../data/home_repository.dart';
 import '../widgets/custom_points_badge.dart';
 import 'tracking_view.dart';
+import '../../../../core/networking/api_constants.dart';
+import '../../../../core/networking/supabase_init.dart';
 
 class BusTrackingScreen extends StatefulWidget {
   const BusTrackingScreen({super.key});
@@ -16,13 +18,13 @@ class BusTrackingScreen extends StatefulWidget {
 }
 
 class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProviderStateMixin {
-  final HomeRepository _repository = HomeRepository();
   final MapController _mapController = MapController();
   LatLng? _busLocation; 
   bool _isTracking = true;
 
   final Color appGreen = const Color(0xFF1B4D3E);
   List<Marker> _cachedMarkers = [];
+  Timer? _fallbackTimer;
 
   @override
   void initState() {
@@ -30,8 +32,21 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
-        final int busId = args['busId'] ?? 0;
-        if (busId != 0) _startLiveTracking(busId);
+        final dynamic busId = args['busId'];
+        final dynamic busNum = args['busNumber'];
+        
+        // Initialize position from args if available to avoid delay
+        if (args['lat'] != null && args['lng'] != null) {
+          setState(() {
+            _busLocation = LatLng(
+              (args['lat'] as num).toDouble(), 
+              (args['lng'] as num).toDouble()
+            );
+          });
+        }
+        
+        debugPrint("BusTrackingScreen: Starting tracking for busId: $busId, busNum: $busNum");
+        _startLiveTracking(busId, busNum);
       }
     });
   }
@@ -39,6 +54,8 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
   @override
   void dispose() {
     _isTracking = false;
+    _busStreamSubscription?.cancel();
+    _fallbackTimer?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -89,30 +106,83 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
     controller.forward();
   }
 
-  Future<void> _startLiveTracking(int busId) async {
-    bool isFirstLocation = true;
-    while (_isTracking && mounted) {
-      try {
-        final data = await _repository.getBuses();
-        final bus = data.firstWhere((item) => item['latestLocation'] != null && item['latestLocation']['busId'] == busId, orElse: () => null);
-        if (bus != null && mounted) {
-          final latest = bus['latestLocation'];
-          LatLng newLoc = LatLng((latest['latitude'] as num).toDouble(), (latest['longitude'] as num).toDouble());
-          
-          if (isFirstLocation) {
-            setState(() {
-              _busLocation = newLoc;
-              isFirstLocation = false;
-            });
-            _mapController.move(_busLocation!, 14.5);
-          } else if (newLoc != _busLocation) {
-            _animatedMove(newLoc);
+  StreamSubscription<List<Map<String, dynamic>>>? _busStreamSubscription;
+
+  Future<void> _startLiveTracking(dynamic busId, dynamic busNum) async {
+    _busStreamSubscription?.cancel();
+    debugPrint("BusTracking: Starting stream for id=$busId, busNum=$busNum");
+
+    try {
+      // First, reliably resolve the exact bus ID
+      var initialData = await SupabaseConfig.client
+          .from(ApiConstants.busesTable)
+          .select()
+          .eq('id', busId.toString())
+          .maybeSingle();
+
+      initialData ??= await SupabaseConfig.client
+          .from(ApiConstants.busesTable)
+          .select()
+          .eq('bus_number', busNum.toString())
+          .maybeSingle();
+
+      if (initialData != null && mounted) {
+        _handleUpdate(initialData);
+        final resolvedId = initialData['id'].toString();
+
+        // Start Realtime Stream using the resolved ID
+        _busStreamSubscription = SupabaseConfig.client
+            .from(ApiConstants.busesTable)
+            .stream(primaryKey: ['id'])
+            .eq('id', resolvedId)
+            .listen((List<Map<String, dynamic>> data) {
+          if (!_isTracking || !mounted) {
+            _busStreamSubscription?.cancel();
+            return;
           }
-        }
-      } catch (e) {
-        debugPrint("Tracking Error: $e");
+          if (data.isNotEmpty) {
+            debugPrint("BusTracking: Stream update received");
+            _handleUpdate(data.first);
+          }
+        }, onError: (error) {
+          debugPrint("BusTracking: Stream error: $error");
+        });
+
+        // Fallback: poll every 5 seconds
+        _fallbackTimer?.cancel();
+        _fallbackTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+          if (!_isTracking || !mounted) return;
+          try {
+            final latest = await SupabaseConfig.client
+                .from(ApiConstants.busesTable)
+                .select()
+                .eq('id', resolvedId)
+                .maybeSingle();
+            if (latest != null && mounted) {
+              _handleUpdate(latest);
+            }
+          } catch (e) {
+            debugPrint("BusTracking: Fallback error: $e");
+          }
+        });
       }
-      await Future.delayed(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint("BusTracking: Initial stream setup error: $e");
+    }
+  }
+
+  void _handleUpdate(Map<String, dynamic> data) {
+    final lat = data['current_lat'] ?? data['lat'] ?? data['latitude'];
+    final lng = data['current_lng'] ?? data['lng'] ?? data['longitude'];
+    debugPrint("BusTracking: lat=$lat lng=$lng from data keys: ${data.keys.toList()}");
+    if (lat != null && lng != null) {
+      final newLoc = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+      if (_busLocation == null) {
+        setState(() => _busLocation = newLoc);
+        _mapController.move(newLoc, 14.5);
+      } else if (newLoc != _busLocation) {
+        _animatedMove(newLoc);
+      }
     }
   }
 
@@ -184,6 +254,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
               subdomains: const ['a', 'b', 'c', 'd'],
               keepBuffer: 5, 
               tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 200)),
+              retinaMode: RetinaMode.isHighDensity(context),
             ),
             MarkerLayer(markers: _cachedMarkers),
           ],
@@ -240,11 +311,18 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
   Widget _buildTrackButton(Map<String, dynamic> args, Color color) {
     return ElevatedButton(
       onPressed: () async {
+        // Inject latest live location to avoid waiting for poll in next screen
+        final Map<String, dynamic> trackingArgs = Map<String, dynamic>.from(args);
+        if (_busLocation != null) {
+          trackingArgs['lat'] = _busLocation!.latitude;
+          trackingArgs['lng'] = _busLocation!.longitude;
+        }
+
         final result = await Navigator.push(
           context, 
           CupertinoPageRoute(
             builder: (context) => const TrackingView(), 
-            settings: RouteSettings(arguments: args)
+            settings: RouteSettings(arguments: trackingArgs)
           )
         );
         if (result == "OPEN_QR" && mounted) {

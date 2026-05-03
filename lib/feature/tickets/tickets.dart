@@ -1,15 +1,15 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import '../../core/networking/api_constants.dart';
+import '../../core/networking/supabase_init.dart';
 import '../../core/widgets/custom_ticket_card.dart';
 import '../home/presentation/widgets/custom_app_bar.dart';
 import '../../core/resources/color_manager.dart';
 
 class MyTicketsScreen extends StatefulWidget {
-  final int? userId;
+  final String? userId;
   final VoidCallback? onBackToHome;
   final dynamic refreshTrigger;
 
@@ -49,35 +49,78 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> with SingleTickerProv
     setState(() => _isLoading = true);
     
     final prefs = await SharedPreferences.getInstance();
-    final int? id = widget.userId ?? prefs.getInt('userId');
+    final String? id = widget.userId?.toString() ?? prefs.getString('userId');
     
-    if (id == null) {
+    if (id == null || id.isEmpty) {
       setState(() => _isLoading = false);
       return;
     }
 
-    final url = "${ApiConstants.baseUrl}${ApiConstants.userTickets(id)}";
     try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            _allTickets = data is List ? data : [];
-            _isLoading = false;
-          });
+      // Step 1: Fetch raw tickets (no FK joins available)
+      final rawTickets = await SupabaseConfig.client
+          .from(ApiConstants.ticketsTable)
+          .select('*')
+          .eq('user_id', id)
+          .order('created_at', ascending: false);
+
+      if (rawTickets.isEmpty) {
+        if (mounted) setState(() { _allTickets = []; _isLoading = false; });
+        return;
+      }
+
+      // Step 2: Collect unique route_ids and bus_ids
+      final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
+      final busIds = rawTickets.map((t) => t['bus_id']).where((id) => id != null).map((id) => id.toString()).toSet().toList();
+
+      Map<int, Map<String, dynamic>> routeMap = {};
+      Map<String, Map<String, dynamic>> busMap = {};
+
+      if (routeIds.isNotEmpty) {
+        final routesRes = await SupabaseConfig.client
+            .from('routes')
+            .select('id, name, price')
+            .inFilter('id', routeIds);
+        for (final r in routesRes) {
+          routeMap[r['id'] as int] = Map<String, dynamic>.from(r);
         }
-      } else {
-        if (mounted) setState(() => _isLoading = false);
+      }
+
+      if (busIds.isNotEmpty) {
+        final busesRes = await SupabaseConfig.client
+            .from('buses')
+            .select('id, bus_number')
+            .inFilter('id', busIds);
+        for (final b in busesRes) {
+          busMap[b['id'].toString()] = Map<String, dynamic>.from(b);
+        }
+      }
+
+      // Step 3: Merge relational data into tickets
+      final enriched = rawTickets.map((t) {
+        final ticket = Map<String, dynamic>.from(t);
+        final routeId = ticket['route_id'] as int?;
+        final busId = ticket['bus_id']?.toString();
+        ticket['routes'] = routeId != null ? routeMap[routeId] : null;
+        ticket['buses'] = busId != null ? busMap[busId] : null;
+        return ticket;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _allTickets = enriched;
+          _isLoading = false;
+        });
       }
     } catch (e) {
+      debugPrint("🛑 Fetch Tickets Error: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   List<dynamic> get _activeTickets => _allTickets.where((t) {
     final status = t['status']?.toString().toLowerCase() ?? '';
-    return status == 'valid' || status == 'sold';
+    return status == 'active' || status == 'valid' || status == 'sold';
   }).toList();
 
   List<dynamic> get _historyTickets => _allTickets.where((t) {
@@ -87,14 +130,15 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> with SingleTickerProv
 
   double get _totalSpent {
     return _allTickets.fold(0.0, (sum, item) {
-      return sum + (double.tryParse(item['price']?.toString() ?? '0') ?? 0.0);
+      final priceStr = (item['routes'] as Map?)?['price']?.toString() ?? item['price']?.toString() ?? '0';
+      return sum + (double.tryParse(priceStr) ?? 0.0);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // تغيير الخلفية للون الأبيض
+      backgroundColor: Colors.white, // White background
       appBar: CustomAppBar(
         showBackButton: widget.onBackToHome != null,
         onBackPressed: widget.onBackToHome,
@@ -140,7 +184,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> with SingleTickerProv
               height: 50.h,
               padding: EdgeInsets.all(4.w),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA), // جعل خلفية الـ TabBar رمادي فاتح عشان تظهر على الخلفية البيضاء
+                color: const Color(0xFFF8F9FA), // Light gray TabBar background for visibility on white
                 borderRadius: BorderRadius.circular(15.r),
               ),
               child: TabBar(
@@ -270,13 +314,32 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> with SingleTickerProv
               separatorBuilder: (context, index) => SizedBox(height: 16.h),
               itemBuilder: (context, index) {
                 final ticket = tickets[index];
+                
+                final routeName = (ticket['routes'] as Map?)?['name']?.toString() ?? ticket['route'] ?? "---";
+                final busNum = (ticket['buses'] as Map?)?['bus_number']?.toString() ?? ticket['bus']?.toString() ?? ticket['busNumber']?.toString() ?? "---";
+                final price = (ticket['routes'] as Map?)?['price']?.toString() ?? ticket['price']?.toString() ?? "0";
+                
+                // Map DB status to display label
+                final rawStatus = ticket['status']?.toString().toLowerCase() ?? 'active';
+                final displayStatus = rawStatus == 'active' ? 'Sold' : ticket['status'];
+
+                // Detect ticket type
+                final code = ticket['ticket_code']?.toString() ?? '';
+                final ticketType = code.startsWith('MANUAL-') ? 'Manual Ticket' : 'QR Ticket';
+                
+                DateTime? createdAt;
+                try { createdAt = DateTime.parse(ticket['created_at']); } catch (_) {}
+                final timeStr = createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : (ticket['time'] ?? "--:--");
+                final dateStr = createdAt != null ? DateFormat('dd/MM/yyyy').format(createdAt.toLocal()) : (ticket['date'] ?? "--/--");
+
                 return CustomTicketCard(
-                  busNumber: ticket['bus']?.toString() ?? ticket['busNumber']?.toString() ?? "---",
-                  price: ticket['price']?.toString() ?? "0",
-                  time: ticket['time'] ?? "--:--",
-                  date: ticket['date'] ?? "--/--",
-                  route: ticket['route'],
-                  status: ticket['status'],
+                  busNumber: busNum,
+                  price: price,
+                  time: timeStr,
+                  date: dateStr,
+                  route: routeName,
+                  status: displayStatus,
+                  ticketType: ticketType,
                 );
               },
             ),

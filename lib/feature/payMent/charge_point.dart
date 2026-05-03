@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/feature/payMent/pay_details.dart';
-// تأكدي من عمل import لملف الشاشة الثانية هنا
+// Import for the payment details screen
 
 class ChargeMyPointsScreen extends StatefulWidget {
   const ChargeMyPointsScreen({super.key});
@@ -117,7 +117,7 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
                     ),
                   ),
                   onPressed: () {
-                    // الانتقال للشاشة الثانية
+                    // Navigate to payment details screen
                     Navigator.push(
                       context,
                       MaterialPageRoute(

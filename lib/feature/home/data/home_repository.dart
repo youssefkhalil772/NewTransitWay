@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
 import '../../../core/networking/api_constants.dart';
 import '../../../core/networking/api_service.dart';
 import 'models/station_model.dart';
@@ -18,8 +20,9 @@ class HomeRepository {
 
   Future<List<StationModel>> getStations() async {
     try {
-      final response = await _apiService.get(ApiConstants.stations);
-      return (response as List).map((json) => StationModel.fromJson(json)).toList();
+      final response = await _apiService.getAll(ApiConstants.stationsTable);
+      debugPrint("البيانات اللي رجعت من سوبابيز: $response");
+      return response.map((json) => StationModel.fromJson(json)).toList();
     } catch (e) {
       debugPrint("🛑 Error fetching stations: $e");
       rethrow;
@@ -28,8 +31,8 @@ class HomeRepository {
 
   Future<List<RouteModel>> getRoutes() async {
     try {
-      final response = await _apiService.get(ApiConstants.routes);
-      return (response as List).map((json) => RouteModel.fromJson(json)).toList();
+      final response = await _apiService.getAll(ApiConstants.routesTable);
+      return response.map((json) => RouteModel.fromJson(json)).toList();
     } catch (e) {
       debugPrint("🛑 Error fetching routes: $e");
       rethrow;
@@ -63,17 +66,21 @@ class HomeRepository {
     if (heading != null) url += "&bearings=${bearingList.join(";")}";
 
     try {
-      final response = await _apiService.get("", fullUrl: url);
-      if (response != null && response['routes'] != null && response['routes'].isNotEmpty) {
-        final route = response['routes'][0];
-        final List<dynamic> coordinates = route['geometry']['coordinates'];
-        final List<LatLng> points = coordinates.map((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
-        
-        return RouteData(
-          points: points,
-          distanceInMeters: (route['distance'] as num).toDouble(),
-          durationInSeconds: (route['duration'] as num).toDouble(),
-        );
+      // OSRM is a third-party service, keep using HTTP
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data != null && data['routes'] != null && data['routes'].isNotEmpty) {
+          final route = data['routes'][0];
+          final List<dynamic> coordinates = route['geometry']['coordinates'];
+          final List<LatLng> points = coordinates.map((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
+          
+          return RouteData(
+            points: points,
+            distanceInMeters: (route['distance'] as num).toDouble(),
+            durationInSeconds: (route['duration'] as num).toDouble(),
+          );
+        }
       }
       return RouteData(points: waypoints);
     } catch (e) {
@@ -82,14 +89,13 @@ class HomeRepository {
     }
   }
 
-  Future<dynamic> searchTrip(int startStationId, int endStationId) async {
-    return await _apiService.post(ApiConstants.userTripSearch, body: {
-      "startStationId": startStationId,
-      "endStationId": endStationId,
+  Future<dynamic> getNearestBus(String startStationId) async {
+    return await _apiService.rpc('get_nearest_bus', params: {
+      "start_station_id": int.tryParse(startStationId) ?? startStationId,
     });
   }
 
   Future<List<dynamic>> getBuses() async {
-    return await _apiService.get(ApiConstants.adminBuses);
+    return await _apiService.getAll(ApiConstants.busesTable);
   }
 }

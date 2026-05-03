@@ -154,7 +154,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     if (routeWaypoints.length >= 2) {
       final bounds = LatLngBounds.fromPoints(routeWaypoints);
-      _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: EdgeInsets.all(70.w)));
+      if (bounds.southWest != bounds.northEast) {
+        _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: EdgeInsets.all(70.w)));
+      } else {
+        _mapController.move(routeWaypoints.first, 15.0);
+      }
     }
 
     try {
@@ -165,7 +169,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
         if (_polylinePoints.isNotEmpty) {
            final bounds = LatLngBounds.fromPoints(_polylinePoints);
-           _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: EdgeInsets.all(70.w)));
+           if (bounds.southWest != bounds.northEast) {
+             _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: EdgeInsets.all(70.w)));
+           } else {
+             _mapController.move(_polylinePoints.first, 15.0);
+           }
         }
       }
     } catch (e) {
@@ -178,7 +186,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _isSearching = true);
     
     try {
-      final data = await _repository.searchTrip(_selectedFromStation!.id, _selectedToStation!.id);
+      final response = await _repository.getNearestBus(_selectedFromStation!.id);
+      
+      if (response == null || (response is List && response.isEmpty)) {
+        throw Exception("No active buses available at the moment.");
+      }
+      
+      final data = response is List ? response[0] : response;
+      
+      final String busNum = data['bus_number']?.toString() ?? data['busNumber']?.toString() ?? 'Unknown';
+      final String driver = data['driver_name']?.toString() ?? 'Unknown';
+      final int eta = data['eta_minutes'] is int ? data['eta_minutes'] : int.tryParse(data['eta_minutes']?.toString() ?? '') ?? 5;
+      
+      debugPrint("Found nearest bus: $busNum");
+      debugPrint("Driver: $driver");
+      debugPrint("ETA: $eta minutes");
       
       List<StationModel> zoneStations = _allStations.where((s) => s.zone == _selectedFromStation!.zone).toList();
       int startIndex = zoneStations.indexWhere((s) => s.id == _selectedFromStation!.id);
@@ -191,17 +213,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (mounted) {
         final result = await Navigator.pushNamed(context, RoutesManager.busTracking, arguments: {
-          'busId': data['id'],
+          'busId': data['id'] ?? data['bus_id'],
           'startStationId': _selectedFromStation!.id,
           'endStationId': _selectedToStation!.id,
           'from': _selectedFromStation!.name,
           'to': _selectedToStation!.name,
           'zone': _selectedFromStation!.zone,
-          'busNumber': data['busNumber'],
-          'arrivalTime': data['estimatedArrivalTime'],
-          'distance': data['distanceToStationKm'],
+          'busNumber': busNum,
+          'arrivalTime': "$eta min",
+          'distance': data['distanceToStationKm'] ?? data['distance_to_station_km'] ?? data['distance_km'],
           'stations': allRouteStations.map((s) => {'name': s.name, 'latLong': s.latLong, 'zone': s.zone}).toList(),
           'polylinePoints': _polylinePoints,
+          'lat': data['current_lat'] ?? data['lat'] ?? data['latitude'],
+          'lng': data['current_lng'] ?? data['lng'] ?? data['longitude'],
         });
         if (result == "OPEN_QR" && widget.onScanRequested != null) widget.onScanRequested!();
       }
@@ -299,6 +323,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               subdomains: const ['a', 'b', 'c', 'd'],
               keepBuffer: 5, 
               tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 200)),
+              retinaMode: RetinaMode.isHighDensity(context),
             ),
             if (_polylinePoints.isNotEmpty) 
               PolylineLayer(polylines: [

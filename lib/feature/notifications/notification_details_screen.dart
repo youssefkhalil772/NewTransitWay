@@ -14,10 +14,15 @@ class NotificationDetailsScreen extends StatelessWidget {
     IconData icon = Icons.notifications;
 
     final title = notification.title.toLowerCase();
-    if (title.contains('warning') || title.contains('تحذير') || title.contains('suspended')) {
+    final type = notification.type.toLowerCase();
+    
+    if (type == 'ban' || title.contains('suspended') || title.contains('banned')) {
+      themeColor = Colors.red;
+      icon = Icons.block;
+    } else if (type == 'warning' || title.contains('warning')) {
       themeColor = Colors.orange;
       icon = Icons.warning_amber_rounded;
-    } else if (title.contains('restored') || title.contains('تم') || title.contains('success')) {
+    } else if (type == 'restored' || title.contains('success')) {
       themeColor = Colors.green;
       icon = Icons.check_circle_outline;
     }

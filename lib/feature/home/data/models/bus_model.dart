@@ -34,8 +34,8 @@ class BusModel {
       status: json['status'] ?? 'On Way',
 
       // بنستخدم num عشان يقبل int أو double من غير مشاكل
-      lat: (json['latitude'] ?? json['lat'] ?? 0.0) as double,
-      lng: (json['longitude'] ?? json['lng'] ?? 0.0) as double,
+      lat: (json['latitude'] ?? json['lat'] ?? 0.0) is num ? (json['latitude'] ?? json['lat'] ?? 0.0).toDouble() : double.tryParse(json['latitude']?.toString() ?? '0') ?? 0.0,
+      lng: (json['longitude'] ?? json['lng'] ?? 0.0) is num ? (json['longitude'] ?? json['lng'] ?? 0.0).toDouble() : double.tryParse(json['longitude']?.toString() ?? '0') ?? 0.0,
     );
   }
 

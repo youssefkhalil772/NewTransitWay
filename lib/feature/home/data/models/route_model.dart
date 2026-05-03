@@ -4,12 +4,14 @@ class RouteModel {
   final int id;
   final String name;
   final String zone; // إضافة حقل الـ zone هنا
+  final double price; // السعر من الداتا بيز
   final Color color;
 
   RouteModel({
     required this.id,
     required this.name,
     required this.zone,
+    this.price = 0.0,
     required this.color,
   });
 
@@ -39,10 +41,12 @@ class RouteModel {
   factory RouteModel.fromJson(Map<String, dynamic> json) {
     String routeName = json['name'] ?? "";
     String routeZone = json['zone'] ?? ""; // استلام الزون من الـ API
+    double routePrice = (json['price'] as num?)?.toDouble() ?? 0.0;
     return RouteModel(
       id: json['id'],
       name: routeName,
       zone: routeZone,
+      price: routePrice,
       color: getColorFromName(routeName),
     );
   }

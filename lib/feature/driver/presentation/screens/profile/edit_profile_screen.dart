@@ -49,11 +49,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      _cropImage(image.path);
-    }
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a photo'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final image = await picker.pickImage(source: ImageSource.camera);
+                  if (image != null) _cropImage(image.path);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final image = await picker.pickImage(source: ImageSource.gallery);
+                  if (image != null) _cropImage(image.path);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _cropImage(String filePath) async {
@@ -79,24 +109,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
     try {
       final prefs = await SharedPreferences.getInstance();
-      int? driverId = prefs.getInt('driverId');
+      String? driverId = prefs.getString('driverId');
       if (driverId == null) return;
 
-      Map<String, String> fields = {
-        "FullName": _nameController.text.trim(),
-        "PhoneNumber": _phoneController.text.trim(),
-        "Email": widget.currentEmail,
+      Map<String, dynamic> fields = {
+        "full_name": _nameController.text.trim(),
+        "phone_number": _phoneController.text.trim(),
+        "email": widget.currentEmail,
       };
 
-      final response = await ApiService().putMultipart(
-        ApiConstants.getDriver(driverId),
+      final response = await ApiService().updateProfile(
+        table: ApiConstants.driversTable,
         fields: fields,
+        filters: {"id": driverId},
         file: _selectedImage,
+        fileKey: 'photo',
       );
 
       if (response != null) {
-        await prefs.setString('driverName', response['name'] ?? _nameController.text);
-        await prefs.setString('driverPhone', response['phone'] ?? _phoneController.text);
+        // Correct keys from Supabase 'drivers' table are likely full_name and phone_number
+        final String updatedName = response['full_name'] ?? response['name'] ?? response['fullName'] ?? _nameController.text;
+        final String updatedPhone = response['phone_number'] ?? response['phone'] ?? response['phoneNumber'] ?? _phoneController.text;
+        
+        await prefs.setString('driverName', updatedName);
+        await prefs.setString('driverPhone', updatedPhone);
+        
         if (response['photo'] != null) {
           await prefs.setString('driverPhoto', response['photo']);
         }
@@ -227,11 +264,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 clipBehavior: Clip.antiAlias,
                 child: _selectedImage != null
                     ? Image.file(_selectedImage!, fit: BoxFit.cover)
-                    : (widget.currentPhoto.startsWith('http')
+                    : (widget.currentPhoto.isNotEmpty && widget.currentPhoto.startsWith('http')
                         ? Image.network(widget.currentPhoto, fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                        : Image.asset(widget.currentPhoto, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))),
+                        : Icon(Icons.person, color: ColorManager.white, size: 40.sp)),
               ),
               Positioned(
                 bottom: 0,

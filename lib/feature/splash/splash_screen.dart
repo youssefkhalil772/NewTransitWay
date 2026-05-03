@@ -68,7 +68,7 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
     );
   }
 
-  // محتوى السبلاش الخاص بالدرايفر طبق الأصل من الصورة
+  // Driver splash content
   Widget _buildDriverSplashContent() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -76,10 +76,10 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
         Stack(
           alignment: Alignment.center,
           children: [
-            Image.asset(ImageAssets.logo, height: 180.h), // اللوجو الأساسي الذي يحتوي على الأتوبيس والمارك
+            Image.asset(ImageAssets.logo, height: 180.h), // Main logo with bus and marker
             Positioned(
-              right: 90.w, // تم تحريك الكلمة لليسار لتكون بجانب المارك الموجود في اللوجو
-              top: 50.h,  // ضبط الارتفاع ليتماشى مع مكان المارك في الصورة
+              right: 90.w, // Position text next to the marker in the logo
+              top: 50.h,  // Align vertically with the marker position
               child: Text(
                 'Driver',
                 style: TextStyle(
@@ -111,7 +111,7 @@ class DriverSplash extends StatelessWidget {
   Widget build(BuildContext context) {
     return const CommonSplashScreen(
       subTitle: 'Driver',
-      backgroundColor: Color(0XFF34C759), // لون الـ lightGreen المطلوب #34C759
+      backgroundColor: Color(0XFF34C759), // lightGreen color #34C759
       nextRoute: RoutesManager.loginDriver,
     );
   }

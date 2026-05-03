@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:transite_way/core/networking/supabase_init.dart';
+import 'package:transite_way/core/networking/api_constants.dart';
 import 'package:transite_way/feature/driver/data/driver_auth_service.dart';
 import 'package:transite_way/feature/tracking/data/tracking_service.dart';
 import 'package:transite_way/feature/home/data/home_repository.dart';
 import 'package:transite_way/feature/home/data/models/station_model.dart';
+import 'package:transite_way/feature/home/data/models/route_model.dart';
 import '../../../../../../core/resources/color_manager.dart';
 
 class HomeTabBody extends StatefulWidget {
@@ -35,61 +38,92 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     _loadAllData();
   }
 
+  @override
+  void dispose() {
+    _trackingService.stopTracking();
+    super.dispose();
+  }
+
   Future<void> _loadAllData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final int? driverId = prefs.getInt('driverId');
+      
+      // 1. بنجيب الـ ID بتاع السواق اللي عامل تسجيل دخول (حسن)
+      final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
+      
+      if (currentDriverId != null) {
+        // 2. بنروح جدول الباصات وندور على الباص المربوط بالـ ID ده
+        final busData = await SupabaseConfig.client
+            .from(ApiConstants.busesTable)
+            .select('*') // هنسحب كل بيانات الباص
+            .eq('driver_id', currentDriverId)
+            .maybeSingle();
 
-      if (driverId != null) {
-        // 1. جلب بيانات السائق
-        final driverData = await _driverService.getDriverData(driverId);
-        final String? rawRouteName = driverData['routeName']?.toString().trim();
+        // نحمل باقي البيانات الأساسية للتطبيق
+        final results = await Future.wait([
+          _driverService.getDriverData(currentDriverId),
+          _homeRepository.getRoutes(),
+          _homeRepository.getStations(),
+        ]);
 
-        // 2. جلب كل المسارات والبحث عن المسار المطابق لجلب الـ ID والـ Zone
-        final allRoutes = await _homeRepository.getRoutes();
-        final matchedRoute = allRoutes.firstWhere(
-          (r) => r.name.toLowerCase().trim() == rawRouteName?.toLowerCase(),
-          orElse: () => allRoutes.first,
-        );
-        
-        // حفظ الـ routeId والـ busId فوراً لاستخدامه في صفحة التذاكر
-        await prefs.setInt('routeId', matchedRoute.id);
-        if (driverData['bus']?['id'] != null) {
-          await prefs.setInt('busId', driverData['bus']['id']);
+        final driverData = results[0] as Map<String, dynamic>;
+        final allRoutes = results[1] as List<RouteModel>;
+        final allStations = results[2] as List<StationModel>;
+
+        if (busData != null) {
+          // نجيب الـ route_id الحقيقي المربوط بالباص
+          final int? routeId = busData['route_id'] as int?;
+
+          // نطابق المسار بناءً على الـ ID الدقيق
+          final matchedRoute = allRoutes.firstWhere(
+            (RouteModel r) => routeId != null && r.id == routeId,
+            orElse: () => allRoutes.isNotEmpty ? allRoutes.first : RouteModel(id: 0, name: 'No Route', zone: 'Unknown', color: Colors.grey, price: 30.0),
+          );
+
+          // نصفي المحطات
+          _routeStations = allStations
+              .where((s) => s.zone.toLowerCase().trim() == matchedRoute.zone.toLowerCase().trim())
+              .toList();
+
+          // نحفظ البيانات في الـ SharedPreferences عشان باقي الأبلكيشن
+          await prefs.setString('busId', busData['id'].toString());
+          await prefs.setInt('routeId', matchedRoute.id);
+          await prefs.setString('busNumber', busData['bus_number']?.toString() ?? '---');
+          
+          // نسحب السعر مباشرة من الموديل اللي أخدناه من جدول routes
+          final double price = matchedRoute.price > 0 ? matchedRoute.price : 30.0;
+          await prefs.setDouble('ticketPrice', price);
+
+          if (mounted) {
+            setState(() {
+              // هنا هنربط المتغيرات بتاعتك في التصميم بالداتا اللي راجعة
+              _driverName = driverData['full_name'] ?? driverData['name'] ?? 'Driver';
+              _busNumber = busData['bus_number']?.toString() ?? '---';
+              _plateNumber = busData['plate_number']?.toString() ?? '---';
+              _routeName = matchedRoute.name;
+              _stationsCount = _routeStations.length;
+              _isLoading = false;
+            });
+          }
+        } else {
+          // لو ملوش باص هيطلع الإيرور الأحمر اللي في الصورة
+          debugPrint('Error: Bus ID not found!');
+          if (mounted) setState(() => _isLoading = false);
         }
-        if (driverData['bus']?['busNumber'] != null) {
-          await prefs.setString('busNumber', driverData['bus']['busNumber'].toString());
-        }
-
-        final String targetZone = matchedRoute.zone;
-
-        // 3. جلب كل المحطات وتصفيتها
-        final allStations = await _homeRepository.getStations();
-        _routeStations = allStations
-            .where((s) => s.zone.toLowerCase().trim() == targetZone.toLowerCase().trim())
-            .toList();
-
-        if (mounted) {
-          setState(() {
-            _driverName = driverData['name'] ?? "Driver";
-            _busNumber = driverData['bus']?['busNumber'] ?? "---";
-            _plateNumber = driverData['bus']?['plateNumber'] ?? "---";
-            _routeName = rawRouteName ?? "---";
-            _stationsCount = _routeStations.length;
-            _isLoading = false;
-          });
-        }
+      } else {
+        debugPrint('Error: User not logged in!');
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      debugPrint("🛑 Error in loadAllData: $e");
+      debugPrint('Error fetching bus: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleStartTrip() async {
     final prefs = await SharedPreferences.getInstance();
-    int? busId = prefs.getInt('busId');
-    if (busId == null) {
+    String? busId = prefs.getString('busId');
+    if (busId == null || busId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Error: Bus ID not found!"), backgroundColor: Colors.red),

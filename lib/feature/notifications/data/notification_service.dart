@@ -1,14 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:overlay_support/overlay_support.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/networking/api_constants.dart';
+import '../../../core/networking/supabase_init.dart';
 import '../../../core/routes/routes_manager.dart';
 import 'notification_model.dart';
 
-// تعريف الـ GlobalKey للوصول للـ Context من أي مكان
+// Global NavigatorKey for accessing context from anywhere
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class InAppNotificationService {
@@ -16,68 +16,174 @@ class InAppNotificationService {
   factory InAppNotificationService() => _instance;
   InAppNotificationService._internal();
 
-  Timer? _pollingTimer;
-  int? _lastNotificationId;
+  StreamSubscription<List<Map<String, dynamic>>>? _notificationsSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _userSub;
+  String? _lastNotificationId;
+  final Set<String> _seenNotificationIds = {};
+  bool _isInitialized = false;
   
   final _unreadCountController = StreamController<int>.broadcast();
   Stream<int> get unreadCountStream => _unreadCountController.stream;
 
-  void startMonitoring() async {
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      _checkForNewNotifications();
-    });
-    _checkForNewNotifications();
+  Future<void> startMonitoring() async {
+    stopMonitoring(); // Ensure any existing listeners are cleared
+
+    final userId = await _getUserId();
+    if (userId == null || userId.isEmpty) return;
+
+    // 1. Listen for Notifications via Stream
+    _notificationsSub = SupabaseConfig.client
+        .from(ApiConstants.notificationsTable)
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .listen((List<Map<String, dynamic>> data) {
+          if (data.isEmpty) {
+            _unreadCountController.add(0);
+            _isInitialized = true;
+            return;
+          }
+          
+          // Count unread
+          final unreadCount = data.where((n) => (n['is_read'] ?? n['isRead'] ?? false) == false).length;
+          _unreadCountController.add(unreadCount);
+
+          // Find newly inserted notifications by checking seen IDs
+          for (var notif in data) {
+            final id = notif['id']?.toString();
+            final isRead = notif['is_read'] ?? notif['isRead'] ?? false;
+            
+            if (id != null && !_seenNotificationIds.contains(id)) {
+              _seenNotificationIds.add(id);
+              
+              // Only show popup for unread notifications AFTER initial load
+              if (_isInitialized && isRead == false) {
+                debugPrint("📡 Stream New Notification Payload: $notif");
+                _showInAppBanner(notif);
+              }
+            }
+          }
+          
+          _isInitialized = true;
+        }, onError: (err) {
+          debugPrint("📡 Stream Notification Error: $err");
+        });
+
+    // 2. Listen for User Profile Updates (specifically Ban Status)
+    _userSub = SupabaseConfig.client
+        .from(ApiConstants.usersTable)
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .listen((List<Map<String, dynamic>> data) {
+          if (data.isNotEmpty) {
+            final userData = data.first;
+            
+            // 1. Check for ban status
+            if (userData['is_banned'] == true) {
+              final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
+              _showForcedBanDialog('Account Suspended', reason);
+            }
+            
+            // 2. Check for warning field in users table (instant alert)
+            final userWarning = userData['warning'] ?? userData['worning'];
+            if (userWarning != null && userWarning.toString().isNotEmpty) {
+              _showInAppBanner({
+                'title': 'Account Warning',
+                'body': userWarning.toString(),
+                'is_read': false,
+              });
+            }
+          }
+        }, onError: (err) {
+          debugPrint("📡 Stream User Error: $err");
+        });
+
+    // Initial check
+    checkBanStatus();
   }
 
   void stopMonitoring() {
-    _pollingTimer?.cancel();
+    _notificationsSub?.cancel();
+    _notificationsSub = null;
+    
+    _userSub?.cancel();
+    _userSub = null;
   }
 
-  Future<int?> _getUserId() async {
+  /// Returns the current user's UUID from SharedPreferences.
+  Future<String?> _getUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    final dynamic rawId = prefs.get('userId') ?? prefs.get('id');
-    if (rawId is int) return rawId;
-    if (rawId is String) return int.tryParse(rawId);
-    return null;
+    return prefs.getString('userId');
   }
 
   Future<NotificationResponse?> fetchNotifications() async {
     try {
       final userId = await _getUserId();
-      if (userId == null) return null;
+      if (userId == null || userId.isEmpty) return null;
 
-      final url = "${ApiConstants.baseUrl}${ApiConstants.userNotifications(userId)}";
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
+      // 1. Fetch from notifications table
+      final notifications = await SupabaseConfig.client
+          .from(ApiConstants.notificationsTable)
+          .select()
+          .eq('user_id', userId);
+
+      final List<NotificationModel> notifList = (notifications as List)
+          .map((i) => NotificationModel.fromJson(i))
+          .toList();
+
+      // 2. Also check for a global warning in the users table
+      final userData = await SupabaseConfig.client
+          .from(ApiConstants.usersTable)
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (userData != null) {
+        final userWarning = userData['warning'] ?? userData['worning'];
+        if (userWarning != null && userWarning.toString().isNotEmpty) {
+          // Add it as a virtual notification at the top
+          notifList.insert(0, NotificationModel(
+            id: '-99', 
+            title: "Account Warning",
+            body: userWarning.toString(),
+            type: 'warning',
+            isRead: false,
+            createdAt: DateTime.tryParse(userData['created_at']?.toString() ?? '') ?? DateTime.now(),
+          ));
+        }
+      }
+
+      // Sort locally to avoid crashes if created_at column is missing in DB
+      notifList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      final int unreadCount = notifList.where((n) => !n.isRead).length;
+
+      final data = NotificationResponse(
+        userId: userId,
+        unreadCount: unreadCount,
+        notifications: notifList,
       );
 
-      if (response.statusCode == 200) {
-        final data = NotificationResponse.fromJson(jsonDecode(response.body));
-        _unreadCountController.add(data.unreadCount);
-        return data;
-      }
+      _unreadCountController.add(data.unreadCount);
+      return data;
     } catch (e) {
       debugPrint("🛑 Fetch Notifications Error: $e");
     }
     return null;
   }
 
-  Future<bool> markAsRead(int notificationId) async {
+  Future<bool> markAsRead(String notificationId) async {
     try {
       final userId = await _getUserId();
       if (userId == null) return false;
 
-      final url = "${ApiConstants.baseUrl}${ApiConstants.markNotificationRead(userId, notificationId)}";
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-      );
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        fetchNotifications(); 
-        return true;
-      }
+      await SupabaseConfig.client
+          .from(ApiConstants.notificationsTable)
+          .update({'is_read': true})
+          .eq('id', notificationId)
+          .eq('user_id', userId);
+
+      fetchNotifications(); 
+      return true;
     } catch (e) {
       debugPrint("🛑 Mark Read Error: $e");
     }
@@ -89,81 +195,86 @@ class InAppNotificationService {
       final userId = await _getUserId();
       if (userId == null) return false;
 
-      final url = "${ApiConstants.baseUrl}${ApiConstants.markAllNotificationsRead(userId)}";
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-      );
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        _unreadCountController.add(0);
-        return true;
-      }
+      await SupabaseConfig.client
+          .from(ApiConstants.notificationsTable)
+          .update({'is_read': true})
+          .eq('user_id', userId)
+          .eq('is_read', false);
+
+      _unreadCountController.add(0);
+      return true;
     } catch (e) {
       debugPrint("🛑 Mark All Read Error: $e");
     }
     return false;
   }
 
-  Future<void> _checkForNewNotifications() async {
+  /// Checks if the current user is banned. Returns true if banned.
+  Future<bool> checkBanStatus() async {
     try {
       final userId = await _getUserId();
-      if (userId == null) return;
+      if (userId == null) return false;
 
-      final url = "${ApiConstants.baseUrl}${ApiConstants.userNotifications(userId)}";
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-      );
+      final userData = await SupabaseConfig.client
+          .from(ApiConstants.usersTable)
+          .select() // Select all columns to catch warning/worning
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        final int unreadCount = data['unreadCount'] ?? 0;
-        _unreadCountController.add(unreadCount);
-
-        final List<dynamic> notifications = data['notifications'] ?? [];
-        if (notifications.isNotEmpty) {
-          final latest = notifications.first;
-          final int latestId = latest['id'];
-
-          if (latestId != _lastNotificationId && latest['isRead'] == false) {
-            _lastNotificationId = latestId;
-            _showInAppBanner(latest);
-          }
+      if (userData != null) {
+        // 1. Check for ban
+        if (userData['is_banned'] == true) {
+          final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
+          _showForcedBanDialog('Account Suspended', reason);
+          return true;
+        }
+        
+        // 2. Check for warning/worning field directly in user table
+        final userWarning = userData['warning'] ?? userData['worning'];
+        if (userWarning != null && userWarning.toString().isNotEmpty) {
+           _showInAppBanner({
+             'title': 'System Warning',
+             'body': userWarning.toString(),
+             'is_read': false,
+           });
         }
       }
     } catch (e) {
-      debugPrint("🛑 InApp Notification Error: $e");
+      debugPrint("⚠️ Ban check error: $e");
     }
+    return false;
   }
 
   void _showInAppBanner(Map<String, dynamic> data) {
     Color bgColor = const Color(0xFF1B4D3E);
     IconData iconData = Icons.notifications_active;
 
-    String title = data['title']?.toString() ?? "";
-    String body = data['body']?.toString() ?? "";
+    String title = (data['title'] ?? "").toString();
+    String body = (data['body'] ?? "").toString();
+    bool isRead = data['is_read'] ?? data['isRead'] ?? false;
     
+    if (isRead) return; 
+
     bool isBan = title.toLowerCase().contains('suspended') || 
-                 title.contains('تعليق') || 
                  body.toLowerCase().contains('suspended') ||
-                 body.contains('تعليق') ||
-                 body.contains('تم حظر');
+                 body.toLowerCase().contains('banned');
 
     if (isBan) {
       bgColor = Colors.red;
       iconData = Icons.block;
       _showForcedBanDialog(title, body);
-    } else if (title.toLowerCase().contains('warning') || title.contains('تحذير')) {
+      return; 
+    } else if (title.toLowerCase().contains('warning')) {
       bgColor = Colors.orange;
       iconData = Icons.warning_amber_rounded;
-    } else if (title.toLowerCase().contains('restored') || title.contains('تم')) {
+    } else if (title.toLowerCase().contains('restored') || title.toLowerCase().contains('success')) {
       bgColor = Colors.green;
       iconData = Icons.check_circle_outline;
     }
 
     showSimpleNotification(
       Text(
-        title.isEmpty ? "تنبيه جديد" : title,
+        title.isEmpty ? "New Alert" : title,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
@@ -178,7 +289,7 @@ class InAppNotificationService {
         decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
         child: Icon(iconData, color: Colors.white, size: 20),
       ),
-      duration: isBan ? const Duration(seconds: 10) : const Duration(seconds: 5),
+      duration: const Duration(seconds: 5),
     );
   }
 
@@ -224,8 +335,12 @@ class InAppNotificationService {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () async {
+                    // Sign out and stop monitoring
+                    stopMonitoring();
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.clear();
+                    await SupabaseConfig.client.auth.signOut();
+                    
                     if (context.mounted) {
                       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
                     }

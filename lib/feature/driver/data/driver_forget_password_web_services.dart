@@ -1,24 +1,24 @@
-import 'dart:convert';
 import 'dart:developer';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:transite_way/core/networking/supabase_init.dart';
 import 'package:transite_way/core/networking/api_constants.dart';
 
 class DriverForgetPasswordWebServices {
-  
+  final SupabaseClient _client = SupabaseConfig.client;
+
   Future<String?> getEmailByPhone(String phone) async {
     try {
       log("Requesting getEmailByPhone with phone: $phone");
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.getDriverEmail}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phoneNumber': phone}),
-      );
-      log("Response Status: ${response.statusCode}");
-      log("Response Body: ${response.body}");
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['email'];
+      final response = await _client
+          .from(ApiConstants.driversTable)
+          .select('email')
+          .eq('phone', phone)
+          .maybeSingle();
+
+      log("Response: $response");
+
+      if (response != null) {
+        return response['email'];
       }
       return null;
     } catch (e) {
@@ -38,15 +38,8 @@ class DriverForgetPasswordWebServices {
   Future<bool> requestReset(String email) async {
     try {
       log("Requesting requestReset with email: $email");
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.requestReset}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
-      log("Response Status: ${response.statusCode}");
-      log("Response Body: ${response.body}");
-      
-      return response.statusCode == 200 || response.statusCode == 201;
+      await _client.auth.resetPasswordForEmail(email);
+      return true;
     } catch (e) {
       log("Error in requestReset: $e");
       return false;
@@ -56,18 +49,12 @@ class DriverForgetPasswordWebServices {
   Future<bool> verifyOtp({required String email, required String otp}) async {
     try {
       log("Requesting verifyOtp for email: $email with code: $otp");
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.verifyCode}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "email": email,
-          "code": otp,
-        }),
+      final response = await _client.auth.verifyOTP(
+        email: email,
+        token: otp,
+        type: OtpType.recovery,
       );
-      log("Response Status: ${response.statusCode}");
-      log("Response Body: ${response.body}");
-      
-      return response.statusCode == 200;
+      return response.user != null;
     } catch (e) {
       log("Error in verifyOtp: $e");
       return false;
@@ -81,19 +68,10 @@ class DriverForgetPasswordWebServices {
   }) async {
     try {
       log("Requesting confirmReset for email: $email with code: $code");
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.confirmReset}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'code': code,
-          'newPassword': newPassword,
-        }),
+      await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
       );
-      log("Response Status: ${response.statusCode}");
-      log("Response Body: ${response.body}");
-      
-      return response.statusCode == 200;
+      return true;
     } catch (e) {
       log("Error in confirmReset: $e");
       return false;

@@ -5,7 +5,8 @@ import '../../../profile/profile_screen.dart';
 import '../../../qr_scanner/success_dialog.dart';
 import '../../../tickets/tickets.dart';
 import '../screens/home_screen.dart';
-import 'custom_points_badge.dart'; // نحتاجه لتحديث الرصيد
+import 'custom_points_badge.dart'; // Used to update balance
+import '../../../notifications/data/notification_service.dart';
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -16,7 +17,7 @@ class MainWrapper extends StatefulWidget {
 
 class _MainWrapperState extends State<MainWrapper> {
   int _selectedIndex = 0;
-  int _userId = 1;
+  String? _userId;
   int _ticketsRefreshKey = 0;
   int _qrRefreshKey = 0;
 
@@ -29,9 +30,12 @@ class _MainWrapperState extends State<MainWrapper> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = prefs.getInt('userId') ?? 1;
+      _userId = prefs.getString('userId');
     });
-    // تحديث الرصيد عند فتح الأبلكيشن لأول مرة
+    // Start listening to realtime notifications and ban status
+    InAppNotificationService().startMonitoring();
+
+    // Update balance on app open
     CustomPointsBadge.fetchAndRefreshGlobalBalance();
   }
 
@@ -54,7 +58,12 @@ class _MainWrapperState extends State<MainWrapper> {
       },
     ),
     ProfileScreen(
-      onViewTickets: () => setState(() => _selectedIndex = 1),
+      onViewTickets: () {
+        setState(() {
+          _selectedIndex = 1;
+          _ticketsRefreshKey++;
+        });
+      },
     ),
   ];
 
@@ -73,8 +82,8 @@ class _MainWrapperState extends State<MainWrapper> {
             if (index == 1) _ticketsRefreshKey++;
             if (index == 2) _qrRefreshKey++;
           });
-          // التعديل هنا: تحديث الرصيد تلقائياً في كل مرة المستخدم يغير التبويب (Tab)
-          // ده بيضمن إن لو الأدمن غير حاجة، اليوزر يشوفها فوراً وهو بيتجول في الأبلكيشن
+          // Update balance automatically every time the user changes the tab
+          // This ensures that if the admin changes something, the user sees it immediately
           CustomPointsBadge.fetchAndRefreshGlobalBalance();
         },
         type: BottomNavigationBarType.fixed,

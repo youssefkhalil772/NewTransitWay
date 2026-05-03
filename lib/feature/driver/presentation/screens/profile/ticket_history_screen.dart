@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:transite_way/core/networking/api_constants.dart';
+import 'package:transite_way/core/networking/supabase_init.dart';
 import 'package:transite_way/core/widgets/custom_ticket_card.dart';
 import 'package:transite_way/feature/home/data/home_repository.dart';
 
@@ -19,6 +18,7 @@ class TicketHistoryItem {
   final DateTime dateTime;
   final TicketStatus status;
   final String rawStatus;
+  final String ticketType;
 
   const TicketHistoryItem({
     required this.route,
@@ -29,6 +29,7 @@ class TicketHistoryItem {
     required this.dateTime,
     required this.status,
     required this.rawStatus,
+    required this.ticketType,
   });
 
   factory TicketHistoryItem.fromMap(Map<String, dynamic> map) {
@@ -59,6 +60,7 @@ class TicketHistoryItem {
       dateTime: dt,
       status: status,
       rawStatus: map['status'] ?? "Unknown",
+      ticketType: (map['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
     );
   }
 }
@@ -116,20 +118,77 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
 
   Future<void> _fetchHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final driverId = prefs.getInt('driverId');
-    if (driverId == null) return;
+    final String? busId = prefs.getString('busId');
+    final String? driverId = SupabaseConfig.client.auth.currentUser?.id;
 
     try {
-      final response = await http.get(
-        Uri.parse("${ApiConstants.baseUrl}${ApiConstants.driverTickets(driverId)}"),
-      );
-      if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            _allTickets = data.map((t) => TicketHistoryItem.fromMap(t)).toList();
-          });
-        }
+      // Step 1: Fetch raw tickets by bus_id OR user_id
+      List<dynamic> rawTickets = [];
+      if (busId != null && busId.isNotEmpty) {
+        rawTickets = await SupabaseConfig.client
+            .from(ApiConstants.ticketsTable)
+            .select('*')
+            .eq('bus_id', busId)
+            .order('created_at', ascending: false);
+      } else if (driverId != null) {
+        rawTickets = await SupabaseConfig.client
+            .from(ApiConstants.ticketsTable)
+            .select('*')
+            .eq('user_id', driverId)
+            .order('created_at', ascending: false);
+      }
+
+      if (rawTickets.isEmpty) {
+        if (mounted) setState(() => _allTickets = []);
+        return;
+      }
+
+      // Step 2: Enrich with routes and buses
+      final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
+      final busIds = rawTickets.map((t) => t['bus_id']).whereType<String>().toSet().toList();
+
+      Map<int, Map<String, dynamic>> routeMap = {};
+      Map<String, Map<String, dynamic>> busMap = {};
+
+      if (routeIds.isNotEmpty) {
+        final routesRes = await SupabaseConfig.client.from('routes').select('id, name, price').inFilter('id', routeIds);
+        for (final r in routesRes) { routeMap[r['id'] as int] = Map<String, dynamic>.from(r); }
+      }
+      if (busIds.isNotEmpty) {
+        final busesRes = await SupabaseConfig.client.from('buses').select('id, bus_number').inFilter('id', busIds);
+        for (final b in busesRes) { busMap[b['id'].toString()] = Map<String, dynamic>.from(b); }
+      }
+
+      // Step 3: Build TicketHistoryItem list
+      if (mounted) {
+        setState(() {
+          _allTickets = rawTickets.map((t) {
+            final routeId = t['route_id'] as int?;
+            final busIdKey = t['bus_id']?.toString();
+            final route = routeId != null ? routeMap[routeId] : null;
+            final bus = busIdKey != null ? busMap[busIdKey] : null;
+
+            DateTime? createdAt;
+            try { createdAt = DateTime.parse(t['created_at']); } catch (_) {}
+
+            return TicketHistoryItem(
+              route: route?['name']?.toString() ?? 'Unknown Route',
+              busNumber: bus?['bus_number']?.toString() ?? '---',
+              price: (route?['price'] as num?)?.toStringAsFixed(0) ?? '0',
+              time: createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--',
+              date: createdAt != null ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal()) : '--/--',
+              dateTime: createdAt ?? DateTime.now(),
+              status: () {
+                final s = t['status']?.toString().toLowerCase() ?? '';
+                if (s == 'active' || s == 'sold' || s == 'valid') return TicketStatus.sold;
+                if (s == 'expired' || s == 'used') return TicketStatus.expired;
+                return TicketStatus.other;
+              }(),
+              rawStatus: t['status']?.toString().toLowerCase() == 'active' ? 'Sold' : t['status']?.toString() ?? 'Unknown',
+              ticketType: (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
+            );
+          }).toList();
+        });
       }
     } catch (e) {
       debugPrint("Error fetching history: $e");
@@ -192,6 +251,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
                                 date: item.date,
                                 route: item.route,
                                 status: item.rawStatus,
+                                ticketType: item.ticketType,
                               );
                             },
                           ),

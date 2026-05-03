@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
-        android:label="transite_way"
+        android:label="TransiteWay"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -30,7 +30,6 @@
             </intent-filter>
         </activity>
 
-        <!-- ميزة القص تحتاج تعريف هذا الـ Activity في الأندرويد -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"

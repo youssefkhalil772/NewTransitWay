@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../../core/networking/api_constants.dart';
+import '../../../../core/networking/supabase_init.dart';
 
 class CustomPointsBadge extends StatefulWidget {
   const CustomPointsBadge({super.key});
@@ -17,36 +16,29 @@ class CustomPointsBadge extends StatefulWidget {
       // طباعة كل الداتا المتسيفة للتأكد
       debugPrint("🔍 All Prefs Keys: ${prefs.getKeys()}");
 
-      // محاولة جلب الـ ID بأكثر من مسمى
       final dynamic rawId = prefs.get('userId') ?? prefs.get('id') ?? prefs.get('driverId');
-      int? userId;
-      if (rawId is int) userId = rawId;
-      else if (rawId is String) userId = int.tryParse(rawId);
+      String? userId;
+      if (rawId != null) {
+        userId = rawId.toString();
+      }
 
-      if (userId == null || userId == 0) {
+      if (userId == null || userId.isEmpty) {
         debugPrint("⚠️ PointsBadge: No userId found in prefs. Found rawId: $rawId");
         return;
       }
 
-      final url = "${ApiConstants.baseUrl}${ApiConstants.userBalance(userId)}";
-      debugPrint("📡 Fetching balance from: $url");
+      debugPrint("📡 Fetching balance for userId: $userId");
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 5));
+      final response = await SupabaseConfig.client
+          .from(ApiConstants.usersTable)
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
 
-      debugPrint("📡 Balance Response Body: ${response.body}");
+      debugPrint("📡 Balance Response: $response");
 
-      if (response.statusCode == 200) {
-        final dynamic data = jsonDecode(response.body);
-        int latest = 0;
-        if (data is Map) {
-          latest = (data['balancePoints'] ?? 0).toInt();
-        } else if (data is num) {
-          latest = data.toInt();
-        }
-
+      if (response != null) {
+        int latest = (response['balance'] ?? response['points'] ?? 0).toInt();
         balanceNotifier.value = latest;
         await prefs.setInt('userPoints', latest);
         debugPrint("✅ Balance Linked: $latest");

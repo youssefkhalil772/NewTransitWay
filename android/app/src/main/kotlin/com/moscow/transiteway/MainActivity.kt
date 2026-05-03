@@ -1,4 +1,4 @@
-package com.example.transite_way
+package com.moscow.transiteway
 
 import io.flutter.embedding.android.FlutterActivity
 

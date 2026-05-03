@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/core/widgets/common_profile_view.dart';
+import 'package:transite_way/feature/driver/data/driver_auth_service.dart';
 import 'edit_profile_screen.dart';
 import 'ticket_history_screen.dart';
 
@@ -21,11 +24,12 @@ class ProfileScreenDriver extends StatefulWidget {
 }
 
 class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
+  final DriverAuthServices _driverService = DriverAuthServices();
   String _driverName = "";
   String _driverEmail = "";
   String _driverPhone = "";
   String _licenseNumber = "";
-  String _profileImagePath = ImageAssets.boy;
+  String _profileImagePath = "";
 
   @override
   void initState() {
@@ -35,19 +39,63 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
 
   Future<void> _loadDriverData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _driverName = prefs.getString('driverName') ?? "Driver";
-      _driverEmail = prefs.getString('driverEmail') ?? "";
-      _driverPhone = prefs.getString('driverPhone') ?? "";
-      _licenseNumber = prefs.getString('licenseNumber') ?? "";
-      
-      String? serverPhoto = prefs.getString('driverPhoto');
-      if (serverPhoto != null && serverPhoto.isNotEmpty) {
-        _profileImagePath = serverPhoto;
-      } else {
-        _profileImagePath = prefs.getString('selected_driver_avatar') ?? ImageAssets.boy;
+    
+    // 1. Initial load from SharedPreferences for speed
+    String name = prefs.getString('driverName') ?? "Driver";
+    String email = prefs.getString('driverEmail') ?? "";
+    String phone = prefs.getString('driverPhone') ?? "";
+    String license = prefs.getString('licenseNumber') ?? "";
+    String? serverPhoto = prefs.getString('driverPhoto');
+
+    if (mounted) {
+      setState(() {
+        _driverName = name;
+        _driverEmail = email;
+        _driverPhone = phone;
+        _licenseNumber = license;
+        _profileImagePath = (serverPhoto != null && serverPhoto.isNotEmpty) 
+            ? serverPhoto 
+            : (prefs.getString('selected_driver_avatar') ?? "");
+      });
+    }
+
+    // 2. Immediate Background Sync from Supabase (Source of Truth)
+    final String? driverId = prefs.getString('driverId');
+    if (driverId != null && driverId.isNotEmpty) {
+      try {
+        debugPrint("📡 Syncing Profile for driverId: $driverId");
+        final driverData = await _driverService.getDriverData(driverId);
+        
+        // Correct keys for drivers table
+        name = driverData['full_name'] ?? driverData['name'] ?? driverData['fullName'] ?? name;
+        phone = driverData['phone_number'] ?? driverData['phone'] ?? driverData['phoneNumber'] ?? phone;
+        email = driverData['email'] ?? email;
+        license = driverData['license_number'] ?? driverData['licenseNumber'] ?? license;
+        serverPhoto = driverData['photo'] ?? serverPhoto;
+
+        // Persist fresh data
+        await prefs.setString('driverName', name);
+        await prefs.setString('driverPhone', phone);
+        await prefs.setString('driverEmail', email);
+        await prefs.setString('licenseNumber', license);
+        if (serverPhoto != null) await prefs.setString('driverPhoto', serverPhoto);
+
+        if (mounted) {
+          setState(() {
+            _driverName = name;
+            _driverEmail = email;
+            _driverPhone = phone;
+            _licenseNumber = license;
+            if (serverPhoto != null && serverPhoto.isNotEmpty) {
+              _profileImagePath = serverPhoto;
+            }
+          });
+          debugPrint("✅ Profile Synced from DB: $name | $phone");
+        }
+      } catch (e) {
+        debugPrint("🛑 Profile DB Sync Error: $e");
       }
-    });
+    }
   }
 
   void _viewImage() {
@@ -61,9 +109,11 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(20.r),
-              child: _profileImagePath.startsWith('http')
-                  ? Image.network(_profileImagePath, fit: BoxFit.contain)
-                  : Image.asset(_profileImagePath, fit: BoxFit.contain),
+              child: _profileImagePath.isEmpty
+                  ? Icon(Icons.person, color: Colors.grey, size: 100.sp)
+                  : (_profileImagePath.startsWith('http')
+                      ? Image.network(_profileImagePath, fit: BoxFit.contain)
+                      : Image.file(File(_profileImagePath), fit: BoxFit.contain)),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(

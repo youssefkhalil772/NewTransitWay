@@ -1,47 +1,25 @@
 class ApiConstants {
-  static const String baseUrl = "https://transit-way.runasp.net/api/";
-  
-  // Auth
-  static const String login = "Auth/login";
-  static const String loginDriver = "Driver/login";
-  static String getDriver(int driverId) => "Driver/$driverId"; 
+  // ── Supabase Table Names ──────────────────────────────────────
+  static const String usersTable = 'users';
+  static const String driversTable = 'drivers';
+  static const String stationsTable = 'stations';
+  static const String routesTable = 'routes';
+  static const String busesTable = 'buses';
+  static const String ticketsTable = 'tickets';
+  static const String notificationsTable = 'notifications';
+  static const String walletsTable = 'wallets';
+  static const String trackingTable = 'tracking';
+  static const String userTripsTable = 'user_trips';
 
-  static const String googleLogin = "Auth/google-login";
-  static const String register = "Auth/user/register";
-  static const String getEmail = "Auth/get-email";
-  static const String getDriverEmail = "Driver/get-email";
-  static const String requestReset = "Auth/request-reset";
-  static const String verifyCode = "Auth/verify-code";
-  static const String confirmReset = "Auth/confirm-reset";
+  // ── Supabase RPC Functions ────────────────────────────────────
+  static const String searchTripRpc = 'search_trip';
+  static const String scanPayRpc = 'scan_pay';
+  static const String startTripRpc = 'start_trip';
+  static const String endTripRpc = 'end_trip';
 
-  // Home
-  static const String stations = "Stations";
-  static const String routes = "Routes";
-  static const String userTripSearch = "UserTrip/search";
-  static const String adminBuses = "admin/buses";
+  // ── Supabase Storage Buckets ──────────────────────────────────
+  static const String avatarsBucket = 'avatars';
 
-  // Profile & Points
-  static const String userProfile = "Auth/user/profile";
-  static String userBalance(int userId) => "Wallet/balance/$userId";
-  
-  // Tickets
-  static String userTickets(int userId) => "Tickets/user/$userId";
-  static const String createManualTicket = "Tickets/manual";
-  static String driverTickets(int driverId) => "Tickets/driver/$driverId";
-
-  // Notifications
-  static String userNotifications(int userId) => "User/$userId/notifications";
-  static String markNotificationRead(int userId, int notificationId) => "User/$userId/notifications/$notificationId/read";
-  static String markAllNotificationsRead(int userId) => "User/$userId/notifications/read-all";
-
-  // QR Payment
-  static const String scanPay = "QrPayment/scan-pay";
-
-  // Tracking
-  static const String trackUpdate = "track/update";
-  static String startTrip(int busId) => "track/start-trip/$busId";
-  static String endTrip(int busId) => "track/end-trip/$busId";
-
-  // OSRM (Third-party)
+  // ── OSRM (Third-party – unchanged) ────────────────────────────
   static const String osrmBaseUrl = "https://router.project-osrm.org/route/v1/driving/";
 }

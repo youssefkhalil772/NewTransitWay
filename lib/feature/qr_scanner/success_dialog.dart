@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import '../../core/networking/api_constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/routes/routes_manager.dart';
 import '../../main.dart';
 import '../home/presentation/widgets/custom_points_badge.dart';
@@ -101,59 +99,90 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
     if (mounted) setState(() => showCamera = false);
   }
 
+  String _translateError(String? error) {
+    if (error == null) return 'An unexpected error occurred';
+    const Map<String, String> errorMessages = {
+      'Invalid QR code': 'Invalid or expired QR code',
+      'No active trip found for this bus': 'No active trip found for this bus',
+      'Insufficient balance': 'Insufficient balance',
+      'User not found': 'User not found',
+      'Route not found for this QR': 'Route not found for this QR code',
+    };
+    for (final entry in errorMessages.entries) {
+      if (error.contains(entry.key)) return entry.value;
+    }
+    return error;
+  }
+
   Future<void> _handlePayment(String qrCode) async {
     if (isProcessing || isDialogShowing) return;
     setState(() {
       isProcessing = true;
       isDialogShowing = true;
     });
-    
     _animationController.stop();
-    cameraController?.stop(); 
+    cameraController?.stop();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getInt('userId') ?? 0;
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not found — please log in');
+      }
 
-      final response = await http.post(
-        Uri.parse("${ApiConstants.baseUrl}${ApiConstants.scanPay}"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "userId": userId,
-          "qrText": qrCode,
-        }),
+      final response = await Supabase.instance.client.functions.invoke(
+        'scan-pay',
+        body: {
+          'userId': userId,
+          'qrToken': qrCode,
+        },
       );
 
-      final dynamic data = jsonDecode(response.body);
+      final data = response.data;
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (data is Map && data['remainingBalance'] != null) {
-          int balance = (data['remainingBalance'] as num).toInt();
-          CustomPointsBadge.updateGlobalBalance(balance);
-          await prefs.setInt('userPoints', balance);
+      if (data is Map && data['error'] != null) {
+        final errorMsg = _translateError(data['error'].toString());
+        if (mounted) {
+          setState(() {
+            isProcessing = false;
+            isDialogShowing = false;
+          });
+          if (errorMsg.toLowerCase().contains('insufficient') || errorMsg.toLowerCase().contains('balance')) {
+            _showInsufficientBalanceDialog(context);
+          } else {
+            _showErrorDialog(context, customMessage: errorMsg);
+          }
         }
-        
-        if (data is Map && data['busId'] != null) {
-          await prefs.setInt('lastRidedBusId', (data['busId'] as num).toInt());
-        }
+        return;
+      }
 
-        if (mounted) _showSuccessDialog(context);
-      } else {
-        String message = "Scan Failed";
-        if (data is Map && data['message'] != null) {
-          message = data['message'].toString();
-        }
-        if (message.contains("Insufficient balance")) throw "Insufficient balance";
-        throw "Invalid QR Code"; 
+      // Update local balance
+      if (data is Map && data['remainingBalance'] != null) {
+        final int balance = (data['remainingBalance'] as num).toInt();
+        CustomPointsBadge.updateGlobalBalance(balance);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('userPoints', balance);
+      }
+
+      if (mounted) {
+        _showSuccessDialog(
+          context,
+          routeName: data['routeName']?.toString(),
+          fare: (data['fare'] as num?)?.toDouble(),
+          remainingBalance: (data['remainingBalance'] as num?)?.toInt(),
+        );
       }
     } catch (e) {
-      debugPrint("QR Scanner Logic Error: $e");
+      debugPrint('🛑 scan-pay Edge Function Error: $e');
       if (mounted) {
-        setState(() => isProcessing = false);
-        if (e.toString().contains("Insufficient balance")) {
+        setState(() {
+          isProcessing = false;
+          isDialogShowing = false;
+        });
+        final errStr = e.toString();
+        if (errStr.toLowerCase().contains('insufficient') || errStr.toLowerCase().contains('balance')) {
           _showInsufficientBalanceDialog(context);
         } else {
-          _showErrorDialog(context);
+          _showErrorDialog(context, customMessage: _translateError(errStr));
         }
       }
     }
@@ -252,12 +281,17 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
     );
   }
 
-  void _showSuccessDialog(BuildContext context) {
+  void _showSuccessDialog(BuildContext context, {String? routeName, double? fare, int? remainingBalance}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ScannerDialogContent(
-        title: "Ticket Scanned Successfully",
+        title: "Payment Successful! ✅",
+        subtitle: [
+          if (routeName != null) 'Route: $routeName',
+          if (fare != null) 'Fare Paid: ${fare.toStringAsFixed(0)} EGP',
+          if (remainingBalance != null) 'Remaining Balance: $remainingBalance EGP',
+        ].join('\n'),
         buttonText: "View Your Tickets",
         onPrimaryPressed: () {
           Navigator.pop(context);
@@ -273,18 +307,18 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
     );
   }
 
-  void _showErrorDialog(BuildContext context) {
+  void _showErrorDialog(BuildContext context, {String? customMessage}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ScannerDialogContent(
         title: "Scan Failed",
-        subtitle: "Invalid QR Code", 
+        subtitle: customMessage ?? "Invalid or expired QR code",
         buttonText: "Try Again",
         isError: true,
         onPrimaryPressed: () {
           Navigator.pop(context);
-          _activateCamera(); 
+          _activateCamera();
         },
         onSecondaryPressed: () {
           Navigator.pop(context);

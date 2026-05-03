@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transite_way/core/resources/color_manager.dart';
 import 'package:transite_way/core/routes/routes_manager.dart';
 import '../../core/resources/assest_manager.dart';
+import '../../feature/notifications/data/notification_service.dart';
 
 class Splash extends StatefulWidget {
   const Splash({super.key});
@@ -58,12 +59,15 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
 
     final prefs = await SharedPreferences.getInstance();
     final String? userRole = prefs.getString('userRole');
-    final int? userId = prefs.getInt('userId');
-    final int? driverId = prefs.getInt('driverId');
+    final String? userId = prefs.getString('userId');
+    final String? driverId = prefs.getString('driverId');
 
-    if (userRole == 'driver' && driverId != null) {
+    if (userRole == 'driver' && driverId != null && driverId.isNotEmpty) {
       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.driverHome);
-    } else if (userRole == 'passenger' && userId != null && userId != 0) {
+    } else if (userRole == 'passenger' && userId != null && userId.isNotEmpty) {
+      // Check if the user is banned before letting them in
+      final isBanned = await InAppNotificationService().checkBanStatus();
+      if (isBanned) return; // Ban dialog will handle the rest
       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.mainWrapper);
     } else {
       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
@@ -82,7 +86,7 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // تكبير اللوجو هنا
+                // Logo
                 Image.asset(ImageAssets.logo, height: 200.h),
               ],
             ),

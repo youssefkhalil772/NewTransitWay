@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,7 @@ import '../../../core/routes/routes_manager.dart';
 import '../home/presentation/widgets/custom_app_bar.dart';
 import '../../core/widgets/common_profile_view.dart';
 import '../notifications/data/notification_service.dart';
+import 'report_complaint_screen.dart';
 import 'user_edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -29,16 +31,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    String? savedName = prefs.getString('fullName');
+    String? savedEmail = prefs.getString('email');
+    String? savedPhone = prefs.getString('phone') ?? prefs.getString('phoneNumber');
+    String? savedPhoto = prefs.getString('userPhoto');
+
+    debugPrint("--- DEBUG: LOADING PROFILE DATA ---");
+    debugPrint("Name: $savedName");
+    debugPrint("Email: $savedEmail");
+    debugPrint("Phone: $savedPhone");
+    debugPrint("Photo: $savedPhoto");
+    debugPrint("-----------------------------------");
+
     setState(() {
-      _userName = prefs.getString('fullName') ?? "Passenger User";
-      _userEmail = prefs.getString('email') ?? "passenger@transit.com";
-      _userPhone = prefs.getString('phone') ?? "";
-      _userPhoto = prefs.getString('userPhoto') ?? 'assets/logo/3.png';
+      _userName = savedName ?? "Passenger User";
+      _userEmail = savedEmail ?? "passenger@transit.com";
+      _userPhone = savedPhone ?? "";
+      _userPhoto = savedPhoto ?? 'assets/logo/3.png';
     });
   }
 
   void _navigateToEditProfile() async {
-    // Navigate and WAIT for the result
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -51,7 +65,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    // If result is true, refresh the data
     if (result == true) {
       _loadUserData();
     }
@@ -70,7 +83,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(20.r),
               child: _userPhoto.startsWith('http')
                   ? Image.network(_userPhoto, fit: BoxFit.contain)
-                  : Image.asset(_userPhoto, fit: BoxFit.contain),
+                  : (_userPhoto.contains('assets') 
+                      ? Image.asset(_userPhoto, fit: BoxFit.contain)
+                      : Image.file(File(_userPhoto), fit: BoxFit.contain)),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(
@@ -150,6 +165,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 RoutesManager.navigateTo(context, RoutesManager.tickets);
               }
             },
+          ),
+          ProfileMenuItem(
+            icon: Icons.report_problem_outlined,
+            text: 'Report a Complaint',
+            iconColor: Colors.deepOrange,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReportComplaintScreen()),
+            ),
           ),
           ProfileMenuItem(
             icon: Icons.logout,

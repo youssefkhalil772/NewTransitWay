@@ -6,6 +6,7 @@ class CustomTicketCard extends StatelessWidget {
   final String busNumber, price, time, date;
   final String? route;
   final String? status;
+  final String? ticketType;
 
   const CustomTicketCard({
     super.key,
@@ -15,6 +16,7 @@ class CustomTicketCard extends StatelessWidget {
     required this.date,
     this.route,
     this.status,
+    this.ticketType,
   });
 
   @override
@@ -61,11 +63,11 @@ class CustomTicketCard extends StatelessWidget {
                     quarterTurns: 3,
                     child: Center(
                       child: Text(
-                        'هيئة النقل العام بالقاهرة',
+                        'Cairo Public Transport Authority',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: 14.sp,
+                          fontSize: 12.sp,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -137,6 +139,21 @@ class CustomTicketCard extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                             color: statusColor,
                           ),
+                        ),
+                      ),
+                    ),
+                  
+                  // Ticket Type Badge (Manual / QR)
+                  if (ticketType != null)
+                    Positioned(
+                      top: 45.h,
+                      right: 0,
+                      child: Text(
+                        ticketType!,
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
                         ),
                       ),
                     ),

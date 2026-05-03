@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../networking/supabase_init.dart';
 import '../routes/routes_manager.dart';
 
 class CommonProfileView extends StatelessWidget {
@@ -49,11 +51,15 @@ class CommonProfileView extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    ImageProvider profileImage;
-    if (imagePath.startsWith('http')) {
-      profileImage = NetworkImage(imagePath);
-    } else {
-      profileImage = AssetImage(imagePath);
+    bool hasValidImage = imagePath.isNotEmpty && imagePath != 'assets/logo/3.png';
+    ImageProvider? profileImage;
+    
+    if (hasValidImage) {
+      if (imagePath.startsWith('http')) {
+        profileImage = NetworkImage(imagePath);
+      } else {
+        profileImage = AssetImage(imagePath);
+      }
     }
 
     return Padding(
@@ -66,8 +72,9 @@ class CommonProfileView extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 50.r,
-                  backgroundColor: const Color(0xFFFFC107).withOpacity(0.2),
+                  backgroundColor: hasValidImage ? const Color(0xFFFFC107).withOpacity(0.2) : Colors.grey[300],
                   backgroundImage: profileImage,
+                  child: hasValidImage ? null : Icon(Icons.person, size: 50.r, color: Colors.white),
                 ),
                 Positioned(
                   bottom: 0,
@@ -172,6 +179,14 @@ class CommonProfileView extends StatelessWidget {
               if (driverImg != null) await prefs.setString('selected_driver_avatar', driverImg);
               if (userImg != null) await prefs.setString('selected_profile_avatar', userImg);
               if (driverPhoto != null) await prefs.setString('driverPhoto', driverPhoto);
+
+              try {
+                await GoogleSignIn().signOut();
+                await GoogleSignIn().disconnect();
+                await SupabaseConfig.client.auth.signOut();
+              } catch (e) {
+                debugPrint("SignOut Error: $e");
+              }
 
               if (context.mounted) {
                 RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);

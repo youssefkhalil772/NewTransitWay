@@ -21,7 +21,7 @@ class OnboardingItem extends StatelessWidget {
 
     return Column(
       children: [
-        // تكبير مساحة الصورة لتقليل مساحة الجزء الأبيض
+        // Expand the image area to reduce the white section
         Expanded(
           flex: 6, 
           child: SizedBox(
@@ -34,12 +34,12 @@ class OnboardingItem extends StatelessWidget {
           ),
         ),
 
-        // الجزء الخاص بالنصوص والأزرار
+        // Text and buttons section
         Expanded(
-          flex: 4, // جعل الجزء الأبيض يأخذ مساحة أقل (40% من الشاشة)
+          flex: 4, // White section takes 40% of screen
           child: Container(
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(25.w, 30.h, 25.w, 0), // أزلنا الـ padding السفلي هنا
+            padding: EdgeInsets.fromLTRB(25.w, 30.h, 25.w, 0), // No bottom padding
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.only(
@@ -48,14 +48,14 @@ class OnboardingItem extends StatelessWidget {
               ),
             ),
             child: SafeArea(
-              top: false, // نهتم فقط بالـ SafeArea من الأسفل
+              top: false, // Only apply SafeArea from the bottom
               child: Column(
                 children: [
                   Text(
                     model.title,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 22.sp, // تصغير الخط قليلاً ليناسب المساحة
+                      fontSize: 22.sp, // Slightly smaller font for the space
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF2D3142),
                     ),
@@ -73,7 +73,7 @@ class OnboardingItem extends StatelessWidget {
                   
                   const Spacer(),
 
-                  // النقاط التوضيحية
+                  // Page indicator dots
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
@@ -84,13 +84,13 @@ class OnboardingItem extends StatelessWidget {
 
                   const Spacer(),
 
-                  // زرار البداية
+                  // Get started button
                   if (isLastPage)
                     Padding(
-                      padding: EdgeInsets.only(bottom: 20.h), // مسافة أمان إضافية
+                      padding: EdgeInsets.only(bottom: 20.h), // Extra safety padding
                       child: SizedBox(
                         width: double.infinity,
-                        height: 50.h, // تقليل ارتفاع الزرار قليلاً
+                        height: 50.h, // Slightly reduced button height
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pushReplacement(
@@ -117,7 +117,7 @@ class OnboardingItem extends StatelessWidget {
                       ),
                     )
                   else
-                    SizedBox(height: 70.h), // مساحة للحفاظ على التوازن
+                    SizedBox(height: 70.h), // Spacer for layout balance
                 ],
               ),
             ),

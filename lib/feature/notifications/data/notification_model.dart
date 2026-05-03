@@ -1,5 +1,5 @@
 class NotificationResponse {
-  final int userId;
+  final String userId;
   final int unreadCount;
   final List<NotificationModel> notifications;
 
@@ -11,7 +11,7 @@ class NotificationResponse {
 
   factory NotificationResponse.fromJson(Map<String, dynamic> json) {
     return NotificationResponse(
-      userId: json['userId'] ?? 0,
+      userId: (json['user_id'] ?? json['userId'])?.toString() ?? '',
       unreadCount: json['unreadCount'] ?? 0,
       notifications: (json['notifications'] as List? ?? [])
           .map((i) => NotificationModel.fromJson(i))
@@ -21,9 +21,10 @@ class NotificationResponse {
 }
 
 class NotificationModel {
-  final int id;
+  final String id;
   final String title;
   final String body;
+  final String type;
   final bool isRead;
   final DateTime createdAt;
 
@@ -31,30 +32,30 @@ class NotificationModel {
     required this.id,
     required this.title,
     required this.body,
+    required this.type,
     required this.isRead,
     required this.createdAt,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    String dateStr = json['createdAt'] ?? '';
+    String dateStr = json['created_at'] ?? json['createdAt'] ?? '';
     DateTime parsedDate;
 
     if (dateStr.isNotEmpty) {
-      // لو السيرفر مش باعت حرف 'Z' في الآخر، الـ Dart بيفهم إن الوقت ده Local
-      // فإحنا بنجبره يفهم إنه UTC الأول عشان لما نحوله لـ Local يزود الـ 3 ساعات بتوع مصر
       if (!dateStr.endsWith('Z') && !dateStr.contains('+')) {
         dateStr += 'Z';
       }
-      parsedDate = DateTime.parse(dateStr).toLocal();
+      parsedDate = DateTime.tryParse(dateStr)?.toLocal() ?? DateTime.now();
     } else {
       parsedDate = DateTime.now();
     }
 
     return NotificationModel(
-      id: json['id'] ?? 0,
+      id: json['id']?.toString() ?? '',
       title: json['title'] ?? '',
       body: json['body'] ?? '',
-      isRead: json['isRead'] ?? false,
+      type: json['type'] ?? 'general',
+      isRead: json['is_read'] ?? json['isRead'] ?? false,
       createdAt: parsedDate,
     );
   }

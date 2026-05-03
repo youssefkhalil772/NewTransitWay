@@ -491,7 +491,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
         child: ElevatedButton(
           onPressed: _isEndingTrip ? null : () async {
             final prefs = await SharedPreferences.getInstance();
-            int? busId = prefs.getInt('busId');
+            String? busId = prefs.getString('busId');
             if (busId == null) return;
 
             setState(() => _isEndingTrip = true);
@@ -509,7 +509,10 @@ extension _RoutesScreenUI on _RoutesScreenState {
                 );
               }
             } finally {
-              if (mounted) setState(() => _isEndingTrip = false);
+              if (mounted) {
+                // ignore: invalid_use_of_protected_member
+                setState(() => _isEndingTrip = false);
+              }
             }
           },
           style: ElevatedButton.styleFrom(

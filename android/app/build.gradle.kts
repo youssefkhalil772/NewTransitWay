@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.transite_way"
+    namespace = "com.moscow.transiteway"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.transite_way"
+        applicationId = "com.moscow.transiteway"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
