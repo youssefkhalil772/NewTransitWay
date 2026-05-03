@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
+import 'package:transite_way/core/utils/sound_manager.dart';
 import 'package:transite_way/core/widgets/custom_ticket_card.dart';
 import 'package:intl/intl.dart';
 
@@ -29,6 +31,17 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
   bool _isLoadingTickets = true;
   String? _busId;
   String? _driverId;
+  StreamSubscription? _ticketSubscription;
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  static const int _maxRetryDelay = 8; // seconds
+
+  @override
+  void dispose() {
+    _ticketSubscription?.cancel();
+    _retryTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -38,31 +51,104 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    _busId = prefs.getString('busId');
     _driverId = Supabase.instance.client.auth.currentUser?.id;
+    _busId = prefs.getString('busId');
+
+    // If busId is missing in prefs, try to fetch it from DB using driverId
+    if ((_busId == null || _busId!.isEmpty) && _driverId != null) {
+      debugPrint("🔍 AddTickets: busId missing in prefs, fetching from DB for driver: $_driverId");
+      try {
+        final busData = await SupabaseConfig.client
+            .from('buses')
+            .select('id')
+            .eq('driver_id', _driverId!)
+            .maybeSingle();
+        
+        if (busData != null) {
+          _busId = busData['id'].toString();
+          await prefs.setString('busId', _busId!);
+          debugPrint("✅ AddTickets: Resolved busId from DB: $_busId");
+        }
+      } catch (e) {
+        debugPrint("🛑 AddTickets: Failed to resolve busId: $e");
+      }
+    }
+
     await _fetchTickets();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    if (_busId == null || _busId!.isEmpty) {
+      debugPrint("⚠️ AddTickets: Cannot setup Realtime — busId is empty.");
+      return;
+    }
+
+    debugPrint("🚀 AddTickets: Starting Realtime Stream for busId: $_busId (attempt ${_retryCount + 1})");
+
+    _ticketSubscription?.cancel();
+    _ticketSubscription = SupabaseConfig.client
+        .from('tickets')
+        .stream(primaryKey: ['id'])
+        .eq('bus_id', int.tryParse(_busId!) ?? _busId!)
+        .listen(
+      (data) {
+        // Reset retry count on successful data
+        _retryCount = 0;
+        debugPrint("📡 AddTickets: Stream OK. local=${_tickets.length} stream=${data.length}");
+
+        if (data.length > _tickets.length && _tickets.isNotEmpty) {
+          debugPrint("🔔 New Ticket! Playing sound...");
+          SoundManager.playNotification();
+        }
+        if (data.length != _tickets.length) {
+          _fetchTickets();
+        }
+      },
+      onError: (error) {
+        debugPrint("📡 Stream error: $error");
+        _scheduleRealtimeRetry();
+      },
+    );
+  }
+
+  void _scheduleRealtimeRetry() {
+    if (!mounted) return;
+    _retryTimer?.cancel();
+    _retryCount++;
+    // Exponential back-off: 2s → 4s → 8s (capped)
+    final delaySec = (_retryCount * 2).clamp(2, _maxRetryDelay);
+    debugPrint("🔁 Realtime retry #$_retryCount in ${delaySec}s...");
+    _retryTimer = Timer(Duration(seconds: delaySec), () {
+      if (mounted) _setupRealtime();
+    });
   }
 
   Future<void> _fetchTickets() async {
     if (!mounted) return;
     setState(() => _isLoadingTickets = true);
     try {
-      // Step 1: Fetch raw tickets (no joins since no FK defined)
+      // Step 1: Fetch raw tickets
       List<dynamic> rawTickets = [];
-      if (_busId != null && _busId!.isNotEmpty) {
+      if (_busId != null && _driverId != null) {
+        // Fetch tickets that belong to this bus OR were created by this driver
+        rawTickets = await SupabaseConfig.client
+            .from('tickets')
+            .select('*')
+            .or('bus_id.eq.$_busId,user_id.eq.$_driverId')
+            .order('created_at', ascending: false);
+      } else if (_busId != null) {
         rawTickets = await SupabaseConfig.client
             .from('tickets')
             .select('*')
             .eq('bus_id', _busId!)
-            .order('created_at', ascending: false)
-            .limit(100);
+            .order('created_at', ascending: false);
       } else if (_driverId != null) {
         rawTickets = await SupabaseConfig.client
             .from('tickets')
             .select('*')
             .eq('user_id', _driverId!)
-            .order('created_at', ascending: false)
-            .limit(100);
+            .order('created_at', ascending: false);
       }
 
       if (rawTickets.isEmpty) {
@@ -72,7 +158,7 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
 
       // Step 2: Get unique route IDs and bus IDs to enrich data
       final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
-      final busIds = rawTickets.map((t) => t['bus_id']).whereType<String>().toSet().toList();
+      final busIds = rawTickets.map((t) => t['bus_id']).where((id) => id != null).map((id) => id.toString()).toSet().toList();
 
       Map<int, Map<String, dynamic>> routeMap = {};
       Map<String, Map<String, dynamic>> busMap = {};

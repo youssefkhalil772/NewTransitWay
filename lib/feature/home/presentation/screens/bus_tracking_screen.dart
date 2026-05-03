@@ -110,10 +110,10 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
 
   Future<void> _startLiveTracking(dynamic busId, dynamic busNum) async {
     _busStreamSubscription?.cancel();
-    debugPrint("BusTracking: Starting stream for id=$busId, busNum=$busNum");
+    debugPrint("🚀 BusTracking: Starting Monitor for busId=$busId");
 
     try {
-      // First, reliably resolve the exact bus ID
+      // 1. Resolve UUID
       var initialData = await SupabaseConfig.client
           .from(ApiConstants.busesTable)
           .select()
@@ -128,27 +128,27 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
 
       if (initialData != null && mounted) {
         _handleUpdate(initialData);
-        final resolvedId = initialData['id'].toString();
+        final String resolvedId = initialData['id'].toString();
+        debugPrint("✅ BusTracking: Resolved ID = $resolvedId");
 
-        // Start Realtime Stream using the resolved ID
+        // 2. Realtime Stream
         _busStreamSubscription = SupabaseConfig.client
             .from(ApiConstants.busesTable)
             .stream(primaryKey: ['id'])
             .eq('id', resolvedId)
             .listen((List<Map<String, dynamic>> data) {
-          if (!_isTracking || !mounted) {
-            _busStreamSubscription?.cancel();
-            return;
-          }
+          if (!_isTracking || !mounted) return;
+          
           if (data.isNotEmpty) {
-            debugPrint("BusTracking: Stream update received");
-            _handleUpdate(data.first);
+            final update = data.first;
+            debugPrint("📡 BusTracking: REALTIME → Lat: ${update['current_lat']}, Lng: ${update['current_lng']}");
+            _handleUpdate(update);
           }
         }, onError: (error) {
-          debugPrint("BusTracking: Stream error: $error");
+          debugPrint("🛑 BusTracking: Stream Error: $error");
         });
 
-        // Fallback: poll every 5 seconds
+        // 3. Fallback: Poll
         _fallbackTimer?.cancel();
         _fallbackTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
           if (!_isTracking || !mounted) return;
@@ -158,16 +158,20 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
                 .select()
                 .eq('id', resolvedId)
                 .maybeSingle();
+            
             if (latest != null && mounted) {
+              debugPrint("🔄 BusTracking: Fallback Polling update");
               _handleUpdate(latest);
             }
           } catch (e) {
-            debugPrint("BusTracking: Fallback error: $e");
+            debugPrint("⚠️ BusTracking: Polling Error: $e");
           }
         });
+      } else {
+        debugPrint("🛑 BusTracking: Bus resolution failed!");
       }
     } catch (e) {
-      debugPrint("BusTracking: Initial stream setup error: $e");
+      debugPrint("🛑 BusTracking: Setup Error: $e");
     }
   }
 

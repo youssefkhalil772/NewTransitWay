@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/routes/routes_manager.dart';
 import '../../main.dart';
 import '../home/presentation/widgets/custom_points_badge.dart';
+import '../../core/utils/sound_manager.dart';
 
 class QRScannerPage extends StatefulWidget {
   final bool isActive;
@@ -164,6 +165,7 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
       }
 
       if (mounted) {
+        SoundManager.playSuccess();
         _showSuccessDialog(
           context,
           routeName: data['routeName']?.toString(),

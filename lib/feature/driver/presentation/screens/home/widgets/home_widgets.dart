@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,17 +32,36 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   List<StationModel> _routeStations = [];
   bool _isLoading = true;
   bool _isStartingTrip = false;
+  StreamSubscription? _busSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    _loadAllData().then((_) => _setupRealtime());
   }
 
   @override
   void dispose() {
+    _busSubscription?.cancel();
     _trackingService.stopTracking();
     super.dispose();
+  }
+
+  void _setupRealtime() {
+    final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentDriverId == null) return;
+
+    _busSubscription?.cancel();
+    _busSubscription = SupabaseConfig.client
+        .from(ApiConstants.busesTable)
+        .stream(primaryKey: ['id'])
+        .eq('driver_id', currentDriverId)
+        .listen((data) {
+      if (data.isNotEmpty && !_isLoading) {
+        debugPrint("🔄 HomeTab: Realtime update triggered");
+        _loadAllData();
+      }
+    });
   }
 
   Future<void> _loadAllData() async {
@@ -79,6 +99,17 @@ class _HomeTabBodyState extends State<HomeTabBody> {
             (RouteModel r) => routeId != null && r.id == routeId,
             orElse: () => allRoutes.isNotEmpty ? allRoutes.first : RouteModel(id: 0, name: 'No Route', zone: 'Unknown', color: Colors.grey, price: 30.0),
           );
+
+          // SYNC: Ensure drivers table is synced for Edge Functions (generate-qr & create-manual-tickets)
+          try {
+            await SupabaseConfig.client
+                .from('drivers')
+                .update({'bus_id': busData['id']})
+                .eq('id', currentDriverId);
+            debugPrint("✅ Synced driver bus_id with bus table");
+          } catch (e) {
+            debugPrint("⚠️ Failed to sync driver bus_id: $e");
+          }
 
           // نصفي المحطات
           _routeStations = allStations
@@ -174,67 +205,99 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     if (_isLoading) return const Scaffold(backgroundColor: Colors.white, body: Center(child: CircularProgressIndicator(color: Colors.green)));
 
     return SafeArea(
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(color: ColorManager.grey2, borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(50), bottomRight: Radius.circular(50))),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 40.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [const Icon(Icons.location_on_outlined, size: 26), SizedBox(width: 8.w), Expanded(child: Text(_routeName, style: const TextStyle(fontWeight: FontWeight.w500)))]),
-                  const SizedBox(height: 29),
-                  Text('Hello $_driverName!', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8.h),
-                  const Text('Start your trip now', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 50.w, vertical: 30.h),
-                    child: Column(children: [
-                      InfoCard(label: 'Bus Number', value: _busNumber),
-                      SizedBox(height: 15.h),
-                      InfoCard(label: 'Plate Number', value: _plateNumber),
-                      SizedBox(height: 15.h),
-                      InfoCard(label: 'Route Name', value: _routeName),
-                      SizedBox(height: 15.h),
-                      InfoCard(label: 'Number Of Stations', value: '$_stationsCount'),
-                    ]),
+      child: RefreshIndicator(
+        onRefresh: _loadAllData,
+        color: ColorManager.lightGreen,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: ColorManager.grey2,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(50),
+                    bottomRight: Radius.circular(50),
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(30.w),
-                    child: Container(
-                      width: double.infinity, padding: EdgeInsets.all(20.w),
-                      decoration: BoxDecoration(color: const Color(0xFFE2F0E5), borderRadius: BorderRadius.circular(10.r)),
-                      child: Column(children: [
-                        const Text('Trip tracking is ready', style: TextStyle(fontWeight: FontWeight.w500)),
-                        SizedBox(height: 16.h),
-                        SizedBox(
-                          width: double.infinity, 
-                          height: 50.h, 
-                          child: ElevatedButton(
-                            onPressed: _isStartingTrip ? null : _handleStartTrip, 
-                            style: ElevatedButton.styleFrom(backgroundColor: ColorManager.lightGreen), 
-                            child: _isStartingTrip 
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Text('Start Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-                          )
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 40.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, size: 26),
+                          SizedBox(width: 8.w),
+                          Expanded(
+                            child: Text(
+                              _routeName,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _loadAllData,
+                            icon: Icon(Icons.refresh, size: 22.sp, color: Colors.black87),
+                            tooltip: 'Reload',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 29),
+                      Text(
+                        'Hello $_driverName!',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8.h),
+                      const Text('Start your trip now', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 50.w, vertical: 30.h),
+                child: Column(
+                  children: [
+                    InfoCard(label: 'Bus Number', value: _busNumber),
+                    SizedBox(height: 15.h),
+                    InfoCard(label: 'Plate Number', value: _plateNumber),
+                    SizedBox(height: 15.h),
+                    InfoCard(label: 'Route Name', value: _routeName),
+                    SizedBox(height: 15.h),
+                    InfoCard(label: 'Number Of Stations', value: '$_stationsCount'),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(30.w),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(20.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2F0E5),
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('Trip tracking is ready', style: TextStyle(fontWeight: FontWeight.w500)),
+                      SizedBox(height: 16.h),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50.h,
+                        child: ElevatedButton(
+                          onPressed: _isStartingTrip ? null : _handleStartTrip,
+                          style: ElevatedButton.styleFrom(backgroundColor: ColorManager.lightGreen),
+                          child: _isStartingTrip
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text('Start Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
-                      ]),
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -356,10 +356,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
   Future<void> _startLiveTracking(dynamic busId, dynamic busNum) async {
     _busStreamSubscription?.cancel();
-    debugPrint("TrackingView: Starting stream for id=$busId, busNum=$busNum");
+    debugPrint("🚀 TrackingView: Starting Realtime Monitor for busId=$busId");
 
     try {
-      // First, reliably resolve the exact bus ID
+      // 1. Resolve exact Bus UUID
       var initialData = await SupabaseConfig.client
           .from(ApiConstants.busesTable)
           .select()
@@ -374,28 +374,27 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
       if (initialData != null && mounted) {
         _handleTrackingUpdate(initialData);
-        final resolvedId = initialData['id'].toString();
-        debugPrint("TrackingView: Resolved bus ID = $resolvedId");
+        final String resolvedId = initialData['id'].toString();
+        debugPrint("✅ TrackingView: Resolved bus UUID = $resolvedId");
 
-        // Primary: Supabase Realtime stream
+        // 2. Start Realtime Stream
         _busStreamSubscription = SupabaseConfig.client
             .from(ApiConstants.busesTable)
             .stream(primaryKey: ['id'])
             .eq('id', resolvedId)
             .listen((List<Map<String, dynamic>> data) {
-          if (!_isTracking || !mounted) {
-            _busStreamSubscription?.cancel();
-            return;
-          }
+          if (!_isTracking || !mounted) return;
+          
           if (data.isNotEmpty) {
-            debugPrint("TrackingView: Stream update → lat=${data.first['current_lat']}, lng=${data.first['current_lng']}");
-            _handleTrackingUpdate(data.first);
+            final update = data.first;
+            debugPrint("📡 TrackingView: REALTIME UPDATE → Lat: ${update['current_lat']}, Lng: ${update['current_lng']}");
+            _handleTrackingUpdate(update);
           }
         }, onError: (error) {
-          debugPrint("TrackingView: Stream error: $error");
+          debugPrint("🛑 TrackingView: Stream Error: $error");
         });
 
-        // Fallback: poll every 5 seconds in case Realtime is delayed
+        // 3. Fallback: Polling (Every 5 seconds)
         _fallbackTimer?.cancel();
         _fallbackTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
           if (!_isTracking || !mounted) return;
@@ -405,16 +404,20 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 .select()
                 .eq('id', resolvedId)
                 .maybeSingle();
+            
             if (latest != null && mounted) {
+              debugPrint("🔄 TrackingView: Fallback Polling update received");
               _handleTrackingUpdate(latest);
             }
           } catch (e) {
-            debugPrint("TrackingView: Fallback error: $e");
+            debugPrint("⚠️ TrackingView: Polling Error: $e");
           }
         });
+      } else {
+        debugPrint("🛑 TrackingView: Could not resolve bus data for tracking!");
       }
     } catch (e) {
-      debugPrint("TrackingView: Initial stream setup error: $e");
+      debugPrint("🛑 TrackingView: Setup Error: $e");
     }
   }
 

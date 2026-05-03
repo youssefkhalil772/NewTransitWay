@@ -145,7 +145,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
 
       // Step 2: Enrich with routes and buses
       final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
-      final busIds = rawTickets.map((t) => t['bus_id']).whereType<String>().toSet().toList();
+      final busIds = rawTickets.map((t) => t['bus_id']).where((id) => id != null).map((id) => id.toString()).toSet().toList();
 
       Map<int, Map<String, dynamic>> routeMap = {};
       Map<String, Map<String, dynamic>> busMap = {};

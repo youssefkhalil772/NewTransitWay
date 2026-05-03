@@ -27,13 +27,13 @@ serve(async (req) => {
     );
 
     // Step 1: Get driver's bus
-    const { data: driverData, error: driverError } = await supabase
-      .from("drivers")
-      .select("bus_id")
-      .eq("id", driverId)
+    const { data: busData, error: busError } = await supabase
+      .from("buses")
+      .select("id")
+      .eq("driver_id", driverId)
       .maybeSingle();
 
-    if (driverError || !driverData?.bus_id) {
+    if (busError || !busData?.id) {
       return new Response(
         JSON.stringify({ error: "No bus assigned to driver" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -76,7 +76,7 @@ serve(async (req) => {
     // We use user_id to store the driverId, and generate a ticket_code.
     const ticketsToInsert = Array.from({ length: numberOfTickets }, () => ({
       user_id: driverId,
-      bus_id: driverData.bus_id,
+      bus_id: busData.id,
       route_id: routeData.id,
       ticket_code: "MANUAL-" + crypto.randomUUID().substring(0, 8).toUpperCase(),
       status: "active"

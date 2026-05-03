@@ -33,6 +33,7 @@ dependencies:
   path_provider: ^2.1.2
   google_sign_in: ^6.2.1
   qr_flutter: ^4.1.0
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -54,3 +55,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/logo/
+    - assets/sounds/

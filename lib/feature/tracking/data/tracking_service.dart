@@ -198,12 +198,13 @@ class TrackingService {
       final response = await SupabaseConfig.client.from(ApiConstants.busesTable).update({
         'current_lat': lat,
         'current_lng': lng,
+        'status': 'Active', // Re-confirming active status with each update
       }).eq('id', busId).select();
 
       if (response.isNotEmpty) {
-        debugPrint('📍 Bus updated successfully: ($lat, $lng)');
+        debugPrint('📍 Bus Position Updated: id=$busId, coords=($lat, $lng)');
       } else {
-        debugPrint('⚠️ Bus update failed: No row found with id $busId');
+        debugPrint('⚠️ Bus Position Update FAILED: id=$busId not found or permission denied');
       }
     } catch (e) {
       debugPrint('🛑 Bus position update error: $e');
