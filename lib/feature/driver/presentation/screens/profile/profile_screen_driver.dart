@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/core/widgets/common_profile_view.dart';
 import 'package:transite_way/feature/driver/data/driver_auth_service.dart';
 import 'edit_profile_screen.dart';

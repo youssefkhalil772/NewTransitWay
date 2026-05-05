@@ -90,8 +90,12 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    for (var c in _controllers) c.dispose();
-    for (var n in _focusNodes) n.dispose();
+    for (var c in _controllers) {
+      c.dispose();
+    }
+    for (var n in _focusNodes) {
+      n.dispose();
+    }
     super.dispose();
   }
 

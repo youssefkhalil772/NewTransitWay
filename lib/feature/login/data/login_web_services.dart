@@ -63,15 +63,12 @@ class LoginWebServices {
           .eq('email', email)
           .maybeSingle();
 
-      if (userData == null) {
-        // Create new user profile
-        userData = await _client.from(ApiConstants.usersTable).insert({
+      userData ??= await _client.from(ApiConstants.usersTable).insert({
           'id': response.user!.id,
           'email': email,
           'full_name': response.user!.userMetadata?['full_name'] ?? '',
           'photo': response.user!.userMetadata?['avatar_url'] ?? '',
         }).select().single();
-      }
 
       return {
         'token': response.session?.accessToken ?? '',

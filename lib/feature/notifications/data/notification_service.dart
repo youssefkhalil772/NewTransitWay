@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/networking/api_constants.dart';
 import '../../../core/networking/supabase_init.dart';
 import '../../../core/routes/routes_manager.dart';
+import '../../../core/utils/sound_manager.dart';
 import 'notification_model.dart';
 
 // Global NavigatorKey for accessing context from anywhere
@@ -271,6 +271,8 @@ class InAppNotificationService {
       bgColor = Colors.green;
       iconData = Icons.check_circle_outline;
     }
+
+    SoundManager.playNotification();
 
     showSimpleNotification(
       Text(

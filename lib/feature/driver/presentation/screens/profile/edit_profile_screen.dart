@@ -126,23 +126,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         fileKey: 'photo',
       );
 
-      if (response != null) {
-        // Correct keys from Supabase 'drivers' table are likely full_name and phone_number
-        final String updatedName = response['full_name'] ?? response['name'] ?? response['fullName'] ?? _nameController.text;
-        final String updatedPhone = response['phone_number'] ?? response['phone'] ?? response['phoneNumber'] ?? _phoneController.text;
-        
-        await prefs.setString('driverName', updatedName);
-        await prefs.setString('driverPhone', updatedPhone);
-        
-        if (response['photo'] != null) {
-          await prefs.setString('driverPhoto', response['photo']);
-        }
-        
-        if (mounted) {
-          _showSuccessDialog();
-        }
+      // Correct keys from Supabase 'drivers' table are likely full_name and phone_number
+      final String updatedName = response['full_name'] ?? response['name'] ?? response['fullName'] ?? _nameController.text;
+      final String updatedPhone = response['phone_number'] ?? response['phone'] ?? response['phoneNumber'] ?? _phoneController.text;
+      
+      await prefs.setString('driverName', updatedName);
+      await prefs.setString('driverPhone', updatedPhone);
+      
+      if (response['photo'] != null) {
+        await prefs.setString('driverPhoto', response['photo']);
       }
-    } catch (e) {
+      
+      if (mounted) {
+        _showSuccessDialog();
+      }
+        } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Update failed: $e")),

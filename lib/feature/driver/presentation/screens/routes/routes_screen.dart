@@ -9,6 +9,9 @@ import 'package:transite_way/feature/tracking/data/tracking_service.dart';
 import 'package:transite_way/feature/home/data/models/station_model.dart';
 import 'package:transite_way/feature/home/data/models/route_model.dart';
 import 'package:transite_way/feature/home/data/home_repository.dart';
+import 'package:transite_way/feature/driver/services/crash_detector.dart';
+import 'package:transite_way/feature/driver/services/sos_service.dart';
+import 'package:transite_way/feature/driver/presentation/widgets/sos_overlay.dart';
 
 part 'routes_screen_state.dart';
 
@@ -232,6 +235,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
             ),
           ),
           SizedBox(width: 10.w),
+          // LIVE badge
           Container(
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
             decoration: BoxDecoration(
@@ -244,6 +248,41 @@ extension _RoutesScreenUI on _RoutesScreenState {
                 color: const Color(0xFF39C449),
                 fontWeight: FontWeight.bold,
                 fontSize: 12.sp,
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          // SOS button — manual trigger (only active during trip)
+          GestureDetector(
+            onTap: _sendSosManually,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCC0000),
+                borderRadius: BorderRadius.circular(8.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  )
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.white, size: 14.sp),
+                  SizedBox(width: 4.w),
+                  Text(
+                    'SOS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13.sp,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

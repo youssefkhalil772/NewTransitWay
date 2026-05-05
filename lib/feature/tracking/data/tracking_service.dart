@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/networking/api_constants.dart';
 import '../../../core/networking/supabase_init.dart';
 
@@ -11,9 +12,11 @@ class TrackingService {
   TrackingService._internal();
 
   StreamSubscription<Position>? _positionStreamSubscription;
+  RealtimeChannel? _broadcastChannel;
   
   Position? _lastSentPosition;
   Position? _currentPosition;
+  DateTime? _lastDbWriteTime;
 
   final _locationController = StreamController<Position>.broadcast();
   Stream<Position> get locationStream => _locationController.stream;
@@ -34,55 +37,53 @@ class TrackingService {
   }
 
   Future<void> startTrip(String busId) async {
-    try {
-      debugPrint("📡 Starting Trip for busId: $busId");
-      final supabase = SupabaseConfig.client;
+    debugPrint("📡 Starting Trip for busId: $busId (Fast Start)");
+    
+    // 1. Instantly start the location stream and broadcast
+    startLocationStream(busId);
+    
+    // 2. Asynchronously run backend setup without blocking the UI
+    _setupTripOnBackend(busId).catchError((e) {
+      debugPrint("🛑 Backend Trip Setup Error: $e");
+    });
+  }
 
-      // 1. Fetch the bus to get the route_id
-      final busData = await supabase
-          .from(ApiConstants.busesTable)
-          .select('route_id')
-          .eq('id', busId)
-          .maybeSingle();
+  Future<void> _setupTripOnBackend(String busId) async {
+    final supabase = SupabaseConfig.client;
 
-      if (busData == null || busData['route_id'] == null) {
-        throw Exception("Bus not found or no route assigned to this bus");
-      }
-      final routeId = busData['route_id'];
+    final busData = await supabase
+        .from(ApiConstants.busesTable)
+        .select('route_id')
+        .eq('id', busId)
+        .maybeSingle();
 
-      // 2. Mark any existing trips for this bus as completed to avoid conflicts
-      try {
-        await supabase
-            .from('trips')
-            .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
-            .eq('bus_id', busId)
-            .isFilter('ended_at', null); // Active trips have ended_at as null
-      } catch (e) {
-        debugPrint("⚠️ Failed to update old trips (ignoring): $e");
-      }
-
-      // 3. Create a new active trip
-      await supabase.from('trips').insert({
-        'bus_id': busId,
-        'route_id': routeId,
-        'started_at': DateTime.now().toUtc().toIso8601String(),
-        // ended_at is left null by default to mark it as active
-      });
-      debugPrint("✅ New active trip created in database");
-
-      // 4. Update status in buses table
-      await supabase
-          .from(ApiConstants.busesTable)
-          .update({'status': 'Active'})
-          .eq('id', busId);
-      debugPrint("✅ Bus status updated to Active");
-
-      // 5. Start the location stream
-      startLocationStream(busId);
-    } catch (e) {
-      debugPrint("🛑 Start Trip Error: $e");
-      rethrow;
+    if (busData == null || busData['route_id'] == null) {
+      throw Exception("Bus not found or no route assigned to this bus");
     }
+    final routeId = busData['route_id'];
+
+    try {
+      await supabase
+          .from('trips')
+          .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('bus_id', busId)
+          .isFilter('ended_at', null); 
+    } catch (e) {
+      debugPrint("⚠️ Failed to update old trips (ignoring): $e");
+    }
+
+    await supabase.from('trips').insert({
+      'bus_id': busId,
+      'route_id': routeId,
+      'started_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    debugPrint("✅ New active trip created in database");
+
+    await supabase
+        .from(ApiConstants.busesTable)
+        .update({'status': 'Active'})
+        .eq('id', busId);
+    debugPrint("✅ Bus status updated to Active");
   }
 
   Future<void> endTrip(String busId) async {
@@ -137,6 +138,16 @@ class TrackingService {
     stopTracking();
     _lastSentPosition = null;
     _currentPosition = null;
+    _lastDbWriteTime = null;
+    
+    // Initialize Realtime Broadcast Channel
+    _broadcastChannel = SupabaseConfig.client.channel('public-tracking');
+    _broadcastChannel!.subscribe((status, [error]) {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        debugPrint("📡 Broadcast Channel Connected");
+      }
+    });
+
     late LocationSettings locationSettings;
     if (Platform.isAndroid) {
       locationSettings = AndroidSettings(
@@ -166,15 +177,32 @@ class TrackingService {
           _currentPosition = position;
           _locationController.add(position);
 
-          if (_lastSentPosition == null || 
+          // 1. INSTANT BROADCAST (60fps realtime via Websocket)
+          _broadcastChannel?.sendBroadcastMessage(
+            event: 'bus_moved',
+            payload: {
+              'bus_id': busId,
+              'lat': position.latitude,
+              'lng': position.longitude,
+              'heading': position.heading,
+              'speed': position.speed,
+            },
+          );
+
+          // 2. THROTTLED DB WRITE (Every 10 seconds or 50 meters for persistence)
+          final now = DateTime.now();
+          final bool timePassed = _lastDbWriteTime == null || now.difference(_lastDbWriteTime!).inSeconds >= 10;
+          final bool distancePassed = _lastSentPosition == null || 
               Geolocator.distanceBetween(
                 _lastSentPosition!.latitude, 
                 _lastSentPosition!.longitude, 
                 position.latitude, 
                 position.longitude
-              ) >= 1) { // Update every 1 meter for smooth tracking
-            
+              ) >= 50;
+
+          if (timePassed || distancePassed) {
             _lastSentPosition = position;
+            _lastDbWriteTime = now;
             sendToApi(busId, position.latitude, position.longitude, position.speed);
           }
         }
@@ -227,6 +255,8 @@ class TrackingService {
   }
 
   void stopTracking() {
+    _broadcastChannel?.unsubscribe();
+    _broadcastChannel = null;
     if (_positionStreamSubscription != null) {
       _positionStreamSubscription!.cancel();
       _positionStreamSubscription = null;

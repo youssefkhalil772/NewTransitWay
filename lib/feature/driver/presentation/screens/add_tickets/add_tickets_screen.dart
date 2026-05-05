@@ -7,6 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
 import 'package:transite_way/core/utils/sound_manager.dart';
 import 'package:transite_way/core/widgets/custom_ticket_card.dart';
+import 'package:transite_way/feature/driver/data/driver_data_manager.dart';
+import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
+import 'package:transite_way/feature/home/data/models/route_model.dart';
 import 'package:intl/intl.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -31,10 +34,11 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
   bool _isLoadingTickets = true;
   String? _busId;
   String? _driverId;
+  String? _busNumber;
   StreamSubscription? _ticketSubscription;
   Timer? _retryTimer;
   int _retryCount = 0;
-  static const int _maxRetryDelay = 8; // seconds
+  static const int _maxRetryDelay = 8;
 
   @override
   void dispose() {
@@ -53,38 +57,35 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
     final prefs = await SharedPreferences.getInstance();
     _driverId = Supabase.instance.client.auth.currentUser?.id;
     _busId = prefs.getString('busId');
+    _busNumber = prefs.getString('busNumber') ?? '---';
 
-    // If busId is missing in prefs, try to fetch it from DB using driverId
+    // Ensure driver static data is pre-fetched (Zero Latency cache)
+    await DriverDataManager().prefetchData();
+
     if ((_busId == null || _busId!.isEmpty) && _driverId != null) {
-      debugPrint("🔍 AddTickets: busId missing in prefs, fetching from DB for driver: $_driverId");
       try {
         final busData = await SupabaseConfig.client
             .from('buses')
-            .select('id')
+            .select('id, bus_number')
             .eq('driver_id', _driverId!)
             .maybeSingle();
-        
         if (busData != null) {
           _busId = busData['id'].toString();
+          _busNumber = busData['bus_number']?.toString() ?? '---';
           await prefs.setString('busId', _busId!);
-          debugPrint("✅ AddTickets: Resolved busId from DB: $_busId");
+          await prefs.setString('busNumber', _busNumber!);
         }
-      } catch (e) {
-        debugPrint("🛑 AddTickets: Failed to resolve busId: $e");
-      }
+      } catch (_) {}
     }
 
-    await _fetchTickets();
     _setupRealtime();
   }
 
   void _setupRealtime() {
     if (_busId == null || _busId!.isEmpty) {
-      debugPrint("⚠️ AddTickets: Cannot setup Realtime — busId is empty.");
+      if (mounted) setState(() => _isLoadingTickets = false);
       return;
     }
-
-    debugPrint("🚀 AddTickets: Starting Realtime Stream for busId: $_busId (attempt ${_retryCount + 1})");
 
     _ticketSubscription?.cancel();
     _ticketSubscription = SupabaseConfig.client
@@ -92,21 +93,17 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
         .stream(primaryKey: ['id'])
         .eq('bus_id', int.tryParse(_busId!) ?? _busId!)
         .listen(
-      (data) {
-        // Reset retry count on successful data
+      (data) async {
         _retryCount = 0;
-        debugPrint("📡 AddTickets: Stream OK. local=${_tickets.length} stream=${data.length}");
-
+        
         if (data.length > _tickets.length && _tickets.isNotEmpty) {
-          debugPrint("🔔 New Ticket! Playing sound...");
           SoundManager.playNotification();
         }
-        if (data.length != _tickets.length) {
-          _fetchTickets();
-        }
+        
+        final enriched = await _enrichTicketsLocally(data);
+        if (mounted) setState(() { _tickets = enriched; _isLoadingTickets = false; });
       },
       onError: (error) {
-        debugPrint("📡 Stream error: $error");
         _scheduleRealtimeRetry();
       },
     );
@@ -116,89 +113,44 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
     if (!mounted) return;
     _retryTimer?.cancel();
     _retryCount++;
-    // Exponential back-off: 2s → 4s → 8s (capped)
     final delaySec = (_retryCount * 2).clamp(2, _maxRetryDelay);
-    debugPrint("🔁 Realtime retry #$_retryCount in ${delaySec}s...");
     _retryTimer = Timer(Duration(seconds: delaySec), () {
       if (mounted) _setupRealtime();
     });
   }
 
-  Future<void> _fetchTickets() async {
+  Future<List<Map<String, dynamic>>> _enrichTicketsLocally(List<Map<String, dynamic>> rawTickets) async {
+    final routes = await DriverDataManager().getRoutes();
+    
+    // Sort descending by created_at
+    final sortedTickets = List<Map<String, dynamic>>.from(rawTickets)..sort((a, b) {
+      final tA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+      final tB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+      return tB.compareTo(tA);
+    });
+
+    return sortedTickets.map((t) {
+      final ticket = Map<String, dynamic>.from(t);
+      final routeId = ticket['route_id'] as int?;
+      
+      RouteModel? matchedRoute;
+      if (routeId != null) {
+        try { matchedRoute = routes.firstWhere((r) => r.id == routeId); } catch (_) {}
+      }
+      
+      ticket['routes'] = matchedRoute != null ? {'name': matchedRoute.name, 'price': matchedRoute.price} : null;
+      ticket['buses'] = {'bus_number': _busNumber}; // Bus is constant for this stream!
+      return ticket;
+    }).toList();
+  }
+
+  Future<void> _manualRefresh() async {
     if (!mounted) return;
     setState(() => _isLoadingTickets = true);
-    try {
-      // Step 1: Fetch raw tickets
-      List<dynamic> rawTickets = [];
-      if (_busId != null && _driverId != null) {
-        // Fetch tickets that belong to this bus OR were created by this driver
-        rawTickets = await SupabaseConfig.client
-            .from('tickets')
-            .select('*')
-            .or('bus_id.eq.$_busId,user_id.eq.$_driverId')
-            .order('created_at', ascending: false);
-      } else if (_busId != null) {
-        rawTickets = await SupabaseConfig.client
-            .from('tickets')
-            .select('*')
-            .eq('bus_id', _busId!)
-            .order('created_at', ascending: false);
-      } else if (_driverId != null) {
-        rawTickets = await SupabaseConfig.client
-            .from('tickets')
-            .select('*')
-            .eq('user_id', _driverId!)
-            .order('created_at', ascending: false);
-      }
-
-      if (rawTickets.isEmpty) {
-        if (mounted) setState(() { _tickets = []; _isLoadingTickets = false; });
-        return;
-      }
-
-      // Step 2: Get unique route IDs and bus IDs to enrich data
-      final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
-      final busIds = rawTickets.map((t) => t['bus_id']).where((id) => id != null).map((id) => id.toString()).toSet().toList();
-
-      Map<int, Map<String, dynamic>> routeMap = {};
-      Map<String, Map<String, dynamic>> busMap = {};
-
-      if (routeIds.isNotEmpty) {
-        final routesRes = await SupabaseConfig.client
-            .from('routes')
-            .select('id, name, price')
-            .inFilter('id', routeIds);
-        for (final r in routesRes) {
-          routeMap[r['id'] as int] = Map<String, dynamic>.from(r);
-        }
-      }
-
-      if (busIds.isNotEmpty) {
-        final busesRes = await SupabaseConfig.client
-            .from('buses')
-            .select('id, bus_number')
-            .inFilter('id', busIds);
-        for (final b in busesRes) {
-          busMap[b['id'].toString()] = Map<String, dynamic>.from(b);
-        }
-      }
-
-      // Step 3: Merge
-      final enriched = rawTickets.map((t) {
-        final ticket = Map<String, dynamic>.from(t);
-        final routeId = ticket['route_id'] as int?;
-        final busId = ticket['bus_id']?.toString();
-        ticket['routes'] = routeId != null ? routeMap[routeId] : null;
-        ticket['buses'] = busId != null ? busMap[busId] : null;
-        return ticket;
-      }).toList();
-
-      if (mounted) setState(() { _tickets = enriched; _isLoadingTickets = false; });
-    } catch (e) {
-      debugPrint('Error fetching tickets: $e');
-      if (mounted) setState(() => _isLoadingTickets = false);
-    }
+    await DriverDataManager().prefetchData();
+    _setupRealtime();
   }
+
 
   void _showIssueSheet() {
     showModalBottomSheet(
@@ -209,7 +161,8 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
       builder: (ctx) => _IssueTicketsSheet(
         onSuccess: () {
           Navigator.pop(ctx);
-          _fetchTickets();
+          // Realtime stream handles the update, but we can call _manualRefresh just in case
+          _manualRefresh();
         },
       ),
     );
@@ -232,7 +185,11 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
         backgroundColor: _green,
         elevation: 2,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: Text('Issue Tickets', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+        label: Text('Issue Tickets',
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14.sp)),
       ),
       body: SafeArea(
         child: Column(
@@ -247,12 +204,19 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Tickets', style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: _darkText)),
-                        Text('All tickets issued for your bus', style: TextStyle(fontSize: 12.sp, color: _mutedText)),
+                        Text('Tickets',
+                            style: TextStyle(
+                                fontSize: 22.sp,
+                                fontWeight: FontWeight.bold,
+                                color: _darkText)),
+                        Text('All tickets issued for your bus',
+                            style: TextStyle(fontSize: 12.sp, color: _mutedText)),
                       ],
                     ),
                   ),
-                  IconButton(onPressed: _fetchTickets, icon: const Icon(Icons.refresh_rounded, color: _green)),
+                  IconButton(
+                      onPressed: _manualRefresh,
+                      icon: const Icon(Icons.refresh_rounded, color: _green)),
                 ],
               ),
             ),
@@ -261,53 +225,104 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
               padding: EdgeInsets.fromLTRB(20.w, 14.h, 20.w, 14.h),
               child: Row(
                 children: [
-                  _SummaryCard(label: 'Total Tickets', value: '${_tickets.length}', icon: Icons.confirmation_number_outlined, color: _green, bg: _lightGreen, border: _borderGreen),
+                  _SummaryCard(
+                      label: 'Total Tickets',
+                      value: '${_tickets.length}',
+                      icon: Icons.confirmation_number_outlined,
+                      color: _green,
+                      bg: _lightGreen,
+                      border: _borderGreen),
                   SizedBox(width: 12.w),
-                  _SummaryCard(label: 'Active Tickets', value: '$activeCount', icon: Icons.check_circle_outline, color: const Color(0xff2563EB), bg: const Color(0xffEFF6FF), border: const Color(0xffBFDBFE)),
+                  _SummaryCard(
+                      label: 'Active Tickets',
+                      value: '$activeCount',
+                      icon: Icons.check_circle_outline,
+                      color: const Color(0xff2563EB),
+                      bg: const Color(0xffEFF6FF),
+                      border: const Color(0xffBFDBFE)),
                 ],
               ),
             ),
             const Divider(height: 1, thickness: 0.5, color: Color(0xffE5E7EB)),
             // List
             Expanded(
-              child: _isLoadingTickets
-                  ? const Center(child: CircularProgressIndicator(color: _green))
-                  : _tickets.isEmpty
-                      ? _buildEmpty()
-                      : RefreshIndicator(
-                          onRefresh: _fetchTickets,
-                          color: _green,
-                          child: ListView.separated(
-                            padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 100.h),
-                            itemCount: _tickets.length,
-                            separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                            itemBuilder: (_, i) {
-                              final t = _tickets[i];
-                              final routeName = (t['routes'] as Map?)?['name']?.toString() ?? '---';
-                              final price = ((t['routes'] as Map?)?['price'] as num?)?.toStringAsFixed(0) ?? '0';
-                              final busNumber = (t['buses'] as Map?)?['bus_number']?.toString() ?? '---';
-                              final rawStatus = t['status']?.toString() ?? 'active';
-                              final status = rawStatus.toLowerCase() == 'active' ? 'Sold' : rawStatus;
-                              
-                              final code = t['ticket_code']?.toString() ?? '';
-                              final ticketType = code.startsWith('MANUAL-') ? 'Manual Ticket' : 'QR Ticket';
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _isLoadingTickets
+                    ? ListView.separated(
+                        physics: const ClampingScrollPhysics(),
+                        key: const ValueKey('loading'),
+                        padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 100.h),
+                        itemCount: 5,
+                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                        itemBuilder: (_, __) => SkeletonLoader(
+                            width: double.infinity,
+                            height: 100.h,
+                            borderRadius: 16.r),
+                      )
+                    : _tickets.isEmpty
+                        ? _buildEmpty(key: const ValueKey('empty'))
+                        : RefreshIndicator(
+                            key: const ValueKey('list'),
+                            onRefresh: _manualRefresh,
+                            color: _green,
+                            child: ListView.separated(
+                              physics: const ClampingScrollPhysics(),
+                              padding:
+                                  EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 100.h),
+                              itemCount: _tickets.length,
+                              separatorBuilder: (_, __) =>
+                                  SizedBox(height: 12.h),
+                              itemBuilder: (_, i) {
+                                final t = _tickets[i];
+                                final routeName = (t['routes'] as Map?)?['name']
+                                        ?.toString() ??
+                                    '---';
+                                final price = ((t['routes'] as Map?)?['price']
+                                            as num?)
+                                        ?.toStringAsFixed(0) ??
+                                    '0';
+                                final busNumber = (t['buses'] as Map?)?['bus_number']
+                                        ?.toString() ??
+                                    '---';
+                                final rawStatus =
+                                    t['status']?.toString() ?? 'active';
+                                final status =
+                                    rawStatus.toLowerCase() == 'active'
+                                        ? 'Sold'
+                                        : rawStatus;
 
-                              DateTime? createdAt;
-                              try { createdAt = DateTime.parse(t['created_at']); } catch (_) {}
-                              final timeStr = createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--';
-                              final dateStr = createdAt != null ? DateFormat('dd/MM/yyyy').format(createdAt.toLocal()) : '--/--';
-                              return CustomTicketCard(
-                                busNumber: busNumber,
-                                price: price,
-                                time: timeStr,
-                                date: dateStr,
-                                route: routeName,
-                                status: status,
-                                ticketType: ticketType,
-                              );
-                            },
+                                final code = t['ticket_code']?.toString() ?? '';
+                                final ticketType = code.startsWith('MANUAL-')
+                                    ? 'Manual Ticket'
+                                    : 'QR Ticket';
+
+                                DateTime? createdAt;
+                                try {
+                                  createdAt = DateTime.parse(t['created_at']);
+                                } catch (_) {}
+                                final timeStr = createdAt != null
+                                    ? DateFormat('hh:mm a')
+                                        .format(createdAt.toLocal())
+                                    : '--:--';
+                                final dateStr = createdAt != null
+                                    ? DateFormat('dd/MM/yyyy')
+                                        .format(createdAt.toLocal())
+                                    : '--/--';
+                                return CustomTicketCard(
+                                  key: ValueKey(t['id']),
+                                  busNumber: busNumber,
+                                  price: price,
+                                  time: timeStr,
+                                  date: dateStr,
+                                  route: routeName,
+                                  status: status,
+                                  ticketType: ticketType,
+                                );
+                              },
+                            ),
                           ),
-                        ),
+              ),
             ),
           ],
         ),
@@ -315,7 +330,8 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
     );
   }
 
-  Widget _buildEmpty() => Center(
+  Widget _buildEmpty({Key? key}) => Center(
+    key: key,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -385,7 +401,7 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
   static const _lightGreen = Color(0xffE8F7EA);
   static const _borderGreen = Color(0xffB8E7BE);
 
-  final TextEditingController _countController = TextEditingController(text: '1');
+  int _ticketCount = 1;
   bool _isLoading = false;
   Map<String, dynamic>? _successData;
 
@@ -405,8 +421,8 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
   }
 
   Future<void> _issueTickets() async {
-    final int? count = int.tryParse(_countController.text.trim());
-    if (count == null || count <= 0) return;
+    final int count = _ticketCount;
+    if (count <= 0) return;
     final driverId = Supabase.instance.client.auth.currentUser?.id;
     if (driverId == null) return;
 
@@ -444,8 +460,20 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
     }
   }
 
-  @override
-  void dispose() { _countController.dispose(); super.dispose(); }
+  Widget _buildCounterButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: _lightGreen,
+          shape: BoxShape.circle,
+          border: Border.all(color: _borderGreen, width: 2),
+        ),
+        child: Icon(icon, color: _green, size: 28.sp),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -471,25 +499,27 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
           ]),
           SizedBox(height: 6.h),
           Text('Enter the number of tickets, the price will be determined from the active route.', style: TextStyle(fontSize: 12.sp, color: const Color(0xff6B7C6E))),
-          SizedBox(height: 24.h),
-          Text('Number of Tickets', style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, color: const Color(0xff1A2E1C))),
-          SizedBox(height: 10.h),
-          TextField(
-            controller: _countController,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            autofocus: true,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: _green),
-            decoration: InputDecoration(
-              hintText: '1',
-              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 28.sp),
-              contentPadding: EdgeInsets.symmetric(vertical: 16.h),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: const BorderSide(color: _borderGreen, width: 1.5)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14.r), borderSide: const BorderSide(color: _green, width: 2)),
-            ),
+          SizedBox(height: 32.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildCounterButton(Icons.remove, () {
+                if (_ticketCount > 1) {
+                  setState(() => _ticketCount--);
+                }
+              }),
+              SizedBox(width: 40.w),
+              Text(
+                '$_ticketCount', 
+                style: TextStyle(fontSize: 48.sp, fontWeight: FontWeight.bold, color: _green)
+              ),
+              SizedBox(width: 40.w),
+              _buildCounterButton(Icons.add, () {
+                setState(() => _ticketCount++);
+              }),
+            ],
           ),
-          SizedBox(height: 24.h),
+          SizedBox(height: 32.h),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(

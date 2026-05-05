@@ -4,8 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:transite_way/core/networking/api_constants.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
+import 'package:transite_way/core/utils/error_handlers.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -90,46 +90,50 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
       return;
     }
 
+    if (_imageFile == null) {
+      setState(() => _errorMsg = 'Please attach a photo to your report.');
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
       // Get saved user info from SharedPreferences
       final prefs       = await SharedPreferences.getInstance();
-      final userId      = int.tryParse(prefs.getString('userId') ?? '');
+      final userId      = prefs.getString('userId');
       final reporterName = prefs.getString('fullName') ?? '';
 
-      // Upload image if selected (to existing 'avatars' bucket)
+      // Upload image (Mandatory)
       String? imageUrl;
-      if (_imageFile != null) {
-        try {
-          final ext   = _imageFile!.path.split('.').last;
-          final ts    = DateTime.now().millisecondsSinceEpoch;
-          final path  = 'reports/${userId ?? 'anon'}/$ts.$ext';
-          final bytes = await _imageFile!.readAsBytes();
+      final ext   = _imageFile!.path.split('.').last.toLowerCase();
+      final mimeType = (ext == 'jpg' || ext == 'jpeg') ? 'image/jpeg' : 'image/$ext';
+      
+      final ts    = DateTime.now().millisecondsSinceEpoch;
+      // Match the working naming convention: original_TIMESTAMP_FILENAME
+      final fileName = 'original_${ts}_${_imageFile!.path.split('\\').last.split('/').last}';
+      final path  = fileName;
 
-          await SupabaseConfig.client.storage
-              .from(ApiConstants.avatarsBucket)
-              .uploadBinary(path, bytes,
-                  fileOptions: FileOptions(contentType: 'image/$ext', upsert: true));
+      await SupabaseConfig.client.storage
+          .from('complaints')
+          .upload(path, _imageFile!,
+              fileOptions: FileOptions(contentType: mimeType, upsert: true));
 
-          imageUrl = SupabaseConfig.client.storage
-              .from(ApiConstants.avatarsBucket)
-              .getPublicUrl(path);
-        } catch (imgErr) {
-          debugPrint('⚠️ Image upload skipped: $imgErr');
-          // Continue without image
-        }
-      }
+      imageUrl = SupabaseConfig.client.storage
+          .from('complaints')
+          .getPublicUrl(path);
+      
+      debugPrint("📸 Complaint Image Uploaded: $imageUrl");
 
-      // Insert into 'complaints' table without category/priority
+      // Insert into 'complaints' table
       await SupabaseConfig.client.from('complaints').insert({
         'user_id':          userId,
-        'problem_detected': true,
+        'problem_detected': true, 
         'text_complaint':   _descController.text.trim(),
         'reporter_name':    reporterName.isNotEmpty ? reporterName : null,
         'reporter_role':    'Passenger',
         'status':           'Pending',
         'original_image':   imageUrl,
+        'created_at':       DateTime.now().toIso8601String(),
       });
 
       if (mounted) setState(() { _isSubmitting = false; _submitted = true; });
@@ -139,20 +143,13 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _errorMsg = _isNetworkErr(e)
-              ? 'Connection failed. Please check your internet.'
-              : 'Failed to submit. Please try again.';
+          _errorMsg = ErrorHandlers.getErrorMessage(e);
         });
       }
     }
   }
 
-  bool _isNetworkErr(Object e) {
-    final m = e.toString().toLowerCase();
-    return m.contains('clientexception') || m.contains('socketexception') ||
-        m.contains('connection reset')   || m.contains('network') ||
-        m.contains('failed host');
-  }
+  // Remove _isNetworkErr since it's now handled by ErrorHandlers
 
   // ── build ─────────────────────────────────────────────────────────────────
   @override
@@ -227,6 +224,7 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
   // ── form ──────────────────────────────────────────────────────────────────
   Widget _buildForm() {
     return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 40.h),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _buildHeader(),

@@ -3,6 +3,8 @@ import 'package:transite_way/core/routes/routes_manager.dart';
 import '../../core/resources/assest_manager.dart';
 
 class RoleSelectScreen extends StatelessWidget {
+  const RoleSelectScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

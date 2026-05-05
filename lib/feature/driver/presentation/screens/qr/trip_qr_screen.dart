@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class TripQrScreen extends StatefulWidget {
   final bool isTab;
@@ -16,13 +19,13 @@ class _TripQrScreenState extends State<TripQrScreen> {
   static const _green = Color(0xff39C449);
   static const _lightGreen = Color(0xffE8F7EA);
 
-  bool _isLoading = false;
+  bool _isLoading = true;
   String? _errorMessage;
   String? _qrToken;
   String? _routeName;
   double? _price;
   String? _busNumber;
-  Timer? _autoRefreshTimer;
+  StreamSubscription? _tripSubscription;
 
   static const Map<String, String> _arabicErrors = {
     'Driver or bus not found': 'No bus assigned to you',
@@ -33,12 +36,12 @@ class _TripQrScreenState extends State<TripQrScreen> {
   @override
   void initState() {
     super.initState();
-    _generateQr();
+    _initData();
   }
 
   @override
   void dispose() {
-    _autoRefreshTimer?.cancel();
+    _tripSubscription?.cancel();
     super.dispose();
   }
 
@@ -50,21 +53,24 @@ class _TripQrScreenState extends State<TripQrScreen> {
     return error;
   }
 
-  Future<void> _generateQr() async {
-    _autoRefreshTimer?.cancel();
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _qrToken = null;
-    });
+  Future<void> _initData() async {
+    // We let VisibilityDetector handle the first generation
+  }
+
+
+
+  Future<void> _generateQr({bool showLoading = true}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final driverId = Supabase.instance.client.auth.currentUser?.id;
       if (driverId == null) {
-        setState(() {
-          _errorMessage = 'You must log in first';
-          _isLoading = false;
-        });
+        if (mounted) setState(() { _errorMessage = 'You must log in first'; _isLoading = false; });
         return;
       }
 
@@ -76,10 +82,7 @@ class _TripQrScreenState extends State<TripQrScreen> {
       final data = response.data;
 
       if (data is Map && data['error'] != null) {
-        setState(() {
-          _errorMessage = _translateError(data['error'].toString());
-          _isLoading = false;
-        });
+        if (mounted) setState(() { _errorMessage = _translateError(data['error'].toString()); _isLoading = false; });
         return;
       }
 
@@ -90,10 +93,8 @@ class _TripQrScreenState extends State<TripQrScreen> {
           _price = (data['price'] as num?)?.toDouble();
           _busNumber = data['busNumber']?.toString() ?? data['busId']?.toString();
           _isLoading = false;
+          _errorMessage = null;
         });
-
-        // Auto-refresh every 5 minutes
-        _autoRefreshTimer = Timer(const Duration(minutes: 5), _generateQr);
       }
     } catch (e) {
       if (mounted) {
@@ -107,33 +108,68 @@ class _TripQrScreenState extends State<TripQrScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget body = _buildBody();
-    if (widget.isTab) return body;
-    return Scaffold(backgroundColor: Colors.white, body: body);
+    return VisibilityDetector(
+      key: const ValueKey('trip_qr_visibility'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction == 1.0) {
+          // Regenerate QR every time the user comes back to this tab
+          _generateQr(showLoading: false);
+        }
+      },
+      child: widget.isTab ? _buildBody() : Scaffold(backgroundColor: Colors.white, body: _buildBody()),
+    );
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: _green));
-    }
-    if (_errorMessage != null) return _buildErrorState();
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
-        child: Column(
-          children: [
-            SizedBox(height: 10.h),
-            _buildHeader(),
-            SizedBox(height: 24.h),
-            _buildRouteInfo(),
-            SizedBox(height: 24.h),
-            _buildQrCard(),
-            SizedBox(height: 24.h),
-            _buildRefreshButton(),
-            SizedBox(height: 12.h),
-            _buildAutoRefreshNote(),
-          ],
-        ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _isLoading 
+            ? _buildLoadingSkeleton(key: const ValueKey('loading'))
+            : _errorMessage != null
+                ? _buildErrorState(key: const ValueKey('error'))
+                : _buildContent(key: const ValueKey('content')),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton({Key? key}) {
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      key: key,
+      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 40.h),
+      child: Column(
+        children: [
+          SkeletonLoader(width: 80.w, height: 80.w, borderRadius: 40.r),
+          SizedBox(height: 16.h),
+          SkeletonLoader(width: 150.w, height: 24.h),
+          SizedBox(height: 8.h),
+          SkeletonLoader(width: 200.w, height: 16.h),
+          SizedBox(height: 32.h),
+          SkeletonLoader(width: double.infinity, height: 80.h, borderRadius: 16.r),
+          SizedBox(height: 24.h),
+          SkeletonLoader(width: double.infinity, height: 350.h, borderRadius: 24.r),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent({Key? key}) {
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      key: key,
+      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+      child: Column(
+        children: [
+          SizedBox(height: 10.h),
+          _buildHeader(),
+          SizedBox(height: 24.h),
+          _buildRouteInfo(),
+          SizedBox(height: 24.h),
+          _buildQrCard(),
+          SizedBox(height: 24.h),
+          _buildRefreshButton(),
+        ],
       ),
     );
   }
@@ -256,15 +292,11 @@ class _TripQrScreenState extends State<TripQrScreen> {
     );
   }
 
-  Widget _buildAutoRefreshNote() {
-    return Text(
-      '🔄 Auto-refreshes every 5 mins',
-      style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500),
-    );
-  }
 
-  Widget _buildErrorState() {
+
+  Widget _buildErrorState({Key? key}) {
     return Center(
+      key: key,
       child: Padding(
         padding: EdgeInsets.all(32.w),
         child: Column(

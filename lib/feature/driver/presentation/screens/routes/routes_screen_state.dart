@@ -1,5 +1,7 @@
 part of 'routes_screen.dart';
 
+// ignore_for_file: use_build_context_synchronously
+
 class _RoutesScreenState extends State<RoutesScreen>
     with TickerProviderStateMixin {
   // ─── Controllers ──────────────────────────────────────────────────────────
@@ -31,10 +33,20 @@ class _RoutesScreenState extends State<RoutesScreen>
   StreamSubscription? _locationSubscription;
   Timer? _rerouteDebounce;
 
+  // ─── SOS / Crash Detection ────────────────────────────────────────────────
+  late final CrashDetector _crashDetector;
+  bool _showSosCountdown = false;
+  bool _showSosConfirmation = false;
+  int _sosCountdownSeconds = 15;
+  bool _isSendingSos = false;
+  Timer? _sosTimer;
+  String? _currentAlertId;
+
   // ─── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    _initCrashDetector();
     _checkTripStatus();
     _listenToLiveUpdates();
   }
@@ -50,6 +62,7 @@ class _RoutesScreenState extends State<RoutesScreen>
 
   @override
   void dispose() {
+    _crashDetector.stop();
     _rerouteDebounce?.cancel();
     _locationSubscription?.cancel();
     _mapController.dispose();
@@ -61,15 +74,36 @@ class _RoutesScreenState extends State<RoutesScreen>
   Widget build(BuildContext context) {
     if (!_isTripActive) return buildNoTripView();
     if (_currentLocation == null) return buildLoadingView();
-    return buildMainScreen();
+    return Stack(
+      children: [
+        buildMainScreen(),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _showSosCountdown
+              ? SosCountdownOverlay(
+                  key: const ValueKey('countdown'),
+                  secondsLeft: _sosCountdownSeconds,
+                  onCancel: _cancelSos,
+                  onSendNow: _sendSosManually,
+                )
+              : _showSosConfirmation
+                  ? SosSentConfirmation(
+                      key: const ValueKey('confirmation'),
+                      onDismiss: () => setState(() => _showSosConfirmation = false),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('none')),
+        ),
+      ],
+    );
   }
 
   // ─── State helpers ────────────────────────────────────────────────────────
   void _resetTripState() {
+    _crashDetector.stop();
     _rerouteDebounce?.cancel();
     if (mounted) {
       setState(() {
-        _isTripActive = false; // مهم جداً عشان يظهر الـ No Trip View
+        _isTripActive = false;
         _nextStationIndex = 0;
         _polylinePoints = [];
         _currentNextStationName = "...";
@@ -81,6 +115,10 @@ class _RoutesScreenState extends State<RoutesScreen>
         _isInitialized = false;
         _smoothedHeading = 0.0;
         _currentHeading = 0.0;
+        _showSosCountdown = false;
+        _showSosConfirmation = false;
+        _sosTimer?.cancel();
+        _currentAlertId = null;
       });
     }
     if (_isMapReady) _mapController.rotate(0);
@@ -92,13 +130,15 @@ class _RoutesScreenState extends State<RoutesScreen>
     if (mounted) {
       setState(() {
         _isTripActive = active;
-        // لو مفيش رحلة، نأكد إن الحالة متصفرة
         if (!active) {
           _currentLocation = null;
           _isInitialized = false;
         }
       });
-      if (active && _currentLocation != null) _findNearestStationIndex();
+      if (active) {
+        _crashDetector.start();
+        if (_currentLocation != null) _findNearestStationIndex();
+      }
     }
   }
 
@@ -131,7 +171,9 @@ class _RoutesScreenState extends State<RoutesScreen>
   void _checkArrivalLogic(LatLng busPos) {
     if (_isProcessingArrival ||
         widget.stations.isEmpty ||
-        _nextStationIndex >= widget.stations.length) return;
+        _nextStationIndex >= widget.stations.length) {
+      return;
+    }
 
     final target = widget.stations[_nextStationIndex];
     final double dist = Geolocator.distanceBetween(
@@ -312,7 +354,9 @@ class _RoutesScreenState extends State<RoutesScreen>
         widget.stations.isEmpty ||
         !_isTripActive ||
         _currentLocation == null ||
-        !mounted) return;
+        !mounted) {
+      return;
+    }
 
     setState(() => _isFetchingRoute = true);
 
@@ -341,4 +385,111 @@ class _RoutesScreenState extends State<RoutesScreen>
       if (mounted) setState(() => _isFetchingRoute = false);
     }
   }
+
+  // ─── SOS / Crash Detection ────────────────────────────────────────────────
+
+  /// Initialises CrashDetector with callbacks that update the UI via setState.
+  void _initCrashDetector() {
+    _crashDetector = CrashDetector(
+      onCrashDetected: () async {
+        if (!mounted || _showSosCountdown || _isSendingSos) return;
+        setState(() => _isSendingSos = true);
+
+        try {
+          final ids = await SosService.loadIds();
+          final alertId = await SosService.triggerSos(
+            driverId: ids.driverId,
+            busId: ids.busId,
+          );
+
+          if (alertId != null && mounted) {
+            setState(() {
+              _currentAlertId = alertId;
+              _sosCountdownSeconds = 15;
+              _showSosCountdown = true;
+              _showSosConfirmation = false;
+            });
+
+            _sosTimer?.cancel();
+            _sosTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+              if (!mounted) {
+                timer.cancel();
+                return;
+              }
+              setState(() => _sosCountdownSeconds--);
+              if (_sosCountdownSeconds <= 0) {
+                timer.cancel();
+                _executeEmergency();
+              }
+            });
+          }
+        } finally {
+          if (mounted) setState(() => _isSendingSos = false);
+        }
+      },
+    );
+  }
+
+  /// Cancel an in-progress countdown — driver indicated they are fine.
+  void _cancelSos() async {
+    _sosTimer?.cancel();
+    final alertId = _currentAlertId;
+    
+    if (mounted) {
+      setState(() {
+        _showSosCountdown = false;
+        _sosCountdownSeconds = 15;
+        _currentAlertId = null;
+      });
+    }
+
+    if (alertId != null) {
+      await SosService.sendSafe(alertId);
+    }
+  }
+
+  /// Driver manually pressed "Send SOS Now" before countdown ends.
+  void _sendSosManually() {
+    _sosTimer?.cancel();
+    _executeEmergency();
+  }
+
+  /// Shared logic that actually fires the SOS call and shows the confirmation.
+  Future<void> _executeEmergency() async {
+    if (_isSendingSos) return;
+    if (mounted) setState(() => _isSendingSos = true);
+
+    try {
+      final alertId = _currentAlertId;
+      if (alertId != null) {
+        await SosService.sendEmergency(alertId);
+      }
+
+      if (mounted) {
+        setState(() {
+          _showSosCountdown = false;
+          _showSosConfirmation = true;
+          _currentAlertId = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('🛑 SOS execution failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to send SOS. Please call emergency services directly.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {
+          _showSosCountdown = false;
+          _currentAlertId = null;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isSendingSos = false);
+    }
+  }
 }
+

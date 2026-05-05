@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/custom_points_badge.dart';
 import '../../data/home_repository.dart';
 import '../../../../core/networking/api_constants.dart';
@@ -39,19 +40,25 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   double? _busHeading;
   int _nextStationIndex = 0;
   Timer? _fallbackTimer;
+  RealtimeChannel? _broadcastChannel;
   final Color appGreen = const Color(0xFF1B4D3E);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isDataInitialized) {
-      args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args != null) {
+      final originalArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (originalArgs != null) {
+        args = Map<String, dynamic>.from(originalArgs);
+        // Ensure stations list is mutable
+        if (args!['stations'] != null) {
+          args!['stations'] = List<Map<String, dynamic>>.from(
+            (args!['stations'] as List).map((s) => Map<String, dynamic>.from(s))
+          );
+        }
+        
         _isDataInitialized = true;
         
-        // Initialize position from args to show map immediately
-        // but keep _isFirstUpdate = true so the first stream event
-        // can properly initialize station tracking
         if (args!['lat'] != null && args!['lng'] != null) {
           _busLocation = LatLng(
             (args!['lat'] as num).toDouble(), 
@@ -64,7 +71,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         final dynamic busNum = args!['busNumber'];
         _startLiveTracking(busId, busNum);
 
-        // Fetch route immediately if we already have the bus location from args
         if (_busLocation != null) {
           _fetchFullRoute();
         }
@@ -76,6 +82,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   void dispose() {
     _isTracking = false;
     _busStreamSubscription?.cancel();
+    _broadcastChannel?.unsubscribe();
     _fallbackTimer?.cancel();
     _mapController.dispose();
     super.dispose();
@@ -258,6 +265,12 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           _lastReachedStation = stationName;
           _showArrivalPopup = true;
           _isUserStation = (stationName == args!['from']);
+          
+          // Mark this station and all previous ones as reached
+          for (int j = 0; j <= i; j++) {
+            stations[j]['reached'] = true;
+          }
+
           _nextStationIndex = i + 1;
           _fetchFullRoute();
           if (mounted) setState(() {});
@@ -377,7 +390,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         final String resolvedId = initialData['id'].toString();
         debugPrint("✅ TrackingView: Resolved bus UUID = $resolvedId");
 
-        // 2. Start Realtime Stream
+        // 2. Start Realtime Stream (DB updates)
         _busStreamSubscription = SupabaseConfig.client
             .from(ApiConstants.busesTable)
             .stream(primaryKey: ['id'])
@@ -387,12 +400,24 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           
           if (data.isNotEmpty) {
             final update = data.first;
-            debugPrint("📡 TrackingView: REALTIME UPDATE → Lat: ${update['current_lat']}, Lng: ${update['current_lng']}");
             _handleTrackingUpdate(update);
           }
         }, onError: (error) {
           debugPrint("🛑 TrackingView: Stream Error: $error");
         });
+
+        // 2.5 Start Realtime Broadcast (60fps updates)
+        _broadcastChannel?.unsubscribe();
+        _broadcastChannel = SupabaseConfig.client.channel('public-tracking');
+        _broadcastChannel!.onBroadcast(
+          event: 'bus_moved',
+          callback: (payload) {
+            if (!_isTracking || !mounted || payload == null) return;
+            if (payload['bus_id']?.toString() == resolvedId) {
+              _handleTrackingUpdate(payload);
+            }
+          }
+        ).subscribe();
 
         // 3. Fallback: Polling (Every 5 seconds)
         _fallbackTimer?.cancel();
@@ -424,9 +449,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    if (_busLocation == null) {
-      return Scaffold(body: Center(child: CircularProgressIndicator(color: appGreen)));
-    }
     final routeColor = _getRouteColor(args?['zone']);
 
     return Scaffold(
@@ -440,7 +462,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _busLocation!,
+                    initialCenter: _busLocation ?? const LatLng(30.0444, 31.2357),
                     initialZoom: 15,
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -467,20 +489,41 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     MarkerLayer(
                       markers: [
                         ..._stationMarkers,
-                        Marker(
-                          point: _busLocation!,
-                          width: 100.w,
-                          height: 85.h,
-                          child: _buildBusMarker(
-                            args?['busNumber']?.toString() ?? "1",
-                            routeColor,
+                        if (_busLocation != null)
+                          Marker(
+                            point: _busLocation!,
+                            width: 100.w,
+                            height: 85.h,
+                            child: _buildBusMarker(
+                              args?['busNumber']?.toString() ?? "1",
+                              routeColor,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ],
                 ),
-                _buildTrackingDetailsCard(),
+                DraggableScrollableSheet(
+                  initialChildSize: 0.35,
+                  minChildSize: 0.2,
+                  maxChildSize: 0.8,
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 15, offset: const Offset(0, -5))
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        physics: const ClampingScrollPhysics(),
+                        child: _buildTrackingDetailsContent(),
+                      ),
+                    );
+                  },
+                ),
                 _buildArrivalNotification(),
               ],
             ),
@@ -533,62 +576,166 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     );
   }
 
-  Widget _buildTrackingDetailsCard() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        margin: EdgeInsets.all(20.w),
-        padding: EdgeInsets.all(25.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25.r),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 15)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header: boarding station label
-            Row(
-              children: [
-                Icon(Icons.location_pin, color: appGreen, size: 18.sp),
-                SizedBox(width: 6.w),
-                Expanded(
-                  child: Text(
-                    "Bus arriving at: ${args?['from'] ?? '---'}",
-                    style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, color: appGreen),
-                    overflow: TextOverflow.ellipsis,
+  Widget _buildTrackingDetailsContent() {
+    return Padding(
+      padding: EdgeInsets.all(25.w),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: Container(
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+          ),
+          SizedBox(height: 15.h),
+          // Header: boarding station label
+          Row(
+            children: [
+              Icon(Icons.location_pin, color: appGreen, size: 18.sp),
+              SizedBox(width: 6.w),
+              Expanded(
+                child: Text(
+                  "Bus arriving at: ${args?['from'] ?? '---'}",
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.bold,
+                    color: appGreen,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          // ETA + Distance row
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+            decoration: BoxDecoration(
+              color: appGreen.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16.r),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _dataDetail(
+                  _arrivalTime == "..." ? "Calculating..." : _arrivalTime,
+                  "⏱  ETA",
+                ),
+                Container(width: 1, height: 40, color: Colors.grey[300]),
+                _dataDetail(
+                  _distance == "..." ? "---" : "$_distance km",
+                  "📍 Distance",
                 ),
               ],
             ),
-            SizedBox(height: 14.h),
-            // ETA + Distance row
-            Container(
-              padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
-              decoration: BoxDecoration(
-                color: appGreen.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16.r),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _dataDetail(_arrivalTime == "..." ? "Calculating..." : _arrivalTime, "⏱  ETA"),
-                  Container(width: 1, height: 40, color: Colors.grey[300]),
-                  _dataDetail(_distance == "..." ? "---" : "$_distance km", "📍 Distance"),
-                ],
-              ),
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _infoColumn("From", args?['from'] ?? ""),
+              Icon(Icons.trending_flat, color: appGreen),
+              _infoColumn("To", args?['to'] ?? ""),
+            ],
+          ),
+          SizedBox(height: 20.h),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Route progress",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _infoColumn("From", args?['from'] ?? ""),
-                Icon(Icons.trending_flat, color: appGreen),
-                _infoColumn("To", args?['to'] ?? ""),
-              ],
-            ),
-          ],
-        ),
+          ),
+          SizedBox(height: 15.h),
+          ListView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: (args!['stations'] as List).length,
+            itemBuilder: (context, index) {
+              final station = args!['stations'][index];
+              final bool isReached = station['reached'] == true;
+              final bool isLast =
+                  index == (args!['stations'] as List).length - 1;
+
+              return IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Column(
+                      children: [
+                        Container(
+                          width: 14.w,
+                          height: 14.w,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isReached
+                                  ? Colors.orange
+                                  : Colors.grey.shade300,
+                              width: 2,
+                            ),
+                            color: isReached ? Colors.white : Colors.white,
+                          ),
+                          child: isReached
+                              ? Center(
+                                  child: Container(
+                                    width: 8.w,
+                                    height: 8.w,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        if (!isLast)
+                          Expanded(
+                            child: Container(
+                              width: 2,
+                              color: Colors.grey.shade200,
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            station['name'] ?? "Station",
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.bold,
+                              color: isReached
+                                  ? Colors.black
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                          if (index == _nextStationIndex - 1 && !isReached)
+                            Text(
+                              "Next stop",
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          SizedBox(height: isLast ? 10.h : 20.h),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

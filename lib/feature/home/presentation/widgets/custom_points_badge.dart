@@ -78,22 +78,22 @@ class _CustomPointsBadgeState extends State<CustomPointsBadge> {
       valueListenable: CustomPointsBadge.balanceNotifier,
       builder: (context, currentBalance, _) {
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
           decoration: BoxDecoration(
             color: const Color(0xFFCDDFDA),
-            borderRadius: BorderRadius.circular(15.r),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.stars, color: Colors.amber, size: 20.sp),
-              SizedBox(width: 6.w),
+              Icon(Icons.stars, color: Colors.amber, size: 18.sp),
+              SizedBox(width: 4.w),
               Text(
                 currentBalance.toString(),
                 style: TextStyle(
                   color: const Color(0xFF1B4D3E),
                   fontWeight: FontWeight.bold,
-                  fontSize: 16.sp,
+                  fontSize: 14.sp,
                 ),
               ),
             ],

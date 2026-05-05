@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../networking/supabase_init.dart';
 import '../routes/routes_manager.dart';
 
@@ -37,6 +39,7 @@ class CommonProfileView extends StatelessWidget {
         SizedBox(height: 40.h),
         Expanded(
           child: ListView.separated(
+            physics: const ClampingScrollPhysics(),
             padding: EdgeInsets.zero,
             itemCount: menuItems.length,
             separatorBuilder: (context, index) => Padding(
@@ -51,16 +54,9 @@ class CommonProfileView extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    bool isNetwork = imagePath.startsWith('http');
+    bool isAsset = imagePath.contains('assets/');
     bool hasValidImage = imagePath.isNotEmpty && imagePath != 'assets/logo/3.png';
-    ImageProvider? profileImage;
-    
-    if (hasValidImage) {
-      if (imagePath.startsWith('http')) {
-        profileImage = NetworkImage(imagePath);
-      } else {
-        profileImage = AssetImage(imagePath);
-      }
-    }
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 25.w),
@@ -70,11 +66,29 @@ class CommonProfileView extends StatelessWidget {
             onTap: onImageTap,
             child: Stack(
               children: [
-                CircleAvatar(
-                  radius: 50.r,
-                  backgroundColor: hasValidImage ? const Color(0xFFFFC107).withOpacity(0.2) : Colors.grey[300],
-                  backgroundImage: profileImage,
-                  child: hasValidImage ? null : Icon(Icons.person, size: 50.r, color: Colors.white),
+                Container(
+                  width: 100.r,
+                  height: 100.r,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey[200],
+                    border: Border.all(color: const Color(0xFFFFC107).withOpacity(0.5), width: 2),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(50.r),
+                    child: isNetwork
+                        ? CachedNetworkImage(
+                            imageUrl: imagePath,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            errorWidget: (context, url, error) => Icon(Icons.person, size: 50.r, color: Colors.white),
+                          )
+                        : (hasValidImage
+                            ? (isAsset 
+                                ? Image.asset(imagePath, fit: BoxFit.cover)
+                                : Image.file(File(imagePath), fit: BoxFit.cover))
+                            : Icon(Icons.person, size: 50.r, color: Colors.white)),
+                  ),
                 ),
                 Positioned(
                   bottom: 0,

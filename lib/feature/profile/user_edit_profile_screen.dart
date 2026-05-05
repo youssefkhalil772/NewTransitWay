@@ -155,7 +155,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString('userId');
-      if (userId == null) userId = prefs.getString('id');
+      userId ??= prefs.getString('id');
       
       if (userId == null || userId.isEmpty) {
          throw Exception("User ID not found. Please log in again.");
@@ -360,6 +360,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
               ),
               child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
                 padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 25.h),
                 child: Column(
                   children: [

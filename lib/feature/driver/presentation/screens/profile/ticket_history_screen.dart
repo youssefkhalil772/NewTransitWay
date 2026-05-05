@@ -1,11 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:transite_way/core/networking/api_constants.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
 import 'package:transite_way/core/widgets/custom_ticket_card.dart';
-import 'package:transite_way/feature/home/data/home_repository.dart';
+import 'package:transite_way/feature/driver/data/driver_data_manager.dart';
+import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
+import 'package:transite_way/feature/home/data/models/route_model.dart';
 
 enum TicketStatus { sold, expired, other }
 
@@ -31,38 +33,6 @@ class TicketHistoryItem {
     required this.rawStatus,
     required this.ticketType,
   });
-
-  factory TicketHistoryItem.fromMap(Map<String, dynamic> map) {
-    final String s = map['status']?.toString().toLowerCase() ?? '';
-    TicketStatus status = TicketStatus.other;
-    
-    if (s == 'sold' || s == 'valid' || s == 'active') {
-      status = TicketStatus.sold;
-    } else if (s == 'expired' || s == 'used') {
-      status = TicketStatus.expired;
-    }
-
-    DateTime dt;
-    try {
-      final String datePart = map['date'] ?? DateFormat("dd-MM-yyyy").format(DateTime.now());
-      final String timePart = map['time'] ?? "12:00 AM";
-      dt = DateFormat("dd-MM-yyyy hh:mm a").parse("$datePart $timePart");
-    } catch (_) {
-      dt = DateTime.now();
-    }
-
-    return TicketHistoryItem(
-      route: map['route'] ?? "Unknown Route",
-      busNumber: map['busNumber']?.toString() ?? map['bus']?.toString() ?? "---",
-      price: (map['price'] ?? "0").toString(),
-      time: map['time'] ?? "--:--",
-      date: map['date'] ?? "--/--",
-      dateTime: dt,
-      status: status,
-      rawStatus: map['status'] ?? "Unknown",
-      ticketType: (map['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
-    );
-  }
 }
 
 class TicketHistoryScreen extends StatefulWidget {
@@ -73,8 +43,6 @@ class TicketHistoryScreen extends StatefulWidget {
 }
 
 class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
-  final HomeRepository _homeRepository = HomeRepository();
-
   static const _green = Color(0xff39C449);
   static const _lightGreen = Color(0xffE8F7EA);
   static const _borderGreen = Color(0xffB8E7BE);
@@ -90,109 +58,114 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
   TicketStatus? _statusFilter;
   String? _routeFilter;
   String? _dateFilter;
+  
+  StreamSubscription? _ticketSubscription;
+  String? _busId;
+  String? _busNumber;
 
   @override
   void initState() {
     super.initState();
     _loadAllData();
   }
+  
+  @override
+  void dispose() {
+    _ticketSubscription?.cancel();
+    super.dispose();
+  }
 
   Future<void> _loadAllData() async {
     if (mounted) setState(() => _isLoading = true);
-    await Future.wait([_fetchHistory(), _fetchSystemRoutes()]);
-    if (mounted) setState(() => _isLoading = false);
-  }
-
-  Future<void> _fetchSystemRoutes() async {
-    try {
-      final routes = await _homeRepository.getRoutes();
-      if (mounted) {
-        setState(() {
-          _systemRoutes = routes.map((r) => r.name).toSet().toList()..sort();
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching system routes: $e");
-    }
-  }
-
-  Future<void> _fetchHistory() async {
+    
     final prefs = await SharedPreferences.getInstance();
-    final String? busId = prefs.getString('busId');
-    final String? driverId = SupabaseConfig.client.auth.currentUser?.id;
-
-    try {
-      // Step 1: Fetch raw tickets by bus_id OR user_id
-      List<dynamic> rawTickets = [];
-      if (busId != null && busId.isNotEmpty) {
-        rawTickets = await SupabaseConfig.client
-            .from(ApiConstants.ticketsTable)
-            .select('*')
-            .eq('bus_id', busId)
-            .order('created_at', ascending: false);
-      } else if (driverId != null) {
-        rawTickets = await SupabaseConfig.client
-            .from(ApiConstants.ticketsTable)
-            .select('*')
-            .eq('user_id', driverId)
-            .order('created_at', ascending: false);
-      }
-
-      if (rawTickets.isEmpty) {
-        if (mounted) setState(() => _allTickets = []);
-        return;
-      }
-
-      // Step 2: Enrich with routes and buses
-      final routeIds = rawTickets.map((t) => t['route_id']).whereType<int>().toSet().toList();
-      final busIds = rawTickets.map((t) => t['bus_id']).where((id) => id != null).map((id) => id.toString()).toSet().toList();
-
-      Map<int, Map<String, dynamic>> routeMap = {};
-      Map<String, Map<String, dynamic>> busMap = {};
-
-      if (routeIds.isNotEmpty) {
-        final routesRes = await SupabaseConfig.client.from('routes').select('id, name, price').inFilter('id', routeIds);
-        for (final r in routesRes) { routeMap[r['id'] as int] = Map<String, dynamic>.from(r); }
-      }
-      if (busIds.isNotEmpty) {
-        final busesRes = await SupabaseConfig.client.from('buses').select('id, bus_number').inFilter('id', busIds);
-        for (final b in busesRes) { busMap[b['id'].toString()] = Map<String, dynamic>.from(b); }
-      }
-
-      // Step 3: Build TicketHistoryItem list
-      if (mounted) {
-        setState(() {
-          _allTickets = rawTickets.map((t) {
-            final routeId = t['route_id'] as int?;
-            final busIdKey = t['bus_id']?.toString();
-            final route = routeId != null ? routeMap[routeId] : null;
-            final bus = busIdKey != null ? busMap[busIdKey] : null;
-
-            DateTime? createdAt;
-            try { createdAt = DateTime.parse(t['created_at']); } catch (_) {}
-
-            return TicketHistoryItem(
-              route: route?['name']?.toString() ?? 'Unknown Route',
-              busNumber: bus?['bus_number']?.toString() ?? '---',
-              price: (route?['price'] as num?)?.toStringAsFixed(0) ?? '0',
-              time: createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--',
-              date: createdAt != null ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal()) : '--/--',
-              dateTime: createdAt ?? DateTime.now(),
-              status: () {
-                final s = t['status']?.toString().toLowerCase() ?? '';
-                if (s == 'active' || s == 'sold' || s == 'valid') return TicketStatus.sold;
-                if (s == 'expired' || s == 'used') return TicketStatus.expired;
-                return TicketStatus.other;
-              }(),
-              rawStatus: t['status']?.toString().toLowerCase() == 'active' ? 'Sold' : t['status']?.toString() ?? 'Unknown',
-              ticketType: (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
-            );
-          }).toList();
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching history: $e");
+    _busId = prefs.getString('busId');
+    _busNumber = prefs.getString('busNumber') ?? '---';
+    
+    // Pre-fetch driver data cache
+    await DriverDataManager().prefetchData();
+    final routes = await DriverDataManager().getRoutes();
+    if (mounted) {
+      setState(() {
+        _systemRoutes = routes.map((r) => r.name).toSet().toList()..sort();
+      });
     }
+
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    if (_busId == null || _busId!.isEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    _ticketSubscription?.cancel();
+    _ticketSubscription = SupabaseConfig.client
+        .from('tickets')
+        .stream(primaryKey: ['id'])
+        .eq('bus_id', int.tryParse(_busId!) ?? _busId!)
+        .listen(
+      (data) async {
+        final items = await _enrichTicketsLocally(data);
+        if (mounted) {
+          setState(() { 
+          _allTickets = items;
+          _isLoading = false; 
+        });
+        }
+      },
+      onError: (error) {
+        debugPrint("History Stream error: $error");
+        if (mounted) setState(() => _isLoading = false);
+      },
+    );
+  }
+
+  Future<List<TicketHistoryItem>> _enrichTicketsLocally(List<Map<String, dynamic>> rawTickets) async {
+    final routes = await DriverDataManager().getRoutes();
+    
+    // Sort descending by created_at
+    final sortedTickets = List<Map<String, dynamic>>.from(rawTickets)..sort((a, b) {
+      final tA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+      final tB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+      return tB.compareTo(tA);
+    });
+
+    return sortedTickets.map((t) {
+      final routeId = t['route_id'] as int?;
+      RouteModel? matchedRoute;
+      if (routeId != null) {
+        try { matchedRoute = routes.firstWhere((r) => r.id == routeId); } catch (_) {}
+      }
+
+      DateTime? createdAt;
+      try { createdAt = DateTime.parse(t['created_at']); } catch (_) {}
+
+      final s = t['status']?.toString().toLowerCase() ?? '';
+      TicketStatus status = TicketStatus.other;
+      if (s == 'active' || s == 'sold' || s == 'valid') {
+        status = TicketStatus.sold;
+      } else if (s == 'expired' || s == 'used') status = TicketStatus.expired;
+
+      return TicketHistoryItem(
+        route: matchedRoute?.name ?? 'Unknown Route',
+        busNumber: _busNumber ?? '---',
+        price: matchedRoute?.price.toStringAsFixed(0) ?? '0',
+        time: createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--',
+        date: createdAt != null ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal()) : '--/--',
+        dateTime: createdAt ?? DateTime.now(),
+        status: status,
+        rawStatus: s == 'active' ? 'Sold' : (t['status']?.toString() ?? 'Unknown'),
+        ticketType: (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
+      );
+    }).toList();
+  }
+
+  Future<void> _manualRefresh() async {
+    if (mounted) setState(() => _isLoading = true);
+    await DriverDataManager().prefetchData();
+    _setupRealtime();
   }
 
   List<String> get _displayRoutes => _systemRoutes.isNotEmpty
@@ -224,41 +197,54 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _green))
-          : Column(
-              children: [
-                _buildSummaryRow(),
-                _buildStatusChips(),
-                _buildDropdownFilters(),
-                const Divider(height: 1, thickness: 0.5, color: Color(0xffE5E7EB)),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadAllData,
-                    color: _green,
-                    child: filtered.isEmpty
-                        ? _buildEmpty()
-                        : ListView.separated(
-                            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) => SizedBox(height: 20.h),
-                            itemBuilder: (context, i) {
-                              final item = filtered[i];
-                              return CustomTicketCard(
-                                busNumber: item.busNumber,
-                                price: item.price,
-                                time: item.time,
-                                date: item.date,
-                                route: item.route,
-                                status: item.rawStatus,
-                                ticketType: item.ticketType,
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ],
+      body: Column(
+        children: [
+          _buildSummaryRow(),
+          _buildStatusChips(),
+          _buildDropdownFilters(),
+          const Divider(height: 1, thickness: 0.5, color: Color(0xffE5E7EB)),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isLoading
+                  ? ListView.separated(
+                      physics: const ClampingScrollPhysics(),
+                      key: const ValueKey('loading'),
+                      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+                      itemCount: 5,
+                      separatorBuilder: (_, __) => SizedBox(height: 20.h),
+                      itemBuilder: (_, __) => SkeletonLoader(width: double.infinity, height: 100.h, borderRadius: 16.r),
+                    )
+                  : RefreshIndicator(
+                      key: const ValueKey('list'),
+                      onRefresh: _manualRefresh,
+                      color: _green,
+                      child: filtered.isEmpty
+                          ? _buildEmpty()
+                          : ListView.separated(
+                              physics: const ClampingScrollPhysics(),
+                              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) => SizedBox(height: 20.h),
+                              itemBuilder: (context, i) {
+                                final item = filtered[i];
+                                return CustomTicketCard(
+                                  key: ValueKey('${item.route}_${item.time}_$i'),
+                                  busNumber: item.busNumber,
+                                  price: item.price,
+                                  time: item.time,
+                                  date: item.date,
+                                  route: item.route,
+                                  status: item.rawStatus,
+                                  ticketType: item.ticketType,
+                                );
+                              },
+                            ),
+                    ),
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -388,7 +374,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
       );
 
   Widget _buildEmpty() => ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const ClampingScrollPhysics(),
         children: [
           SizedBox(height: 100.h),
           Center(

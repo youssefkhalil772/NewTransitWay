@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'custom_points_badge.dart';
+import '../../../../core/networking/connectivity_service.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showPoints;
@@ -29,6 +30,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       decoration: const BoxDecoration(color: Colors.white),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           if (showBackButton)
             IconButton(
@@ -38,10 +40,18 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               icon: const Icon(Icons.arrow_back, color: Colors.black),
             ),
           
-          Expanded(child: isDriver ? _buildDriverLogo() : _buildPassengerLogo()),
+          Flexible(
+            child: isDriver ? _buildDriverLogo() : _buildPassengerLogo(),
+          ),
           
-          if (showPoints && !isDriver) 
-            const CustomPointsBadge(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildConnectivityIndicator(),
+              if (showPoints && !isDriver) 
+                const CustomPointsBadge(),
+            ],
+          ),
         ],
       ),
     );
@@ -52,10 +62,18 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text("Transit", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.black)),
-        Text("Way", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: darkGreen)),
-        SizedBox(width: 4.w),
-        Icon(Icons.location_on, color: darkGreen, size: 22.sp),
+        Flexible(
+          child: Text(
+            "Transit", 
+            style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.black),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          "Way", 
+          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: darkGreen),
+        ),
+        Icon(Icons.location_on, color: darkGreen, size: 18.sp),
       ],
     );
   }
@@ -88,6 +106,44 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildConnectivityIndicator() {
+    return StreamBuilder<bool>(
+      stream: ConnectivityService().connectionStream,
+      initialData: ConnectivityService().isOnline,
+      builder: (context, snapshot) {
+        final bool isOnline = snapshot.data ?? true;
+        
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 4.w),
+          padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+          decoration: BoxDecoration(
+            color: isOnline ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6.r),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isOnline ? Icons.check_circle_outline : Icons.wifi_off_rounded, 
+                color: isOnline ? Colors.green : Colors.red, 
+                size: 12.sp
+              ),
+              SizedBox(width: 3.w),
+              Text(
+                isOnline ? "Online" : "Weak",
+                style: TextStyle(
+                  color: isOnline ? Colors.green : Colors.red,
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
