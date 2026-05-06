@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SosService {
   /// Triggers the initial SOS alert when a crash is detected.
   /// Returns the `alertId` if successful, or null on failure.
+  /// Triggers the initial SOS alert when a crash is detected via Edge Function.
+  /// Returns the `alertId` if successful, or null on failure.
   static Future<String?> triggerSos({
     required String driverId,
     required String busId,
@@ -14,59 +16,115 @@ class SosService {
     try {
       Position? position;
       try {
-        position = await Geolocator.getCurrentPosition(
+        position = await Geolocator.getLastKnownPosition();
+        position ??= await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 5),
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 1),
           ),
         );
-      } catch (_) {
-        // Location optional
+      } catch (e) {
+        debugPrint('⚠️ triggerSos: Location fetch failed: $e');
       }
 
-      final response = await Supabase.instance.client.from('sos_alerts').insert({
+      final bodyPayload = {
+        'action': 'trigger',
         'driver_id': driverId,
         'bus_id': busId,
-        'latitude': position?.latitude,
-        'longitude': position?.longitude,
-        'status': 'Pending',
-      }).select('id').single();
+        'latitude': position?.latitude ?? 0.0,
+        'longitude': position?.longitude ?? 0.0,
+      };
 
-      final alertId = response['id'];
-      debugPrint('🚨 SOS Triggered instantly: alertId = $alertId');
-      return alertId?.toString();
+      debugPrint('📡 SOS Payload: $bodyPayload');
+
+      try {
+        final response = await Supabase.instance.client.functions.invoke(
+          'sos-alert',
+          body: bodyPayload,
+        );
+
+        if (response.status == 200 && response.data != null) {
+          final dataMap = response.data as Map<String, dynamic>;
+          final alertId = dataMap['data']?['alertId'] ?? dataMap['data']?['alert_id'] ?? dataMap['alertId'];
+          debugPrint('🚨 SOS Triggered via Function: alertId = $alertId');
+          return alertId?.toString();
+        }
+      } catch (e) {
+        debugPrint('⚠️ Edge function failed, attempting direct fallback: $e');
+      }
+
+      // Fallback: Direct insert if Edge Function fails or isn't deployed yet
+      // Store with Cairo timezone (UTC+3)
+      final now = DateTime.now().toUtc().add(const Duration(hours: 3));
+      final cairoTime = '${now.toIso8601String().substring(0, 23)}+03:00';
+
+      final fallbackResponse = await Supabase.instance.client.from('sos_alerts').insert({
+        'driver_id': driverId,
+        'bus_id': busId,
+        'latitude': position?.latitude ?? 0.0,
+        'longitude': position?.longitude ?? 0.0,
+        'status': 'Pending',
+        'created_at': cairoTime,
+      }).select('id').maybeSingle();
+
+      final fallbackId = fallbackResponse?['id'];
+      debugPrint('🚨 SOS Triggered via Direct Fallback: alertId = $fallbackId');
+      return fallbackId?.toString();
+
     } catch (e) {
-      debugPrint('🛑 SOS trigger failed: $e');
+      debugPrint('🛑 SOS trigger completely failed: $e');
       return null;
     }
   }
 
-  /// Sends a "Safe" confirmation (driver pressed button).
+  /// Sends a "Safe" confirmation (driver pressed button) via Edge Function.
   static Future<void> sendSafe(String alertId) async {
     try {
-      await Supabase.instance.client.from('sos_alerts').update({
-        'status': 'Safe',
-        'resolved_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', alertId);
-      
-      debugPrint('✅ SOS Safe action sent successfully');
+      await Supabase.instance.client.functions.invoke(
+        'sos-alert',
+        body: {
+          'action': 'safe',
+          'alert_id': alertId,
+        },
+      );
+      debugPrint('✅ SOS Safe action sent successfully via Function');
     } catch (e) {
-      debugPrint('🛑 SOS Safe action failed: $e');
-      rethrow;
+      debugPrint('⚠️ SOS Safe Edge Function failed, using fallback: $e');
+      try {
+        final now = DateTime.now().toUtc().add(const Duration(hours: 3));
+        final cairoTime = '${now.toIso8601String().substring(0, 23)}+03:00';
+        await Supabase.instance.client.from('sos_alerts').update({
+          'status': 'Safe',
+          'resolved_at': cairoTime,
+        }).eq('id', alertId);
+        debugPrint('✅ SOS Safe action sent successfully via Fallback');
+      } catch (e2) {
+        debugPrint('🛑 SOS Safe action completely failed: $e2');
+      }
     }
   }
 
-  /// Sends the final "Emergency" action (countdown elapsed).
+  /// Sends the final "Emergency" action (countdown elapsed) via Edge Function.
   static Future<void> sendEmergency(String alertId) async {
     try {
-      await Supabase.instance.client.from('sos_alerts').update({
-        'status': 'Emergency',
-      }).eq('id', alertId);
-      
-      debugPrint('🚨 SOS Emergency action sent successfully');
+      await Supabase.instance.client.functions.invoke(
+        'sos-alert',
+        body: {
+          'action': 'emergency',
+          'alert_id': alertId,
+        },
+      );
+      debugPrint('🚨 SOS Emergency action sent successfully via Function');
     } catch (e) {
-      debugPrint('🛑 SOS Emergency action failed: $e');
-      rethrow;
+      debugPrint('⚠️ SOS Emergency Edge Function failed, using fallback: $e');
+      try {
+        await Supabase.instance.client.from('sos_alerts').update({
+          'status': 'Emergency',
+        }).eq('id', alertId);
+        debugPrint('🚨 SOS Emergency action sent successfully via Fallback');
+      } catch (e2) {
+        debugPrint('🛑 SOS Emergency action completely failed: $e2');
+      }
     }
   }
 

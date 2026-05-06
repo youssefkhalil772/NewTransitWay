@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class SoundManager {
-  static final AudioPlayer _player = AudioPlayer();
-
   static Future<void> playNotification() async {
     try {
-      await _player.play(AssetSource('sounds/ticket_notify.wav'));
+      final player = AudioPlayer();
+      await player.play(AssetSource('sounds/ticket_notify.wav'));
       await HapticFeedback.mediumImpact();
+      player.onPlayerComplete.listen((_) => player.dispose());
     } catch (e) {
       debugPrint('🔈 Sound Error (notification): $e');
     }
@@ -16,14 +16,17 @@ class SoundManager {
 
   static Future<void> playSuccess() async {
     try {
-      await _player.play(AssetSource('sounds/ticket_success.wav'));
+      final player = AudioPlayer();
+      await player.play(AssetSource('sounds/ticket_success.wav'));
       await HapticFeedback.heavyImpact();
+      player.onPlayerComplete.listen((_) => player.dispose());
     } catch (e) {
       debugPrint('🔈 Sound Error (success): $e');
     }
   }
 
   static Future<void> dispose() async {
-    await _player.dispose();
+    // No longer needed for global player
   }
 }
+

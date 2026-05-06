@@ -1,0 +1,60 @@
+[33m5bd6f3d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtracking-feature-code-update[m[33m, [m[1;31morigin/tracking-feature-code-update[m[33m, [m[1;31mnew-origin/main[m[33m, [m[1;31mnew-origin/HEAD[m[33m)[m Final UI and Realtime optimizations
+[33mc7ef164[m Fix ticket synchronization, Realtime sync, and driver-bus DB mapping
+[33me90a936[m Complete TransitWay updates: Supabase integration, Realtime Notifications, and Profile Image Picker
+[33m348823c[m ended all driver feature
+[33m3abf6f2[m Merge pull request #19 from karonboshra-cloud/driver
+[33m0ad08cf[m[33m ([m[1;31morigin/driver[m[33m, [m[1;32mdriver[m[33m)[m Fix routes and merge conflicts
+[33m3627242[m driver v1
+[33m4fade81[m add tracking and qr scanner features
+[33m871fbd8[m driver
+[33mef9687c[m[33m ([m[1;32mtracking-feature[m[33m, [m[1;32mdevelop[m[33m)[m update splash
+[33m5c8a9ff[m Merge pull request #15 from karonboshra-cloud/feature-location-sending
+[33m9e6cdaf[m[33m ([m[1;31morigin/feature-location-sending[m[33m, [m[1;32mfeature-location-sending[m[33m)[m Resolve merge conflicts in routes and pubspec.lock
+[33m647919e[m update splash
+[33me4cdbd5[m update payment screen
+[33m9447063[m Merge pull request #14 from karonboshra-cloud/feature_caredit
+[33m416d2c5[m[33m ([m[1;31morigin/feature_caredit[m[33m, [m[1;32mfeature_caredit[m[33m)[m charge point
+[33ma9487bc[m Merge branch 'master' into feature_caredit
+[33m17984c1[m SplashScreen feature_payment
+[33m169cef8[m[33m ([m[1;32mmaster[m[33m)[m charge point
+[33m1eee001[m test tracking
+[33m4298f4d[m Merge pull request #13 from karonboshra-cloud/develop
+[33mea6166e[m update all app
+[33m952d63c[m Merge pull request #12 from karonboshra-cloud/Feature_qr_scanner
+[33m697f8e9[m QRScannerPage success_dialog.dart
+[33m5290892[m Merge pull request #11 from karonboshra-cloud/update-recovery-passwprd
+[33mb0808f6[m Merge branch 'develop' into update-recovery-passwprd
+[33me162dbe[m fix4: resolve conflicts and update phone recovery flow
+[33mbea2c2a[m fix3: resolve conflicts and update phone recovery flow
+[33m820a772[m fix3: resolve conflicts and update phone recovery flow
+[33m835e089[m fix2: resolve conflicts and update phone recovery flow
+[33md1bb77b[m fix: resolve conflicts and update phone recovery flow
+[33m8b62e43[m Merge pull request #8 from karonboshra-cloud/profile
+[33mf859ee0[m fix: resolve conflicts and update phone recovery flow
+[33mef38dc7[m update forget password logic
+[33m581ebcf[m update forget password logic
+[33m069b655[m signup && profile
+[33m2525f4c[m signup && profile
+[33mfe82b2e[m Merge pull request #6 from karonboshra-cloud/update-home-screen
+[33m5a1bb3b[m update OTP home screen
+[33mb9a07ac[m Merge pull request #5 from karonboshra-cloud/update_otp_screen
+[33m31f8970[m update OTP logic
+[33m5aeca44[m Merge pull request #4 from karonboshra-cloud/feature_qr
+[33m43222e8[m SplashScreen qr
+[33m08eab80[m update routes file
+[33m743adb4[m Merge pull request #3 from karonboshra-cloud/feature-qr_scaneer
+[33m8a57981[m add feature qr scanner
+[33m5de31b9[m add home screen ,bus details and track bus
+[33mccea63a[m Merge pull request #2 from karonboshra-cloud/feature-login_driver
+[33m21746a3[m add login driver file dart
+[33m0750a6e[m Merge pull request #1 from karonboshra-cloud/feature-login_driver
+[33maaaf030[m add login files
+[33m64deb98[m add sign up feature
+[33m9a227b7[m add sign in with google
+[33mde99836[m add login API
+[33m4f3458d[m add feature to change the password
+[33ma0af3c0[m update login screen
+[33m8e618f1[m Fix UI in Login and link Onboarding with Login
+[33md5839c7[m feat: splash onboarding and login finished
+[33m302748f[m added splash screen navigation to login
+[33me890580[m SplashScreen

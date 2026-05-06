@@ -17,6 +17,9 @@ class TrackingService {
   Position? _lastSentPosition;
   Position? _currentPosition;
   DateTime? _lastDbWriteTime;
+  
+  final List<Map<String, dynamic>> _offlineHistoryQueue = [];
+  bool _isSyncingHistory = false;
 
   final _locationController = StreamController<Position>.broadcast();
   Stream<Position> get locationStream => _locationController.stream;
@@ -241,16 +244,47 @@ class TrackingService {
 
   /// Upserts to the tracking table for historical / analytics records.
   Future<void> _updateTrackingHistory(String busId, double lat, double lng, double speed) async {
+    final record = {
+      'bus_id': busId,
+      'lat': lat,
+      'lng': lng,
+      'speed': (speed * 3.6).round(),
+      // Add timestamp here for offline buffering
+      'created_at': DateTime.now().toUtc().toIso8601String(), 
+    };
+
     try {
-      await SupabaseConfig.client.from(ApiConstants.trackingTable).insert({
-        'bus_id': busId,
-        'lat': lat,
-        'lng': lng,
-        'speed': (speed * 3.6).round(),
-      });
+      await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(record);
+      // If success, try to sync any pending offline records
+      _syncOfflineHistory();
     } catch (e) {
-      // Tracking table may not exist — log only, don't break the stream
-      debugPrint('⚠️ Tracking history write skipped: $e');
+      debugPrint('⚠️ Network issue, buffering tracking history...');
+      _offlineHistoryQueue.add(record);
+    }
+  }
+
+  Future<void> _syncOfflineHistory() async {
+    if (_isSyncingHistory || _offlineHistoryQueue.isEmpty) return;
+    _isSyncingHistory = true;
+
+    try {
+      // Sync in chunks to avoid payload limits
+      final batch = _offlineHistoryQueue.take(50).toList();
+      await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(batch);
+      
+      // Remove synced items
+      _offlineHistoryQueue.removeRange(0, batch.length);
+      debugPrint('✅ Synced ${batch.length} buffered tracking points.');
+      
+      // If still items left, recursively sync
+      if (_offlineHistoryQueue.isNotEmpty) {
+        _isSyncingHistory = false;
+        _syncOfflineHistory();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Offline sync failed, will retry later.');
+    } finally {
+      _isSyncingHistory = false;
     }
   }
 

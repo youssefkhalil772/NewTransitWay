@@ -41,6 +41,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   int _nextStationIndex = 0;
   Timer? _fallbackTimer;
   RealtimeChannel? _broadcastChannel;
+  AnimationController? _movementController;
   final Color appGreen = const Color(0xFF1B4D3E);
 
   @override
@@ -84,6 +85,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     _busStreamSubscription?.cancel();
     _broadcastChannel?.unsubscribe();
     _fallbackTimer?.cancel();
+    _movementController?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -279,38 +281,30 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     }
   }
 
-  void _animatedMove(LatLng destLocation) {
+  void _startGlidingAnimation(LatLng destLocation) {
     if (_busLocation == null) return;
-    final latTween = Tween<double>(
-      begin: _busLocation!.latitude,
-      end: destLocation.latitude,
-    );
-    final lngTween = Tween<double>(
-      begin: _busLocation!.longitude,
-      end: destLocation.longitude,
+    final startLoc = _busLocation!;
+    
+    _movementController?.dispose();
+    _movementController = AnimationController(
+        vsync: this, 
+        duration: const Duration(milliseconds: 900)
     );
 
-    final controller = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    final animation = CurvedAnimation(parent: controller, curve: Curves.linear);
+    final latTween = Tween<double>(begin: startLoc.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(begin: startLoc.longitude, end: destLocation.longitude);
 
-    controller.addListener(() {
-      if (mounted) {
-        setState(() {
-          _busLocation = LatLng(
-            latTween.evaluate(animation),
-            lngTween.evaluate(animation),
-          );
-        });
-        _mapController.move(_busLocation!, _mapController.camera.zoom);
-      }
+    _movementController!.addListener(() {
+      if (!mounted) return;
+      final val = _movementController!.value;
+      final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
+      
+      setState(() => _busLocation = animLoc);
+      _mapController.move(animLoc, _mapController.camera.zoom);
     });
 
-    controller.addStatusListener((status) {
+    _movementController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        controller.dispose();
         _prunePathBehindBus(destLocation);
         _checkArrival(destLocation);
         if (_calculateRemainingDistance() < 300) {
@@ -319,8 +313,9 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       }
     });
 
-    controller.forward();
+    _movementController!.forward();
   }
+
 
   StreamSubscription<List<Map<String, dynamic>>>? _busStreamSubscription;
 
@@ -361,7 +356,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       debugPrint("TrackingView: Bus moved $moved meters");
       // Threshold lowered to 2 meters to avoid missing small movements
       if (moved > 2) {
-        _animatedMove(newLoc);
+        _startGlidingAnimation(newLoc);
       }
     }
   }
@@ -622,9 +617,8 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _dataDetail(
+                _buildPulseEtaText(
                   _arrivalTime == "..." ? "Calculating..." : _arrivalTime,
-                  "⏱  ETA",
                 ),
                 Container(width: 1, height: 40, color: Colors.grey[300]),
                 _dataDetail(
@@ -747,6 +741,36 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       Text(label, style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
     ],
   );
+
+  Widget _buildPulseEtaText(String eta) {
+    final bool isClose = eta.contains("1 min") || eta.contains("2 min") || eta.contains("Arrived");
+    
+    return Column(
+      children: [
+        if (isClose)
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 1.0, end: 1.15),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Text(
+                  eta,
+                  style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+              );
+            },
+            onEnd: () {
+              if (mounted) setState(() {});
+            },
+          )
+        else
+          Text(eta, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: appGreen)),
+        Text("⏱  ETA", style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
+      ],
+    );
+  }
 
   Widget _infoColumn(String label, String value) => Column(
     children: [

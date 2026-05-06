@@ -14,6 +14,10 @@ class _RoutesScreenState extends State<RoutesScreen>
   double _currentSpeed = 0.0;
   double _smoothedHeading = 0.0;
   double _currentHeading = 0.0;
+  bool _followBus = true; // auto-follow — toggled off when user pans map
+  
+  List<StationModel> _localStations = [];
+  List<StationModel> get activeStations => _localStations.isNotEmpty ? _localStations : widget.stations;
 
   // ─── Trip state ───────────────────────────────────────────────────────────
   bool _isTripActive = false;
@@ -47,6 +51,7 @@ class _RoutesScreenState extends State<RoutesScreen>
   void initState() {
     super.initState();
     _initCrashDetector();
+    _loadLastKnownPosition(); // Show map immediately
     _checkTripStatus();
     _listenToLiveUpdates();
   }
@@ -60,8 +65,11 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
+  AnimationController? _movementController;
+
   @override
   void dispose() {
+    _movementController?.dispose();
     _crashDetector.stop();
     _rerouteDebounce?.cancel();
     _locationSubscription?.cancel();
@@ -73,7 +81,7 @@ class _RoutesScreenState extends State<RoutesScreen>
   @override
   Widget build(BuildContext context) {
     if (!_isTripActive) return buildNoTripView();
-    if (_currentLocation == null) return buildLoadingView();
+    // Always show the map — never block. Fallback center is used if GPS not ready yet.
     return Stack(
       children: [
         buildMainScreen(),
@@ -98,6 +106,34 @@ class _RoutesScreenState extends State<RoutesScreen>
   }
 
   // ─── State helpers ────────────────────────────────────────────────────────
+  
+  /// Load position instantly: try last known, then actively request current
+  Future<void> _loadLastKnownPosition() async {
+    try {
+      // 1. Try cached (instant)
+      final cached = await Geolocator.getLastKnownPosition();
+      if (cached != null && mounted) {
+        setState(() => _currentLocation = LatLng(cached.latitude, cached.longitude));
+        return;
+      }
+      // 2. Actively request with short timeout
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 3),
+        ),
+      );
+      if (mounted) {
+        setState(() => _currentLocation = LatLng(pos.latitude, pos.longitude));
+      }
+    } catch (_) {
+      // 3. Absolute fallback: Cairo center — map always shows
+      if (mounted && _currentLocation == null) {
+        setState(() => _currentLocation = const LatLng(30.0444, 31.2357));
+      }
+    }
+  }
+
   void _resetTripState() {
     _crashDetector.stop();
     _rerouteDebounce?.cancel();
@@ -125,6 +161,16 @@ class _RoutesScreenState extends State<RoutesScreen>
   }
 
   Future<void> _checkTripStatus() async {
+    // Primary: if stations were passed in, the trip IS active — no async needed
+    if (activeStations.isNotEmpty) {
+      if (mounted) {
+        setState(() => _isTripActive = true);
+        _crashDetector.start();
+      }
+      return;
+    }
+
+    // Fallback: check SharedPreferences (for when screen rebuilds from tab switch)
     final prefs = await SharedPreferences.getInstance();
     final bool active = prefs.getBool('isTripActive') ?? false;
     if (mounted) {
@@ -136,25 +182,51 @@ class _RoutesScreenState extends State<RoutesScreen>
         }
       });
       if (active) {
+        await _fetchStationsForActiveTrip();
         _crashDetector.start();
         if (_currentLocation != null) _findNearestStationIndex();
       }
     }
   }
 
+  Future<void> _fetchStationsForActiveTrip() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final routeId = prefs.getInt('routeId');
+      if (routeId == null) return;
+      
+      final allRoutes = await DriverDataManager().getRoutes();
+      final allStations = await DriverDataManager().getStations();
+      
+      final matchedRoute = allRoutes.firstWhere((r) => r.id == routeId, orElse: () => allRoutes.first);
+      
+      final stations = allStations.where((s) => s.zone.toLowerCase().trim() == matchedRoute.zone.toLowerCase().trim()).toList();
+      
+      if (mounted) {
+        setState(() {
+          _localStations = stations;
+        });
+        if (_currentLocation != null) {
+          _findNearestStationIndex();
+          _updateSmartRoute();
+        }
+      }
+    } catch (_) {}
+  }
+
   // ─── Station logic ────────────────────────────────────────────────────────
   void _findNearestStationIndex() {
-    if (widget.stations.isEmpty || _currentLocation == null) return;
+    if (activeStations.isEmpty || _currentLocation == null) return;
 
     int nearestIndex = 0;
     double minDist = double.maxFinite;
 
-    for (int i = 0; i < widget.stations.length; i++) {
+    for (int i = 0; i < activeStations.length; i++) {
       final double d = Geolocator.distanceBetween(
         _currentLocation!.latitude,
         _currentLocation!.longitude,
-        widget.stations[i].position.latitude,
-        widget.stations[i].position.longitude,
+        activeStations[i].position.latitude,
+        activeStations[i].position.longitude,
       );
       if (d < minDist) {
         minDist = d;
@@ -164,18 +236,18 @@ class _RoutesScreenState extends State<RoutesScreen>
 
     setState(() {
       _nextStationIndex = nearestIndex;
-      _currentNextStationName = widget.stations[nearestIndex].name;
+      _currentNextStationName = activeStations[nearestIndex].name;
     });
   }
 
   void _checkArrivalLogic(LatLng busPos) {
     if (_isProcessingArrival ||
-        widget.stations.isEmpty ||
-        _nextStationIndex >= widget.stations.length) {
+        activeStations.isEmpty ||
+        _nextStationIndex >= activeStations.length) {
       return;
     }
 
-    final target = widget.stations[_nextStationIndex];
+    final target = activeStations[_nextStationIndex];
     final double dist = Geolocator.distanceBetween(
       busPos.latitude,
       busPos.longitude,
@@ -190,41 +262,11 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
-  // ─── Map animation ────────────────────────────────────────────────────────
-  void _animatedMapMove(LatLng destLocation, double destZoom) {
-    if (!_isMapReady) return;
-    
-    final latTween = Tween<double>(
-      begin: _mapController.camera.center.latitude,
-      end: destLocation.latitude,
-    );
-    final lngTween = Tween<double>(
-      begin: _mapController.camera.center.longitude,
-      end: destLocation.longitude,
-    );
-
-    final controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    final animation =
-        CurvedAnimation(parent: controller, curve: Curves.easeOut);
-
-    controller.addListener(() {
-      _mapController.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        destZoom,
-      );
-    });
-
-    animation.addStatusListener((status) {
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
-        controller.dispose();
-      }
-    });
-
-    controller.forward();
+  // ─── Map movement ────────────────────────────────────────────────────────
+  void _moveMapToLocation(LatLng location) {
+    if (!_isMapReady || !_followBus) return;
+    // Direct move — no animation delay for real-time feel
+    _mapController.move(location, _mapController.camera.zoom);
   }
 
   // ─── Location stream ──────────────────────────────────────────────────────
@@ -246,34 +288,53 @@ class _RoutesScreenState extends State<RoutesScreen>
         return;
       }
 
-      setState(() {
-        _currentLocation = newLoc;
-        _currentSpeed = position.speed * 3.6;
+      // 60fps Smooth Interpolation (Gliding)
+      final startLoc = _currentLocation ?? newLoc;
+      final startHeading = _currentHeading;
+      final headingDiff = (position.heading - startHeading + 540) % 360 - 180;
+      final endHeading = startHeading + headingDiff;
 
-        final double diff =
-            (position.heading - _smoothedHeading + 540) % 360 - 180;
-        _smoothedHeading += diff * 0.3;
-        _currentHeading = _smoothedHeading;
+      _movementController?.dispose();
+      _movementController = AnimationController(
+        vsync: this, 
+        duration: const Duration(milliseconds: 900) // Slightly less than 1s to finish before next tick
+      );
 
-        if (_polylinePoints.isNotEmpty) {
-          final bool onPath = _prunePathBehindBus(newLoc);
-          if (!onPath && !_isFetchingRoute) {
-            debugPrint("🚨 Off track detected (> 10m). Rerouting...");
-            _scheduleReroute();
-          }
-        }
+      final latTween = Tween<double>(begin: startLoc.latitude, end: newLoc.latitude);
+      final lngTween = Tween<double>(begin: startLoc.longitude, end: newLoc.longitude);
+      final headingTween = Tween<double>(begin: startHeading, end: endHeading);
 
-        _calculateETA(newLoc);
+      _movementController!.addListener(() {
+        if (!mounted) return;
+        final val = _movementController!.value;
+        final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
+        
+        setState(() {
+          _currentLocation = animLoc;
+          _currentHeading = headingTween.transform(val);
+          _currentSpeed = position.speed * 3.6; // Speed updates instantly
+        });
+        
+        _moveMapToLocation(animLoc);
       });
+      
+      _movementController!.forward();
 
-      if (_isMapReady) {
-        _animatedMapMove(newLoc, _mapController.camera.zoom);
+      // Logic calculations still use the actual new GPS target, not the animated frame
+      if (_polylinePoints.isNotEmpty) {
+        final bool onPath = _prunePathBehindBus(newLoc);
+        if (!onPath && !_isFetchingRoute) {
+          debugPrint("🚨 Off track detected (> 10m). Rerouting...");
+          _scheduleReroute();
+        }
       }
+
+      _calculateETA(newLoc);
 
       _checkArrivalLogic(newLoc);
 
       if (_polylinePoints.isEmpty &&
-          widget.stations.isNotEmpty &&
+          activeStations.isNotEmpty &&
           !_isFetchingRoute) {
         _updateSmartRoute();
       }
@@ -294,13 +355,13 @@ class _RoutesScreenState extends State<RoutesScreen>
 
   // ─── ETA ──────────────────────────────────────────────────────────────────
   void _calculateETA(LatLng busPos) {
-    if (widget.stations.isEmpty ||
-        _nextStationIndex >= widget.stations.length) {
+    if (activeStations.isEmpty ||
+        _nextStationIndex >= activeStations.length) {
       _etaToNextStation = "0 min";
       return;
     }
 
-    final target = widget.stations[_nextStationIndex];
+    final target = activeStations[_nextStationIndex];
     final double distMeters = Geolocator.distanceBetween(
       busPos.latitude,
       busPos.longitude,
@@ -351,7 +412,7 @@ class _RoutesScreenState extends State<RoutesScreen>
   // ─── Route fetching ───────────────────────────────────────────────────────
   Future<void> _updateSmartRoute() async {
     if (_isFetchingRoute ||
-        widget.stations.isEmpty ||
+        activeStations.isEmpty ||
         !_isTripActive ||
         _currentLocation == null ||
         !mounted) {
@@ -362,8 +423,8 @@ class _RoutesScreenState extends State<RoutesScreen>
 
     try {
       final List<LatLng> waypoints = [_currentLocation!];
-      for (int i = _nextStationIndex; i < widget.stations.length; i++) {
-        waypoints.add(widget.stations[i].position);
+      for (int i = _nextStationIndex; i < activeStations.length; i++) {
+        waypoints.add(activeStations[i].position);
       }
 
       if (waypoints.length >= 2) {
@@ -373,8 +434,8 @@ class _RoutesScreenState extends State<RoutesScreen>
           setState(() {
             _polylinePoints = routeData.points;
             _currentNextStationName =
-                _nextStationIndex < widget.stations.length
-                    ? widget.stations[_nextStationIndex].name
+                _nextStationIndex < activeStations.length
+                    ? activeStations[_nextStationIndex].name
                     : "Trip Completed";
           });
         }
@@ -392,39 +453,51 @@ class _RoutesScreenState extends State<RoutesScreen>
   void _initCrashDetector() {
     _crashDetector = CrashDetector(
       onCrashDetected: () async {
-        if (!mounted || _showSosCountdown || _isSendingSos) return;
-        setState(() => _isSendingSos = true);
+        debugPrint("💥 CrashDetector Callback Triggered!");
+        if (!mounted || _showSosCountdown) return;
 
-        try {
-          final ids = await SosService.loadIds();
-          final alertId = await SosService.triggerSos(
-            driverId: ids.driverId,
-            busId: ids.busId,
-          );
+        // 1. Show the UI IMMEDIATELY (Critical Path)
+        setState(() {
+          _showSosCountdown = true;
+          _sosCountdownSeconds = 15;
+          _showSosConfirmation = false;
+        });
 
-          if (alertId != null && mounted) {
-            setState(() {
-              _currentAlertId = alertId;
-              _sosCountdownSeconds = 15;
-              _showSosCountdown = true;
-              _showSosConfirmation = false;
-            });
-
-            _sosTimer?.cancel();
-            _sosTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-              if (!mounted) {
-                timer.cancel();
-                return;
-              }
-              setState(() => _sosCountdownSeconds--);
-              if (_sosCountdownSeconds <= 0) {
-                timer.cancel();
-                _executeEmergency();
-              }
-            });
+        // 2. Start the countdown timer immediately
+        _sosTimer?.cancel();
+        _sosTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted) {
+            timer.cancel();
+            return;
           }
-        } finally {
-          if (mounted) setState(() => _isSendingSos = false);
+          setState(() {
+            _sosCountdownSeconds--;
+          });
+          if (_sosCountdownSeconds <= 0) {
+            timer.cancel();
+            _executeEmergency();
+          }
+        });
+
+        // 3. Create the database record in the background (Non-blocking)
+        if (!_isSendingSos) {
+          _isSendingSos = true;
+          try {
+            final ids = await SosService.loadIds();
+            debugPrint("📡 Creating background alert record for IDs: $ids");
+            final alertId = await SosService.triggerSos(
+              driverId: ids.driverId,
+              busId: ids.busId,
+            );
+
+            if (alertId != null && mounted) {
+              _currentAlertId = alertId;
+            }
+          } catch (e) {
+            debugPrint("🛑 Background SOS trigger failed: $e");
+          } finally {
+            _isSendingSos = false;
+          }
         }
       },
     );
@@ -448,10 +521,60 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
-  /// Driver manually pressed "Send SOS Now" before countdown ends.
+  /// Driver manually pressed the red SOS button (not from crash detection).
   void _sendSosManually() {
     _sosTimer?.cancel();
-    _executeEmergency();
+
+    // If there's already an active alert (from crash detection), just escalate
+    if (_currentAlertId != null) {
+      _executeEmergency();
+      return;
+    }
+
+    // No active alert — this is a fully manual SOS trigger
+    // Show UI immediately first
+    if (mounted) {
+      setState(() {
+        _showSosCountdown = false;
+        _showSosConfirmation = false;
+      });
+    }
+
+    // Trigger + immediately escalate to emergency (no countdown for manual press)
+    _triggerAndSendEmergency();
+  }
+
+  /// Trigger a brand-new SOS alert and immediately escalate to emergency.
+  /// Used when the driver presses the manual SOS button without a crash event.
+  Future<void> _triggerAndSendEmergency() async {
+    if (_isSendingSos) return;
+    _isSendingSos = true;
+
+    try {
+      final ids = await SosService.loadIds();
+      debugPrint('🆘 Manual SOS: triggering with ids=$ids');
+
+      final alertId = await SosService.triggerSos(
+        driverId: ids.driverId,
+        busId: ids.busId,
+      );
+
+      if (alertId != null) {
+        await SosService.sendEmergency(alertId);
+        debugPrint('🚨 Manual SOS: emergency sent for alertId=$alertId');
+      }
+
+      if (mounted) {
+        setState(() {
+          _showSosConfirmation = true;
+          _currentAlertId = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('🛑 Manual SOS failed: $e');
+    } finally {
+      _isSendingSos = false;
+    }
   }
 
   /// Shared logic that actually fires the SOS call and shows the confirmation.
@@ -460,9 +583,29 @@ class _RoutesScreenState extends State<RoutesScreen>
     if (mounted) setState(() => _isSendingSos = true);
 
     try {
-      final alertId = _currentAlertId;
+      var alertId = _currentAlertId;
+
+      // If no alertId yet (background trigger still running), wait a bit
+      if (alertId == null) {
+        debugPrint('⏳ _executeEmergency: waiting for alertId...');
+        await Future.delayed(const Duration(seconds: 2));
+        alertId = _currentAlertId;
+      }
+
       if (alertId != null) {
         await SosService.sendEmergency(alertId);
+        debugPrint('🚨 Emergency sent for alertId=$alertId');
+      } else {
+        // Last resort: trigger a new one and send emergency
+        debugPrint('⚠️ No alertId — triggering new SOS for emergency');
+        final ids = await SosService.loadIds();
+        final newId = await SosService.triggerSos(
+          driverId: ids.driverId,
+          busId: ids.busId,
+        );
+        if (newId != null) {
+          await SosService.sendEmergency(newId);
+        }
       }
 
       if (mounted) {
@@ -475,13 +618,6 @@ class _RoutesScreenState extends State<RoutesScreen>
     } catch (e) {
       debugPrint('🛑 SOS execution failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to send SOS. Please call emergency services directly.'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
         setState(() {
           _showSosCountdown = false;
           _currentAlertId = null;

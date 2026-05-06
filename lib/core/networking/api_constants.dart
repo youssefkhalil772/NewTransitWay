@@ -20,6 +20,6 @@ class ApiConstants {
   // ── Supabase Storage Buckets ──────────────────────────────────
   static const String avatarsBucket = 'avatars';
 
-  // ── OSRM (Third-party – unchanged) ────────────────────────────
-  static const String osrmBaseUrl = "https://router.project-osrm.org/route/v1/driving/";
+  // ── OSRM (Public Routing Service) ────────────────────────────
+  static const String osrmBaseUrl = "https://routing.openstreetmap.de/routed-car/route/v1/driving/";
 }

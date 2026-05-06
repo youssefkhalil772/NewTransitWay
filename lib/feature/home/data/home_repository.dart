@@ -43,38 +43,58 @@ class HomeRepository {
   Future<RouteData> getRouteBetweenStations(List<LatLng> waypoints, {double? heading}) async {
     if (waypoints.length < 2) return RouteData(points: waypoints);
 
-    final String coords = waypoints.map((p) => "${p.longitude},${p.latitude}").join(';');
-    
-    // استخدام geometries=polyline لتقليل حجم البيانات وسرعة الرسم
-    String url = "${ApiConstants.osrmBaseUrl}$coords?geometries=geojson&overview=full&continue_straight=true";
+    // If too many waypoints, only keep start + end to avoid URL length issues
+    final List<LatLng> effectiveWaypoints = waypoints.length > 20
+        ? [waypoints.first, waypoints.last]
+        : waypoints;
 
-    List<String> radiusList = [];
-    List<String> bearingList = [];
-    
-    for (int i = 0; i < waypoints.length; i++) {
-      // زيادة الـ Radius للباص والمحطات لمنع الـ Looping (الدوران)
-      radiusList.add(i == 0 ? "100" : "500"); 
-      
-      if (i == 0 && heading != null && heading > 0) {
-        bearingList.add("${heading.round()},45"); // زيادة زاوية السماح لـ 45 درجة
-      } else {
-        bearingList.add(""); 
-      }
-    }
-    
-    url += "&radiuses=${radiusList.join(";")}";
-    if (heading != null) url += "&bearings=${bearingList.join(";")}";
+    final String coords = effectiveWaypoints
+        .map((p) => "${p.longitude},${p.latitude}")
+        .join(';');
+
+    // Clean minimal URL — no radiuses (causes NoRoute errors for distant stations)
+    final String url =
+        "${ApiConstants.osrmBaseUrl}$coords?geometries=geojson&overview=full&steps=false";
+
+    debugPrint("🗺️ OSRM URL: $url");
 
     try {
-      // OSRM is a third-party service, keep using HTTP
-      final response = await http.get(Uri.parse(url));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint("🗺️ OSRM Status: ${response.statusCode}");
+
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data != null && data['routes'] != null && data['routes'].isNotEmpty) {
-          final route = data['routes'][0];
-          final List<dynamic> coordinates = route['geometry']['coordinates'];
-          final List<LatLng> points = coordinates.map((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
-          
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final code = data['code'];
+
+        if (code != 'Ok') {
+          debugPrint("⚠️ OSRM code=$code — falling back to straight line");
+          return RouteData(points: waypoints);
+        }
+
+        final routesList = data['routes'] as List<dynamic>?;
+        if (routesList == null || routesList.isEmpty) {
+          return RouteData(points: waypoints);
+        }
+
+        final route = routesList[0] as Map<String, dynamic>;
+        final geometry = route['geometry'];
+
+        List<LatLng> points = [];
+        if (geometry is Map<String, dynamic>) {
+          final coords = geometry['coordinates'] as List<dynamic>;
+          points = coords
+              .map((c) => LatLng(
+                    (c[1] as num).toDouble(),
+                    (c[0] as num).toDouble(),
+                  ))
+              .toList();
+        }
+
+        if (points.isNotEmpty) {
+          debugPrint("✅ OSRM: ${points.length} road points fetched");
           return RouteData(
             points: points,
             distanceInMeters: (route['distance'] as num).toDouble(),
@@ -82,9 +102,11 @@ class HomeRepository {
           );
         }
       }
+
+      debugPrint("⚠️ OSRM non-200: ${response.statusCode} — ${response.body.substring(0, response.body.length.clamp(0, 200))}");
       return RouteData(points: waypoints);
     } catch (e) {
-      debugPrint("⚠️ Routing API Error: $e");
+      debugPrint("🛑 OSRM Error: $e");
       return RouteData(points: waypoints);
     }
   }

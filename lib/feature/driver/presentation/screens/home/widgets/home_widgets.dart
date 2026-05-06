@@ -13,6 +13,7 @@ import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleto
 import 'package:transite_way/feature/driver/data/driver_data_manager.dart';
 import 'package:transite_way/core/networking/connectivity_service.dart';
 import '../../../../../../core/resources/color_manager.dart';
+import 'package:transite_way/core/widgets/swipe_to_confirm.dart';
 
 class HomeTabBody extends StatefulWidget {
   final Function(List<StationModel> stations) onStartTrip;
@@ -338,33 +339,14 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                     const Text('Trip tracking is ready',
                         style: TextStyle(fontWeight: FontWeight.w500)),
                     SizedBox(height: 16.h),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50.h,
-                      child: ElevatedButton(
-                        onPressed: _isStartingTrip ? null : _handleStartTrip,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ColorManager.lightGreen,
-                        ),
-                        child: _isStartingTrip
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'Start Trip',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
+                    SwipeToConfirm(
+                      text: "SWIPE TO START TRIP",
+                      onConfirm: _handleStartTrip,
+                      isLoading: _isStartingTrip,
+                      baseColor: ColorManager.lightGreen,
                     ),
                   ],
+
                 ),
               ),
             ),

@@ -23,6 +23,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   List<StationModel> _currentTripStations = [];
 
   Future<void> _onTabChanged(int index, {List<StationModel>? stations}) async {
+    // If navigating to Routes with stations (Start Trip pressed), go immediately
+    if (stations != null && stations.isNotEmpty) {
+      setState(() {
+        _currentTripStations = stations;
+        _routesRefreshKey++;
+        _selectedIndex = 3; // Routes tab
+      });
+      return;
+    }
+
+    // For QR and Tickets tabs, check if trip is active
     if (index == 1 || index == 2) {
       final prefs = await SharedPreferences.getInstance();
       final isTripActive = prefs.getBool('isTripActive') ?? false;
@@ -41,15 +52,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     if (!mounted) return;
-
     setState(() {
       _selectedIndex = index;
-
-      // لو فيه stations مبعوتة، ده معناه إننا بدأنا رحلة جديدة فعلاً من صفحة الـ Home
-      if (stations != null) {
-        _currentTripStations = stations;
-        _routesRefreshKey++; // بنزود الـ Key هنا بس عشان نصفر حالة الخريطة للرحلة الجديدة
-      }
     });
   }
 

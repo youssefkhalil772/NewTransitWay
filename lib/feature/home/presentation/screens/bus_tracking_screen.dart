@@ -29,6 +29,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
   Timer? _fallbackTimer;
   StreamSubscription<List<Map<String, dynamic>>>? _busStreamSubscription;
   RealtimeChannel? _broadcastChannel;
+  AnimationController? _movementController;
 
   @override
   void initState() {
@@ -57,6 +58,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
     _busStreamSubscription?.cancel();
     _broadcastChannel?.unsubscribe();
     _fallbackTimer?.cancel();
+    _movementController?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -89,24 +91,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
     controller.forward();
   }
 
-  void _animatedMove(LatLng destLocation) {
-    if (_busLocation == null) return;
-    final latTween = Tween<double>(begin: _busLocation!.latitude, end: destLocation.latitude);
-    final lngTween = Tween<double>(begin: _busLocation!.longitude, end: destLocation.longitude);
-    final controller = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this);
-    final Animation<double> animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
-
-    controller.addListener(() {
-      if (mounted) {
-        setState(() => _busLocation = LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)));
-      }
-    });
-
-    controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) controller.dispose();
-    });
-    controller.forward();
-  }
+  // Removed old _animatedMove in favor of continuous 60fps interpolation
 
   Future<void> _startLiveTracking(dynamic busId, dynamic busNum) async {
     _busStreamSubscription?.cancel();
@@ -168,11 +153,34 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
         setState(() => _busLocation = newLoc);
         _mapController.move(newLoc, 14.5);
       } else if (newLoc != _busLocation) {
-        _animatedMove(newLoc);
-        // Follow the bus
-        _mapController.move(newLoc, _mapController.camera.zoom);
+        _startGlidingAnimation(newLoc);
       }
     }
+  }
+
+  void _startGlidingAnimation(LatLng destLocation) {
+    if (_busLocation == null) return;
+    final startLoc = _busLocation!;
+    
+    _movementController?.dispose();
+    _movementController = AnimationController(
+        vsync: this, 
+        duration: const Duration(milliseconds: 900)
+    );
+
+    final latTween = Tween<double>(begin: startLoc.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(begin: startLoc.longitude, end: destLocation.longitude);
+
+    _movementController!.addListener(() {
+      if (!mounted) return;
+      final val = _movementController!.value;
+      final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
+      
+      setState(() => _busLocation = animLoc);
+      _mapController.move(animLoc, _mapController.camera.zoom);
+    });
+
+    _movementController!.forward();
   }
 
   void _updateMarkers(String busNum, Color routeColor, List<dynamic> stations) {

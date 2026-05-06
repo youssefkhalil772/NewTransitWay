@@ -433,11 +433,20 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
         body: {'driverId': driverId, 'numberOfTickets': count},
       );
       final data = response.data;
-      if (data is Map && data['error'] != null) {
+      
+      // If the response explicitly states an error or success is false
+      final bool hasError = data is Map && (
+        data['error'] != null || 
+        data['success'] == false || 
+        (data.containsKey('message') && data['message'].toString().toLowerCase().contains('error'))
+      );
+
+      if (hasError) {
         if (mounted) {
           setState(() => _isLoading = false);
+          final errorMsg = data['error']?.toString() ?? data['message']?.toString() ?? 'Failed to issue tickets';
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_translateError(data['error'].toString())),
+            content: Text(_translateError(errorMsg)),
             backgroundColor: Colors.red, behavior: SnackBarBehavior.floating,
           ));
         }
