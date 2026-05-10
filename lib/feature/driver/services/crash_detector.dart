@@ -117,11 +117,17 @@ class CrashDetector {
     try {
       final bool hasVibrator = await Vibration.hasVibrator() ?? false;
       if (hasVibrator) {
+        // Strong SOS pattern: 3 short + 3 long + 3 short (Morse SOS)
         Vibration.vibrate(
-          pattern: [0, 400, 150, 400, 150, 800],
-          intensities: [0, 200, 0, 200, 0, 255],
+          pattern: [0, 200, 100, 200, 100, 200, 200, 600, 200, 600, 200, 600, 200, 200, 100, 200, 100, 200],
+          intensities: [0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255],
         );
       } else {
+        // Fallback: repeat heavy haptic impacts
+        HapticFeedback.heavyImpact();
+        await Future.delayed(const Duration(milliseconds: 150));
+        HapticFeedback.heavyImpact();
+        await Future.delayed(const Duration(milliseconds: 150));
         HapticFeedback.heavyImpact();
       }
     } catch (_) {}

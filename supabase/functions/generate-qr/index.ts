@@ -71,9 +71,9 @@ serve(async (req) => {
 
     // Step 4: Get the route name and price
     const { data: routeData, error: routeError } = await supabase
-      .from("routes")
-      .select("name, price")
-      .eq("id", trip.route_id)
+      .from("lines")
+      .select("start_point, end_point, price")
+      .eq("line_number", trip.route_id)
       .maybeSingle();
 
     if (routeError || !routeData) {
@@ -103,27 +103,29 @@ serve(async (req) => {
           bus_id: busData.id,
           driver_id: driverId,
           token: token,
+          qr_code: token,
           is_active: true,
         });
 
       if (insertError) {
         return new Response(
-        JSON.stringify({ error: `Failed to insert QR: ${insertError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+          JSON.stringify({ error: `Failed to insert QR: ${insertError.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(
       JSON.stringify({
         token,
-        routeName: routeData.name,
+        routeName: routeData.start_point ? `${routeData.start_point}` : `${trip.route_id}`,
         price: routeData.price,
         busId: busData.id,
         busNumber: busData.bus_number,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+  } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

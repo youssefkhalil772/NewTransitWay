@@ -23,6 +23,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
   LatLng? _busLocation; 
   bool _isTracking = true;
   bool _isLoading = true;
+  double _busHeading = 0.0;
 
   final Color appGreen = const Color(0xFF1B4D3E);
   List<Marker> _cachedMarkers = [];
@@ -145,22 +146,34 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
   }
 
   void _handleUpdate(Map<String, dynamic> data) {
-    final lat = data['current_lat'] ?? data['lat'];
-    final lng = data['current_lng'] ?? data['lng'];
+    final lat = data['current_lat'] ?? data['lat'] ?? data['latitude'];
+    final lng = data['current_lng'] ?? data['lng'] ?? data['longitude'];
     if (lat != null && lng != null) {
       final newLoc = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+      final double newHeading = data['heading']?.toDouble() ?? _busHeading;
+      
       if (_busLocation == null) {
-        setState(() => _busLocation = newLoc);
+        setState(() {
+          _busLocation = newLoc;
+          _busHeading = newHeading;
+        });
         _mapController.move(newLoc, 14.5);
-      } else if (newLoc != _busLocation) {
-        _startGlidingAnimation(newLoc);
+        _mapController.rotate(newHeading);
+      } else if (newLoc != _busLocation || newHeading != _busHeading) {
+        _startGlidingAnimation(newLoc, newHeading);
       }
     }
+
   }
 
-  void _startGlidingAnimation(LatLng destLocation) {
+  void _startGlidingAnimation(LatLng destLocation, double destHeading) {
     if (_busLocation == null) return;
     final startLoc = _busLocation!;
+    final startHeading = _busHeading;
+
+    // Shortest path for heading rotation
+    final headingDiff = (destHeading - startHeading + 540) % 360 - 180;
+    final endHeading = startHeading + headingDiff;
     
     _movementController?.dispose();
     _movementController = AnimationController(
@@ -170,15 +183,22 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
 
     final latTween = Tween<double>(begin: startLoc.latitude, end: destLocation.latitude);
     final lngTween = Tween<double>(begin: startLoc.longitude, end: destLocation.longitude);
+    final headingTween = Tween<double>(begin: startHeading, end: endHeading);
 
     _movementController!.addListener(() {
       if (!mounted) return;
       final val = _movementController!.value;
       final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
+      final animHeading = headingTween.transform(val);
       
-      setState(() => _busLocation = animLoc);
+      setState(() {
+        _busLocation = animLoc;
+        _busHeading = animHeading;
+      });
       _mapController.move(animLoc, _mapController.camera.zoom);
+      _mapController.rotate(animHeading);
     });
+
 
     _movementController!.forward();
   }
@@ -224,6 +244,22 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
             child: Stack(
               children: [
                 _buildMapSection(),
+                Positioned(
+                  top: 10.h,
+                  right: 15.w,
+                  child: FloatingActionButton.small(
+                    heroTag: "recenter_bus",
+                    onPressed: () {
+                      if (_busLocation != null) {
+                        _animatedMapMove(_busLocation!, 15.0);
+                        _mapController.rotate(_busHeading);
+                      }
+                    },
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.my_location, color: appGreen),
+                  ),
+                ),
+
                 _buildDetailsCard(args, routeColor),
               ],
             ),
@@ -243,7 +279,8 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
           options: MapOptions(
             initialCenter: _busLocation ?? const LatLng(30.0444, 31.2357), 
             initialZoom: 14.5,
-            interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
+            interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+
           ),
           children: [
             TileLayer(

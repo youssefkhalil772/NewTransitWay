@@ -6,7 +6,7 @@ import 'package:transite_way/core/networking/supabase_init.dart';
 import 'package:transite_way/core/networking/api_constants.dart';
 import 'package:transite_way/feature/driver/data/driver_auth_service.dart';
 import 'package:transite_way/feature/tracking/data/tracking_service.dart';
-import 'package:transite_way/feature/home/data/home_repository.dart';
+
 import 'package:transite_way/feature/home/data/models/station_model.dart';
 import 'package:transite_way/feature/home/data/models/route_model.dart';
 import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
@@ -25,8 +25,8 @@ class HomeTabBody extends StatefulWidget {
 
 class _HomeTabBodyState extends State<HomeTabBody> {
   final DriverAuthServices _driverService = DriverAuthServices();
-  final HomeRepository _homeRepository = HomeRepository();
   final TrackingService _trackingService = TrackingService();
+
 
   String _driverName = "Loading...";
   String _busNumber = "---";
@@ -68,95 +68,123 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         });
   }
 
+  bool _isBusAssigned = false;
+  bool _isRouteAssigned = false;
+
   Future<void> _loadAllData() async {
     try {
       if (mounted) setState(() => _isLoading = true);
       final prefs = await SharedPreferences.getInstance();
       final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
 
-      if (currentDriverId != null) {
-        final busData = await SupabaseConfig.client
-            .from(ApiConstants.busesTable)
-            .select('*')
-            .eq('driver_id', currentDriverId)
-            .maybeSingle();
+      if (currentDriverId == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
-        await DriverDataManager().prefetchData();
-        final driverData = await _driverService.getDriverData(currentDriverId);
-        final allRoutes = await DriverDataManager().getRoutes();
-        final allStations = await DriverDataManager().getStations();
+      // Always load driver name first regardless of bus assignment
+      final driverData = await _driverService.getDriverData(currentDriverId);
+      final String driverName = driverData['full_name'] ?? driverData['name'] ?? 'Driver';
 
-        if (busData != null) {
-          final int? routeId = busData['route_id'] as int?;
+      final busData = await SupabaseConfig.client
+          .from(ApiConstants.busesTable)
+          .select('*')
+          .eq('driver_id', currentDriverId)
+          .maybeSingle();
 
-          final matchedRoute = allRoutes.firstWhere(
-            (RouteModel r) => routeId != null && r.id == routeId,
-            orElse: () => allRoutes.isNotEmpty
-                ? allRoutes.first
-                : RouteModel(
-                    id: 0,
-                    name: 'No Route',
-                    zone: 'Unknown',
-                    color: Colors.grey,
-                    price: 30.0,
-                  ),
-          );
+      if (busData == null) {
+        // No bus assigned to this driver
+        if (mounted) {
+          setState(() {
+            _driverName = driverName;
+            _busNumber = 'Not Assigned';
+            _plateNumber = 'Not Assigned';
+            _routeName = 'Not Assigned';
+            _stationsCount = 0;
+            _isBusAssigned = false;
+            _isRouteAssigned = false;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
 
-          try {
-            await SupabaseConfig.client
-                .from('drivers')
-                .update({'bus_id': busData['id']})
-                .eq('id', currentDriverId);
-          } catch (_) {}
+      // Bus found — now check route
+      // Force clear cache to always get fresh data from DB
+      DriverDataManager().clearCache();
+      await DriverDataManager().prefetchData();
+      final allRoutes = await DriverDataManager().getRoutes();
+      final allStations = await DriverDataManager().getStations();
 
-          _routeStations = allStations
-              .where(
-                (s) =>
-                    s.zone.toLowerCase().trim() ==
-                    matchedRoute.zone.toLowerCase().trim(),
-              )
-              .toList();
+      final int? oldRouteId = busData['route_id'] as int?;
+      final int? lineNumber = int.tryParse(busData['route_name']?.toString() ?? '');
+      debugPrint('🚌 Bus route_id: $oldRouteId, route_name (lineNumber): $lineNumber');
+      debugPrint('📋 Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}');
 
-          await prefs.setString('busId', busData['id'].toString());
-          await prefs.setInt('routeId', matchedRoute.id);
-          await prefs.setString(
-            'busNumber',
-            busData['bus_number']?.toString() ?? '---',
-          );
-
-          final double price = matchedRoute.price > 0
-              ? matchedRoute.price
-              : 30.0;
-          await prefs.setDouble('ticketPrice', price);
-
-          // Check if there is an active trip
-          final activeTrip = await SupabaseConfig.client
-              .from('trips')
-              .select('id')
-              .eq('bus_id', busData['id'])
-              .isFilter('ended_at', null)
-              .maybeSingle();
-
-          await prefs.setBool('isTripActive', activeTrip != null);
-
-          if (mounted) {
-            setState(() {
-              _driverName =
-                  driverData['full_name'] ?? driverData['name'] ?? 'Driver';
-              _busNumber = busData['bus_number']?.toString() ?? '---';
-              _plateNumber = busData['plate_number']?.toString() ?? '---';
-              _routeName = matchedRoute.name;
-              _stationsCount = _routeStations.length;
-              _isLoading = false;
-            });
-          }
-        } else {
-          if (mounted) setState(() => _isLoading = false);
+      // Try matching route by line_number (which is mapped to RouteModel.id)
+      RouteModel? matchedRoute;
+      if (lineNumber != null) {
+        try {
+          matchedRoute = allRoutes.firstWhere((r) => r.id == lineNumber);
+          debugPrint('✅ Route matched: ${matchedRoute.name}');
+        } catch (_) {
+          debugPrint('❌ No route found with line_number=$lineNumber in ${allRoutes.length} lines');
+          matchedRoute = null;
         }
       } else {
-        if (mounted) setState(() => _isLoading = false);
+        debugPrint('⚠️ bus has invalid or null route_name');
+      }
+
+      final bool routeAssigned = matchedRoute != null;
+
+      if (routeAssigned) {
+        final rZone = matchedRoute!.zone.toLowerCase().replaceAll(' ', '');
+        _routeStations = allStations
+            .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
+            .toList();
+      } else {
+        _routeStations = [];
+      }
+
+      try {
+        await SupabaseConfig.client
+            .from('drivers')
+            .update({'bus_id': busData['id']})
+            .eq('id', currentDriverId);
+      } catch (_) {}
+
+      await prefs.setString('busId', busData['id'].toString());
+      if (routeAssigned) await prefs.setInt('routeId', matchedRoute.id);
+      await prefs.setString('busNumber', busData['bus_number']?.toString() ?? '---');
+      if (routeAssigned) {
+        final double price = matchedRoute.price > 0 ? matchedRoute.price : 30.0;
+        await prefs.setDouble('ticketPrice', price);
+      }
+
+      // Check active trip
+      final activeTrip = await SupabaseConfig.client
+          .from('trips')
+          .select('id')
+          .eq('bus_id', busData['id'])
+          .isFilter('ended_at', null)
+          .maybeSingle();
+
+      await prefs.setBool('isTripActive', activeTrip != null);
+
+      if (mounted) {
+        setState(() {
+          _driverName = driverName;
+          _busNumber = busData['bus_number']?.toString() ?? '---';
+          _plateNumber = busData['plate_number']?.toString() ?? '---';
+          _routeName = routeAssigned ? matchedRoute!.name : 'No Route Assigned';
+          _stationsCount = _routeStations.length;
+          _isBusAssigned = true;
+          _isRouteAssigned = routeAssigned;
+          _isLoading = false;
+        });
       }
     } catch (e) {
+      debugPrint('❌ HomeTab _loadAllData error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -264,7 +292,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       onRefresh: _loadAllData,
       color: ColorManager.lightGreen,
       child: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
             Container(
@@ -282,12 +310,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 26),
+                        Icon(
+                          _isRouteAssigned ? Icons.location_on_outlined : Icons.location_off_outlined,
+                          size: 26,
+                          color: _isRouteAssigned ? Colors.black : Colors.orange,
+                        ),
                         SizedBox(width: 8.w),
                         Flexible(
                           child: Text(
                             _routeName,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: _isRouteAssigned ? Colors.black : Colors.orange,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -306,7 +341,10 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 8.h),
-                    const Text('Start your trip now', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      _isBusAssigned ? 'Start your trip now' : 'No bus assigned to your account yet',
+                      style: TextStyle(color: _isBusAssigned ? Colors.grey : Colors.orange),
+                    ),
                   ],
                 ),
               ),
@@ -325,36 +363,80 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                 ],
               ),
             ),
-            Padding(
-              padding: EdgeInsets.all(30.w),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20.w),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2F0E5),
-                  borderRadius: BorderRadius.circular(10.r),
+            // Only show swipe button if bus AND route are assigned
+            if (_isBusAssigned && _isRouteAssigned)
+              Padding(
+                padding: EdgeInsets.all(30.w),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(20.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2F0E5),
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('Trip tracking is ready',
+                          style: TextStyle(fontWeight: FontWeight.w500)),
+                      SizedBox(height: 16.h),
+                      SwipeToConfirm(
+                        text: "SWIPE TO START TRIP",
+                        onConfirm: _handleStartTrip,
+                        isLoading: _isStartingTrip,
+                        baseColor: ColorManager.lightGreen,
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    const Text('Trip tracking is ready',
-                        style: TextStyle(fontWeight: FontWeight.w500)),
-                    SizedBox(height: 16.h),
-                    SwipeToConfirm(
-                      text: "SWIPE TO START TRIP",
-                      onConfirm: _handleStartTrip,
-                      isLoading: _isStartingTrip,
-                      baseColor: ColorManager.lightGreen,
-                    ),
-                  ],
-
+              )
+            else
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(20.w),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28.sp),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isBusAssigned ? 'No Route Assigned' : 'No Bus Assigned',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15.sp,
+                                color: Colors.orange.shade800,
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            Text(
+                              _isBusAssigned
+                                  ? 'Ask your admin to assign a route to your bus before starting a trip.'
+                                  : 'Ask your admin to assign a bus to your driver account.',
+                              style: TextStyle(fontSize: 12.sp, color: Colors.orange.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            SizedBox(height: 20.h),
           ],
         ),
       ),
     );
   }
+
   Widget _buildConnectivityIndicator() {
     return StreamBuilder<bool>(
       stream: ConnectivityService().connectionStream,

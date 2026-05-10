@@ -40,15 +40,8 @@ class TrackingService {
   }
 
   Future<void> startTrip(String busId) async {
-    debugPrint("📡 Starting Trip for busId: $busId (Fast Start)");
-    
-    // 1. Instantly start the location stream and broadcast
     startLocationStream(busId);
-    
-    // 2. Asynchronously run backend setup without blocking the UI
-    _setupTripOnBackend(busId).catchError((e) {
-      debugPrint("🛑 Backend Trip Setup Error: $e");
-    });
+    _setupTripOnBackend(busId).catchError((e) {});
   }
 
   Future<void> _setupTripOnBackend(String busId) async {
@@ -56,14 +49,15 @@ class TrackingService {
 
     final busData = await supabase
         .from(ApiConstants.busesTable)
-        .select('route_id')
+        .select('route_id, route_name')
         .eq('id', busId)
         .maybeSingle();
 
-    if (busData == null || busData['route_id'] == null) {
+    if (busData == null || (busData['route_id'] == null && busData['route_name'] == null)) {
       throw Exception("Bus not found or no route assigned to this bus");
     }
-    final routeId = busData['route_id'];
+    
+    final routeId = int.tryParse(busData['route_name']?.toString() ?? '') ?? busData['route_id'];
 
     try {
       await supabase
@@ -71,68 +65,51 @@ class TrackingService {
           .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
           .eq('bus_id', busId)
           .isFilter('ended_at', null); 
-    } catch (e) {
-      debugPrint("⚠️ Failed to update old trips (ignoring): $e");
-    }
+    } catch (e) {}
 
     await supabase.from('trips').insert({
       'bus_id': busId,
       'route_id': routeId,
       'started_at': DateTime.now().toUtc().toIso8601String(),
     });
-    debugPrint("✅ New active trip created in database");
 
     await supabase
         .from(ApiConstants.busesTable)
         .update({'status': 'Active'})
         .eq('id', busId);
-    debugPrint("✅ Bus status updated to Active");
   }
 
   Future<void> endTrip(String busId) async {
     try {
-      debugPrint("📡 Ending Trip for busId: $busId");
       final supabase = SupabaseConfig.client;
 
-      // 1. Mark the trip as completed
       try {
         await supabase
             .from('trips')
             .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
             .eq('bus_id', busId)
             .isFilter('ended_at', null);
-        debugPrint("✅ Trip marked as completed");
 
-        // 1.5 Expire all active tickets for this bus
         await supabase
             .from('tickets')
             .update({'status': 'expired'})
             .eq('bus_id', busId)
             .eq('status', 'active');
-        debugPrint("✅ Tickets for this trip marked as expired");
 
-        // 1.6 Deactivate QR codes for this bus
         await supabase
             .from('route_qrs')
             .update({'is_active': false})
             .eq('bus_id', busId)
             .eq('is_active', true);
-        debugPrint("✅ QR codes for this trip deactivated");
-      } catch (e) {
-        debugPrint("⚠️ Failed to update trip/tickets status: $e");
-      }
+      } catch (e) {}
 
-      // 2. Update status in buses table
       await supabase
           .from(ApiConstants.busesTable)
           .update({'status': 'Inactive'})
           .eq('id', busId);
-      debugPrint("✅ Bus status updated to Inactive");
 
-      // 3. Stop tracking
       stopTracking();
     } catch (e) {
-      debugPrint("🛑 End Trip Error: $e");
       rethrow;
     }
   }
@@ -143,19 +120,14 @@ class TrackingService {
     _currentPosition = null;
     _lastDbWriteTime = null;
     
-    // Initialize Realtime Broadcast Channel
     _broadcastChannel = SupabaseConfig.client.channel('public-tracking');
-    _broadcastChannel!.subscribe((status, [error]) {
-      if (status == RealtimeSubscribeStatus.subscribed) {
-        debugPrint("📡 Broadcast Channel Connected");
-      }
-    });
+    _broadcastChannel!.subscribe((status, [error]) {});
 
     late LocationSettings locationSettings;
     if (Platform.isAndroid) {
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 0, // Fastest possible updates
+        distanceFilter: 0,
         intervalDuration: const Duration(seconds: 1),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationText: "Tracking your trip in progress",
@@ -166,7 +138,7 @@ class TrackingService {
     } else {
       locationSettings = AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 0, // Fastest possible updates
+        distanceFilter: 0,
         activityType: ActivityType.automotiveNavigation,
         pauseLocationUpdatesAutomatically: false,
       );
@@ -174,13 +146,17 @@ class TrackingService {
 
     _positionStreamSubscription = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
       (Position position) {
+        if (position.accuracy > 35.0) return;
+
         if (_currentPosition?.latitude != position.latitude || 
             _currentPosition?.longitude != position.longitude) {
           
           _currentPosition = position;
           _locationController.add(position);
 
-          // 1. INSTANT BROADCAST (60fps realtime via Websocket)
+          double realSpeed = position.speed;
+          if (realSpeed < 1.0) realSpeed = 0.0;
+
           _broadcastChannel?.sendBroadcastMessage(
             event: 'bus_moved',
             payload: {
@@ -188,11 +164,10 @@ class TrackingService {
               'lat': position.latitude,
               'lng': position.longitude,
               'heading': position.heading,
-              'speed': position.speed,
+              'speed': realSpeed,
             },
           );
 
-          // 2. THROTTLED DB WRITE (Every 10 seconds or 50 meters for persistence)
           final now = DateTime.now();
           final bool timePassed = _lastDbWriteTime == null || now.difference(_lastDbWriteTime!).inSeconds >= 10;
           final bool distancePassed = _lastSentPosition == null || 
@@ -206,59 +181,45 @@ class TrackingService {
           if (timePassed || distancePassed) {
             _lastSentPosition = position;
             _lastDbWriteTime = now;
-            sendToApi(busId, position.latitude, position.longitude, position.speed);
+            sendToApi(busId, position.latitude, position.longitude, realSpeed);
           }
         }
+
       },
-      onError: (e) => debugPrint("🛑 Geolocator Stream Error: $e"),
+      onError: (e) {},
     );
   }
 
   Future<void> sendToApi(String busId, double lat, double lng, double speed) async {
-    // Run both writes concurrently for efficiency
     await Future.wait([
       _updateBusPosition(busId, lat, lng, speed),
       _updateTrackingHistory(busId, lat, lng, speed),
     ]);
   }
 
-  /// Updates current_lat / current_lng directly on the buses row.
-  /// This is what the passenger TrackingView polls every 2 seconds.
   Future<void> _updateBusPosition(String busId, double lat, double lng, double speed) async {
     try {
-      final response = await SupabaseConfig.client.from(ApiConstants.busesTable).update({
+      await SupabaseConfig.client.from(ApiConstants.busesTable).update({
         'current_lat': lat,
         'current_lng': lng,
-        'status': 'Active', // Re-confirming active status with each update
-      }).eq('id', busId).select();
-
-      if (response.isNotEmpty) {
-        debugPrint('📍 Bus Position Updated: id=$busId, coords=($lat, $lng)');
-      } else {
-        debugPrint('⚠️ Bus Position Update FAILED: id=$busId not found or permission denied');
-      }
-    } catch (e) {
-      debugPrint('🛑 Bus position update error: $e');
-    }
+        'status': 'Active',
+      }).eq('id', busId);
+    } catch (e) {}
   }
 
-  /// Upserts to the tracking table for historical / analytics records.
   Future<void> _updateTrackingHistory(String busId, double lat, double lng, double speed) async {
     final record = {
       'bus_id': busId,
       'lat': lat,
       'lng': lng,
       'speed': (speed * 3.6).round(),
-      // Add timestamp here for offline buffering
       'created_at': DateTime.now().toUtc().toIso8601String(), 
     };
 
     try {
       await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(record);
-      // If success, try to sync any pending offline records
       _syncOfflineHistory();
     } catch (e) {
-      debugPrint('⚠️ Network issue, buffering tracking history...');
       _offlineHistoryQueue.add(record);
     }
   }
@@ -268,21 +229,15 @@ class TrackingService {
     _isSyncingHistory = true;
 
     try {
-      // Sync in chunks to avoid payload limits
       final batch = _offlineHistoryQueue.take(50).toList();
       await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(batch);
-      
-      // Remove synced items
       _offlineHistoryQueue.removeRange(0, batch.length);
-      debugPrint('✅ Synced ${batch.length} buffered tracking points.');
       
-      // If still items left, recursively sync
       if (_offlineHistoryQueue.isNotEmpty) {
         _isSyncingHistory = false;
         _syncOfflineHistory();
       }
     } catch (e) {
-      debugPrint('⚠️ Offline sync failed, will retry later.');
     } finally {
       _isSyncingHistory = false;
     }
@@ -294,7 +249,6 @@ class TrackingService {
     if (_positionStreamSubscription != null) {
       _positionStreamSubscription!.cancel();
       _positionStreamSubscription = null;
-      debugPrint("🛑 Tracking Stopped.");
     }
   }
 
@@ -303,6 +257,5 @@ class TrackingService {
     if (!_locationController.isClosed) {
       _locationController.close();
     }
-    debugPrint("🛑 TrackingService disposed.");
   }
 }

@@ -128,6 +128,46 @@ class SosService {
     }
   }
 
+  /// Reports a bus breakdown (non-emergency). Sends message and sets status to 'Breakdown'.
+  static Future<String?> sendBreakdown({
+    required String driverId,
+    required String busId,
+    required String message,
+  }) async {
+    try {
+      Position? position;
+      try {
+        position = await Geolocator.getLastKnownPosition();
+        position ??= await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 2),
+          ),
+        );
+      } catch (_) {}
+
+      final now = DateTime.now().toUtc().add(const Duration(hours: 3));
+      final cairoTime = '${now.toIso8601String().substring(0, 23)}+03:00';
+
+      final response = await Supabase.instance.client.from('sos_alerts').insert({
+        'driver_id': driverId,
+        'bus_id': busId,
+        'latitude': position?.latitude ?? 0.0,
+        'longitude': position?.longitude ?? 0.0,
+        'status': 'Breakdown',
+        'message': message,
+        'created_at': cairoTime,
+      }).select('id').maybeSingle();
+
+      final id = response?['id']?.toString();
+      debugPrint('🔧 Breakdown Report sent: alertId=$id, message=$message');
+      return id;
+    } catch (e) {
+      debugPrint('🛑 sendBreakdown failed: $e');
+      return null;
+    }
+  }
+
   /// Convenience method to load driverId & busId from SharedPreferences
   static Future<({String driverId, String busId})> loadIds() async {
     final prefs = await SharedPreferences.getInstance();

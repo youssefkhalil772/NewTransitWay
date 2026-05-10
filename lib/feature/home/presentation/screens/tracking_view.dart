@@ -281,9 +281,14 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     }
   }
 
-  void _startGlidingAnimation(LatLng destLocation) {
+  void _startGlidingAnimation(LatLng destLocation, double destHeading) {
     if (_busLocation == null) return;
     final startLoc = _busLocation!;
+    final startHeading = _busHeading ?? 0.0;
+
+    // Shortest path for heading rotation
+    final headingDiff = (destHeading - startHeading + 540) % 360 - 180;
+    final endHeading = startHeading + headingDiff;
     
     _movementController?.dispose();
     _movementController = AnimationController(
@@ -293,15 +298,22 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
     final latTween = Tween<double>(begin: startLoc.latitude, end: destLocation.latitude);
     final lngTween = Tween<double>(begin: startLoc.longitude, end: destLocation.longitude);
+    final headingTween = Tween<double>(begin: startHeading, end: endHeading);
 
     _movementController!.addListener(() {
       if (!mounted) return;
       final val = _movementController!.value;
       final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
+      final animHeading = headingTween.transform(val);
       
-      setState(() => _busLocation = animLoc);
+      setState(() {
+        _busLocation = animLoc;
+        _busHeading = animHeading;
+      });
       _mapController.move(animLoc, _mapController.camera.zoom);
+      _mapController.rotate(animHeading);
     });
+
 
     _movementController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -330,7 +342,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     }
 
     final newLoc = LatLng((lat as num).toDouble(), (lng as num).toDouble());
-    _busHeading = data['heading']?.toDouble() ?? _busHeading;
+    final double newHeading = data['heading']?.toDouble() ?? _busHeading ?? 0.0;
 
     if (_isFirstUpdate || _busLocation == null) {
       debugPrint("TrackingView: First location set to $newLoc");
@@ -345,20 +357,29 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         if (d < minD) { minD = d; closest = i; }
       }
       _nextStationIndex = closest;
-      setState(() { _busLocation = newLoc; _isFirstUpdate = false; });
+      setState(() { 
+        _busLocation = newLoc; 
+        _busHeading = newHeading;
+        _isFirstUpdate = false; 
+      });
       _mapController.move(newLoc, 15);
+      _mapController.rotate(newHeading);
       _fetchFullRoute();
     } else {
       final moved = Geolocator.distanceBetween(
         _busLocation!.latitude, _busLocation!.longitude,
         newLoc.latitude, newLoc.longitude,
       );
-      debugPrint("TrackingView: Bus moved $moved meters");
-      // Threshold lowered to 2 meters to avoid missing small movements
-      if (moved > 2) {
-        _startGlidingAnimation(newLoc);
+      final double headingDiff = (newHeading - (_busHeading ?? 0.0)).abs();
+
+      debugPrint("TrackingView: Bus moved $moved meters, heading change $headingDiff");
+      // Threshold lowered to 2 meters or 5 degrees to avoid missing small movements
+      if (moved > 2 || headingDiff > 5) {
+        _startGlidingAnimation(newLoc, newHeading);
       }
     }
+
+
   }
 
 
@@ -460,8 +481,9 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     initialCenter: _busLocation ?? const LatLng(30.0444, 31.2357),
                     initialZoom: 15,
                     interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                      flags: InteractiveFlag.all,
                     ),
+
                   ),
                   children: [
                     TileLayer(
@@ -498,6 +520,24 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     ),
                   ],
                 ),
+                // Recenter Button — sits just above the bottom sheet
+                Positioned(
+                  bottom: 0.35.sh + 12.h,
+                  right: 16.w,
+                  child: FloatingActionButton.small(
+                    heroTag: "recenter_tracking",
+                    onPressed: () {
+                      if (_busLocation != null) {
+                        _animatedMapMove(_busLocation!, 15.0);
+                        _mapController.rotate(_busHeading ?? 0.0);
+                      }
+                    },
+                    backgroundColor: Colors.white,
+                    elevation: 4,
+                    child: Icon(Icons.my_location, color: appGreen),
+                  ),
+                ),
+
                 DraggableScrollableSheet(
                   initialChildSize: 0.35,
                   minChildSize: 0.2,

@@ -12,9 +12,9 @@ class _RoutesScreenState extends State<RoutesScreen>
   // ─── Location & movement ──────────────────────────────────────────────────
   LatLng? _currentLocation;
   double _currentSpeed = 0.0;
-  double _smoothedHeading = 0.0;
   double _currentHeading = 0.0;
-  bool _followBus = true; // auto-follow — toggled off when user pans map
+  final bool _followBus = true; // auto-follow — toggled off when user pans map
+
   
   List<StationModel> _localStations = [];
   List<StationModel> get activeStations => _localStations.isNotEmpty ? _localStations : widget.stations;
@@ -149,7 +149,6 @@ class _RoutesScreenState extends State<RoutesScreen>
         _isFetchingRoute = false;
         _isEndingTrip = false;
         _isInitialized = false;
-        _smoothedHeading = 0.0;
         _currentHeading = 0.0;
         _showSosCountdown = false;
         _showSosConfirmation = false;
@@ -200,7 +199,8 @@ class _RoutesScreenState extends State<RoutesScreen>
       
       final matchedRoute = allRoutes.firstWhere((r) => r.id == routeId, orElse: () => allRoutes.first);
       
-      final stations = allStations.where((s) => s.zone.toLowerCase().trim() == matchedRoute.zone.toLowerCase().trim()).toList();
+      final rZone = matchedRoute.zone.toLowerCase().replaceAll(' ', '');
+      final stations = allStations.where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone).toList();
       
       if (mounted) {
         setState(() {
@@ -263,10 +263,11 @@ class _RoutesScreenState extends State<RoutesScreen>
   }
 
   // ─── Map movement ────────────────────────────────────────────────────────
-  void _moveMapToLocation(LatLng location) {
+  void _moveMapToLocation(LatLng location, double heading) {
     if (!_isMapReady || !_followBus) return;
     // Direct move — no animation delay for real-time feel
     _mapController.move(location, _mapController.camera.zoom);
+    _mapController.rotate(heading);
   }
 
   // ─── Location stream ──────────────────────────────────────────────────────
@@ -309,13 +310,15 @@ class _RoutesScreenState extends State<RoutesScreen>
         final val = _movementController!.value;
         final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
         
+        final animHeading = headingTween.transform(val);
+        
         setState(() {
           _currentLocation = animLoc;
-          _currentHeading = headingTween.transform(val);
+          _currentHeading = animHeading;
           _currentSpeed = position.speed * 3.6; // Speed updates instantly
         });
         
-        _moveMapToLocation(animLoc);
+        _moveMapToLocation(animLoc, animHeading);
       });
       
       _movementController!.forward();
@@ -479,26 +482,7 @@ class _RoutesScreenState extends State<RoutesScreen>
           }
         });
 
-        // 3. Create the database record in the background (Non-blocking)
-        if (!_isSendingSos) {
-          _isSendingSos = true;
-          try {
-            final ids = await SosService.loadIds();
-            debugPrint("📡 Creating background alert record for IDs: $ids");
-            final alertId = await SosService.triggerSos(
-              driverId: ids.driverId,
-              busId: ids.busId,
-            );
-
-            if (alertId != null && mounted) {
-              _currentAlertId = alertId;
-            }
-          } catch (e) {
-            debugPrint("🛑 Background SOS trigger failed: $e");
-          } finally {
-            _isSendingSos = false;
-          }
-        }
+        // ✅ NO DB write here — only write if driver confirms or countdown ends.
       },
     );
   }
@@ -524,24 +508,110 @@ class _RoutesScreenState extends State<RoutesScreen>
   /// Driver manually pressed the red SOS button (not from crash detection).
   void _sendSosManually() {
     _sosTimer?.cancel();
+    _showSosDialog(context);
+  }
 
-    // If there's already an active alert (from crash detection), just escalate
-    if (_currentAlertId != null) {
-      _executeEmergency();
-      return;
+  /// Shows a dialog letting the driver choose between Breakdown Report or Emergency.
+  void _showSosDialog(BuildContext context) {
+    final messageController = TextEditingController();
+    bool isSendingBreakdown = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              SizedBox(width: 8),
+              Text('SOS — Report Issue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'What happened?',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: messageController,
+                maxLines: 3,
+                maxLength: 200,
+                decoration: InputDecoration(
+                  hintText: 'Describe the issue (e.g. engine stopped, flat tire…)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // Cancel
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            // Breakdown Report
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: isSendingBreakdown ? null : () async {
+                final msg = messageController.text.trim();
+                if (msg.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please describe the issue first.')),
+                  );
+                  return;
+                }
+                setDialogState(() => isSendingBreakdown = true);
+                Navigator.pop(ctx);
+                await _sendBreakdownReport(msg);
+              },
+              icon: const Icon(Icons.build, size: 16, color: Colors.white),
+              label: const Text('Report Breakdown', style: TextStyle(color: Colors.white)),
+            ),
+            // Emergency
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _triggerAndSendEmergency();
+              },
+              icon: const Icon(Icons.emergency, size: 16, color: Colors.white),
+              label: const Text('Emergency!', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Sends a breakdown report with a message — NOT an emergency.
+  Future<void> _sendBreakdownReport(String message) async {
+    try {
+      final ids = await SosService.loadIds();
+      await SosService.sendBreakdown(
+        driverId: ids.driverId,
+        busId: ids.busId,
+        message: message,
+      );
+      if (mounted) {
+        setState(() => _showSosConfirmation = true);
+      }
+    } catch (e) {
+      debugPrint('🛑 Breakdown report failed: $e');
     }
-
-    // No active alert — this is a fully manual SOS trigger
-    // Show UI immediately first
-    if (mounted) {
-      setState(() {
-        _showSosCountdown = false;
-        _showSosConfirmation = false;
-      });
-    }
-
-    // Trigger + immediately escalate to emergency (no countdown for manual press)
-    _triggerAndSendEmergency();
   }
 
   /// Trigger a brand-new SOS alert and immediately escalate to emergency.

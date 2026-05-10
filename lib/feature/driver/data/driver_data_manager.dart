@@ -14,13 +14,19 @@ class DriverDataManager {
 
   Future<void> prefetchData() async {
     try {
-      final routesRes = await SupabaseConfig.client.from('routes').select('*');
-      _routes = routesRes.map<RouteModel>((json) => RouteModel.fromJson(json)).toList();
+      final routesRes = await SupabaseConfig.client.from('lines').select('*, zones(name)');
+      _routes = routesRes.map<RouteModel>((json) {
+        return RouteModel.fromJson({
+          'id': int.tryParse(json['line_number']?.toString() ?? '') ?? 0,
+          'name': json['start_point']?.toString() ?? json['line_number'].toString(),
+          'zone': json['zones'] != null ? json['zones']['name'] : 'Unknown',
+          'price': double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
+        });
+      }).toList();
 
       final stationsRes = await SupabaseConfig.client.from('stations').select('*');
       _stations = stationsRes.map<StationModel>((json) => StationModel.fromJson(json)).toList();
     } catch (e) {
-      debugPrint("Error prefetching driver data: $e");
     }
   }
 
@@ -52,7 +58,6 @@ class DriverDataManager {
         return res;
       }
     } catch (e) {
-      debugPrint("Error fetching bus: $e");
     }
     return null;
   }

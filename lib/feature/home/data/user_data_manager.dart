@@ -36,8 +36,15 @@ class UserDataManager {
     if (_cachedRoutes != null && !forceRefresh) return _cachedRoutes!;
 
     try {
-      final response = await _supabase.from('routes').select('*');
-      _cachedRoutes = (response as List).map((r) => RouteModel.fromJson(r)).toList();
+      final response = await _supabase.from('lines').select('*, zones(name)');
+      _cachedRoutes = (response as List).map((json) {
+        return RouteModel.fromJson({
+          'id': int.tryParse(json['line_number']?.toString() ?? '') ?? 0,
+          'name': json['start_point']?.toString() ?? json['line_number'].toString(),
+          'zone': json['zones'] != null ? json['zones']['name'] : 'Unknown',
+          'price': double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
+        });
+      }).toList();
       return _cachedRoutes!;
     } catch (e) {
       return _cachedRoutes ?? [];

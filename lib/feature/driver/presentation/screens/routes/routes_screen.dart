@@ -67,8 +67,9 @@ extension _RoutesScreenUI on _RoutesScreenState {
                         }
                       },
                       interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                        flags: InteractiveFlag.all,
                       ),
+
                     ),
                     children: [
                       // Premium dark map tiles

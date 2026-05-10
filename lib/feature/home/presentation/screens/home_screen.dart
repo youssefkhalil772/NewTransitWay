@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<StationModel> _allStations = [];
   List<LatLng> _polylinePoints = [];
   bool _isLoading = true;
+  bool _isMapReady = false;
   bool _isSearching = false;
   StreamSubscription<Position>? _positionStream;
   StreamSubscription? _busesSubscription;
@@ -133,12 +134,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _userLocation = LatLng(position.latitude, position.longitude);
           _updateMarkers();
         });
-        _mapController.move(_userLocation!, 14.5);
+        if (_isMapReady) {
+          _mapController.move(_userLocation!, 14.5);
+        }
       }
     } catch (e) {
       debugPrint("Location error: $e");
     }
   }
+
 
   void _updateMarkers() {
     _cachedMarkers = [
@@ -175,16 +179,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _animatedMapMove(LatLng destLocation, double destZoom) {
+    if (!_isMapReady) return;
+    
     final latTween = Tween<double>(begin: _mapController.camera.center.latitude, end: destLocation.latitude);
     final lngTween = Tween<double>(begin: _mapController.camera.center.longitude, end: destLocation.longitude);
     final zoomTween = Tween<double>(begin: _mapController.camera.zoom, end: destZoom);
+    final rotationTween = Tween<double>(begin: _mapController.camera.rotation, end: 0.0);
 
     final controller = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     final Animation<double> animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
 
     controller.addListener(() {
-      _mapController.move(LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)), zoomTween.evaluate(animation));
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)), 
+        zoomTween.evaluate(animation)
+      );
+      _mapController.rotate(rotationTween.evaluate(animation));
     });
+
 
     animation.addStatusListener((status) {
       if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) controller.dispose();
@@ -233,11 +245,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final response = await _repository.getNearestBus(_selectedFromStation!.id);
       
       if (response == null || (response is List && response.isEmpty)) {
-        throw Exception("No active buses available at the moment.");
+        throw Exception("No buses available on ${_selectedFromStation!.zone} route right now. Please try again later.");
       }
       
       final data = response is List ? response[0] : response;
-      
+
+      // Zone-strict check: make sure the returned bus serves the same zone
+      // (The RPC might return a bus from another route if no nearby bus is found)
+      final String? busZone = data['zone']?.toString();
+      if (busZone != null && busZone.isNotEmpty && busZone != _selectedFromStation!.zone) {
+        throw Exception("No buses available on ${_selectedFromStation!.zone} route right now. Please try again later.");
+      }
+
       final String busNum = data['bus_number']?.toString() ?? data['busNumber']?.toString() ?? 'Unknown';
       final int eta = data['eta_minutes'] is int ? data['eta_minutes'] : int.tryParse(data['eta_minutes']?.toString() ?? '') ?? 5;
       
@@ -393,8 +412,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         options: MapOptions(
           initialCenter: _userLocation ?? const LatLng(30.1451, 31.6310), 
           initialZoom: 14.5,
-          interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
+          interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+          onMapReady: () {
+            _isMapReady = true;
+            if (_userLocation != null) {
+              _mapController.move(_userLocation!, 14.5);
+            }
+          },
         ),
+
         children: [
           TileLayer(
             urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -602,7 +628,8 @@ class _StaticHeader extends StatelessWidget {
       },
     );
   }
-}
+  }
+
 
 class SLineWidget extends StatelessWidget {
   final double width;

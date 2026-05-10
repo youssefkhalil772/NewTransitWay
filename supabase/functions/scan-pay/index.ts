@@ -72,28 +72,28 @@ serve(async (req) => {
 
     // 4. Get route info and price
     const { data: route, error: routeError } = await supabase
-      .from("routes")
-      .select("*, zones(*)")
-      .eq("id", routeQr.route_id)
+      .from("lines")
+      .select("start_point, price")
+      .eq("line_number", routeQr.route_id)
       .single();
 
-    if (routeError || !route || !route.zones) {
+    if (routeError || !route || !route.price) {
       return new Response(
         JSON.stringify({ error: "Route or zone not found" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const fare = route.zones.price;
+    const fare = route.price;
 
-    // 5. Verify wallet balance
-    const { data: wallet, error: walletError } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", userId)
+    // 5. Verify user balance
+    const { data: userData, error: balanceError } = await supabase
+      .from("users")
+      .select("balance")
+      .eq("id", userId)
       .single();
 
-    if (walletError || !wallet || wallet.balance < fare) {
+    if (balanceError || !userData || (userData.balance ?? 0) < fare) {
       return new Response(
         JSON.stringify({ error: "Insufficient balance" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -101,14 +101,14 @@ serve(async (req) => {
     }
 
     // 6. Deduct balance
-    const { error: walletUpdateError } = await supabase
-      .from("wallets")
-      .update({ balance: wallet.balance - fare })
-      .eq("user_id", userId);
+    const { error: balanceUpdateError } = await supabase
+      .from("users")
+      .update({ balance: (userData.balance ?? 0) - fare })
+      .eq("id", userId);
 
-    if (walletUpdateError) {
+    if (balanceUpdateError) {
       return new Response(
-        JSON.stringify({ error: `Failed to deduct balance: ${walletUpdateError.message}` }),
+        JSON.stringify({ error: `Failed to deduct balance: ${balanceUpdateError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -139,13 +139,13 @@ serve(async (req) => {
       JSON.stringify({
         message: "Fare paid successfully",
         ticketId: ticket.id,
-        routeName: route.name,
+        routeName: route.start_point ? `${route.start_point}` : "Unknown",
         fare: fare,
-        remainingBalance: wallet.balance - fare,
+        remainingBalance: (userData.balance ?? 0) - fare,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+  } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
