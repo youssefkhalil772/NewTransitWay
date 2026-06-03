@@ -27,8 +27,8 @@ class LoginWebServices {
       // Check if user is banned
       if (userData != null) {
         final isBanned = userData['is_banned'] == true || 
-                         userData['status'] == 'banned' || 
-                         userData['status'] == 'blocked';
+                         userData['status']?.toString().toLowerCase() == 'banned' || 
+                         userData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw "Your account has been banned by the admin.";
@@ -77,8 +77,8 @@ class LoginWebServices {
       // Check if user is banned
       if (userData != null) {
         final isBanned = userData['is_banned'] == true || 
-                         userData['status'] == 'banned' || 
-                         userData['status'] == 'blocked';
+                         userData['status']?.toString().toLowerCase() == 'banned' || 
+                         userData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw "Your account has been banned by the admin.";

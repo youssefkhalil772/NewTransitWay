@@ -39,8 +39,13 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   bool _isLoading = true;
   bool _isStartingTrip = false;
   bool _hasActiveTrip = false;
+  StreamSubscription? _driverSubscription;
   StreamSubscription? _busSubscription;
   StreamSubscription? _tripSubscription;
+
+  String? _lastDriverBusId;
+  String? _lastBusRouteId;
+  String? _lastBusPlate;
 
   @override
   void initState() {
@@ -50,6 +55,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
 
   @override
   void dispose() {
+    _driverSubscription?.cancel();
     _busSubscription?.cancel();
     _tripSubscription?.cancel();
     _trackingService.stopTracking();
@@ -60,15 +66,26 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentDriverId == null) return;
 
-    _busSubscription?.cancel();
-    _busSubscription = SupabaseConfig.client
-        .from(ApiConstants.busesTable)
+    // Listen for driver changes (e.g. reassigned to new bus)
+    _driverSubscription?.cancel();
+    _driverSubscription = SupabaseConfig.client
+        .from(ApiConstants.driversTable)
         .stream(primaryKey: ['id'])
-        .eq('driver_id', currentDriverId)
+        .eq('id', currentDriverId)
         .listen((data) {
           if (data.isNotEmpty && !_isLoading) {
-            debugPrint("🔄 HomeTab: Bus Realtime update triggered");
-            _loadAllData();
+            final driver = data.first;
+            final dBusId = driver['busId']?.toString();
+            
+            bool changed = false;
+            if (_lastDriverBusId != null && dBusId != _lastDriverBusId) changed = true;
+            
+            _lastDriverBusId = dBusId;
+            
+            if (changed) {
+              debugPrint("🔄 HomeTab: Driver Realtime update triggered");
+              _loadAllData();
+            }
           }
         });
 
@@ -76,6 +93,33 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     final busId = prefs.getString('busId');
     
     if (busId != null && busId.isNotEmpty) {
+      // Listen for changes to the currently assigned bus (e.g. route changed)
+      _busSubscription?.cancel();
+      _busSubscription = SupabaseConfig.client
+          .from('buses')
+          .stream(primaryKey: ['id'])
+          .eq('id', busId)
+          .listen((data) {
+            if (data.isNotEmpty && !_isLoading) {
+              final bus = data.first;
+              final bRouteId = bus['route_id']?.toString();
+              final bPlate = bus['plate_number']?.toString();
+              
+              bool changed = false;
+              if (_lastBusRouteId != null && bRouteId != _lastBusRouteId) changed = true;
+              if (_lastBusPlate != null && bPlate != _lastBusPlate) changed = true;
+              
+              _lastBusRouteId = bRouteId;
+              _lastBusPlate = bPlate;
+              
+              if (changed) {
+                debugPrint("🔄 HomeTab: Bus Details Realtime update triggered");
+                _loadAllData();
+              }
+            }
+          });
+
+      // Listen for trips on this bus
       _tripSubscription?.cancel();
       _tripSubscription = SupabaseConfig.client
           .from('trips')
@@ -83,7 +127,6 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           .eq('bus_id', busId)
           .listen((data) {
             if (data.isNotEmpty) {
-              // Find if there is an active trip (end_time is null)
               final activeTrip = data.firstWhere((trip) => trip['end_time'] == null, orElse: () => <String, dynamic>{});
               final bool isActive = activeTrip.isNotEmpty;
               
@@ -105,6 +148,8 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   Future<void> _loadAllData() async {
     try {
       if (mounted) setState(() => _isLoading = true);
+      DriverDataManager().clearCache(); // Force fresh data
+
       final prefs = await SharedPreferences.getInstance();
       final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
 

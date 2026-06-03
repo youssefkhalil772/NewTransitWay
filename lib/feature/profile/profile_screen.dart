@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:transite_way/core/networking/supabase_init.dart';
 import '../../../core/routes/routes_manager.dart';
 import '../home/presentation/widgets/custom_app_bar.dart';
 import '../../core/widgets/common_profile_view.dart';
@@ -115,83 +116,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const CustomAppBar(isDriver: false, showPoints: true),
-      body: CommonProfileView(
-        name: _userName,
-        email: _userEmail,
-        phone: _userPhone,
-        imagePath: _userPhoto,
-        isDriver: false,
-        onImageTap: _viewImage,
-        menuItems: [
-          ProfileMenuItem(
-            icon: Icons.edit_outlined,
-            text: 'Edit Profile',
-            iconColor: const Color(0xFF1B4D3E),
-            onTap: _navigateToEditProfile,
-          ),
-          ProfileMenuItem(
-            icon: Icons.star,
-            text: 'Charge My Points',
-            iconColor: Colors.amber,
-            onTap: () => RoutesManager.navigateTo(context, RoutesManager.chargeMyPoints),
-          ),
-          ProfileMenuItem(
-            icon: Icons.notifications_none_outlined,
-            text: 'Notifications',
-            iconColor: Colors.blueAccent,
-            onTap: () => RoutesManager.navigateTo(context, RoutesManager.notifications),
-            trailing: StreamBuilder<int>(
-              stream: InAppNotificationService().unreadCountStream,
-              initialData: InAppNotificationService().latestUnreadCount,
-              builder: (context, snapshot) {
-                final count = snapshot.data ?? 0;
-                if (count == 0) return const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey);
-                return Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                  child: Text(
-                    count > 9 ? '+9' : count.toString(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          ProfileMenuItem(
-            icon: Icons.confirmation_number_outlined,
-            text: 'View My Tickets',
-            iconColor: Colors.orangeAccent,
-            onTap: () {
-              if (widget.onViewTickets != null) {
-                widget.onViewTickets!();
-              } else {
-                RoutesManager.navigateTo(context, RoutesManager.tickets);
-              }
-            },
-          ),
-          ProfileMenuItem(
-            icon: Icons.report_problem_outlined,
-            text: 'Report a Complaint',
-            iconColor: Colors.deepOrange,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReportComplaintScreen()),
-            ),
-          ),
-          ProfileMenuItem(
-            icon: Icons.logout,
-            text: 'Log Out',
-            iconColor: Colors.redAccent,
-            isLogout: true,
-          ),
-        ],
+      body: ValueListenableBuilder<Map<String, dynamic>?>(
+        valueListenable: InAppNotificationService.userProfileNotifier,
+        builder: (context, userData, child) {
+          final liveName = userData?['full_name'] ?? userData?['fullName'] ?? _userName;
+          final liveEmail = userData?['email'] ?? _userEmail;
+          final livePhone = userData?['phone_number'] ?? userData?['phone'] ?? _userPhone;
+          final livePhoto = userData?['profile_picture'] ?? userData?['userPhoto'] ?? _userPhoto;
+          
+          return CommonProfileView(
+            name: liveName,
+            email: liveEmail,
+            phone: livePhone,
+            imagePath: livePhoto,
+            isDriver: false,
+            onImageTap: _viewImage,
+            menuItems: [
+              ProfileMenuItem(
+                icon: Icons.edit_outlined,
+                text: 'Edit Profile',
+                iconColor: const Color(0xFF1B4D3E),
+                onTap: _navigateToEditProfile,
+              ),
+              ProfileMenuItem(
+                icon: Icons.star,
+                text: 'Charge My Points',
+                iconColor: Colors.amber,
+                onTap: () => RoutesManager.navigateTo(context, RoutesManager.chargeMyPoints),
+              ),
+              ProfileMenuItem(
+                icon: Icons.notifications_none_outlined,
+                text: 'Notifications',
+                iconColor: Colors.blueAccent,
+                onTap: () => RoutesManager.navigateTo(context, RoutesManager.notifications),
+                trailing: StreamBuilder<int>(
+                  stream: InAppNotificationService().unreadCountStream,
+                  initialData: InAppNotificationService().latestUnreadCount,
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    if (count == 0) return const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey);
+                    return Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Text(
+                        count > 9 ? '+9' : count.toString(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              ProfileMenuItem(
+                icon: Icons.confirmation_number_outlined,
+                text: 'View My Tickets',
+                iconColor: Colors.orangeAccent,
+                onTap: () {
+                  if (widget.onViewTickets != null) {
+                    widget.onViewTickets!();
+                  } else {
+                    RoutesManager.navigateTo(context, RoutesManager.tickets);
+                  }
+                },
+              ),
+              ProfileMenuItem(
+                icon: Icons.report_problem_outlined,
+                text: 'Report a Complaint',
+                iconColor: Colors.deepOrange,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReportComplaintScreen()),
+                ),
+              ),
+              ProfileMenuItem(
+                icon: Icons.logout,
+                text: 'Log Out',
+                iconColor: Colors.redAccent,
+                onTap: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+                  await SupabaseConfig.client.auth.signOut();
+                  if (context.mounted) {
+                    RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
+                  }
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }

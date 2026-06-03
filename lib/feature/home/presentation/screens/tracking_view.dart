@@ -311,7 +311,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         _busHeading = animHeading;
       });
       _mapController.move(animLoc, _mapController.camera.zoom);
-      _mapController.rotate(animHeading);
     });
 
 
@@ -363,7 +362,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
         _isFirstUpdate = false; 
       });
       _mapController.move(newLoc, 15);
-      _mapController.rotate(newHeading);
       _fetchFullRoute();
     } else {
       final moved = Geolocator.distanceBetween(
@@ -483,7 +481,11 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all,
                     ),
-
+                    onMapReady: () {
+                      if (_busLocation != null) {
+                        _mapController.move(_busLocation!, 15);
+                      }
+                    },
                   ),
                   children: [
                     TileLayer(
@@ -529,7 +531,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     onPressed: () {
                       if (_busLocation != null) {
                         _animatedMapMove(_busLocation!, 15.0);
-                        _mapController.rotate(_busHeading ?? 0.0);
                       }
                     },
                     backgroundColor: Colors.white,
@@ -569,45 +570,42 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   }
 
   Widget _buildBusMarker(String busNum, Color color) {
-    return Transform.rotate(
-      angle: (_busHeading ?? 0) * (3.14159 / 180),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            top: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: Text(
-                    "Bus $busNum",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned(
+          top: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Text(
+                  "Bus $busNum",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                Icon(Icons.arrow_drop_down, color: color, size: 20.sp),
-              ],
-            ),
+              ),
+              Icon(Icons.arrow_drop_down, color: color, size: 20.sp),
+            ],
           ),
-          Positioned(
-            bottom: 10.h,
-            child: Container(
-              padding: EdgeInsets.all(5.w),
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-              child: Icon(Icons.directions_bus, color: color, size: 26.sp),
-            ),
+        ),
+        Positioned(
+          bottom: 10.h,
+          child: Container(
+            padding: EdgeInsets.all(5.w),
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: Icon(Icons.directions_bus, color: color, size: 26.sp),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

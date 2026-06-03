@@ -94,8 +94,11 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     _setupRealtime();
   }
 
-  void _setupRealtime() {
-    if (_busId == null || _busId!.isEmpty) {
+  void _setupRealtime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final driverId = prefs.getString('driverId') ?? SupabaseConfig.client.auth.currentUser?.id;
+
+    if (driverId == null || driverId.isEmpty) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
@@ -104,7 +107,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     _ticketSubscription = SupabaseConfig.client
         .from('tickets')
         .stream(primaryKey: ['id'])
-        .eq('bus_id', int.tryParse(_busId!) ?? _busId!)
+        .eq('driver_id', driverId)
         .listen(
       (data) async {
         final items = await _enrichTicketsLocally(data);
@@ -150,8 +153,10 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
       } else if (s == 'expired' || s == 'used') status = TicketStatus.expired;
       
       final busIdVal = t['bus_id']?.toString();
-      String busNumber = _busNumber ?? '---';
-      if ((busNumber == '---' || busNumber.isEmpty) && busIdVal != null) {
+      String busNumber = '---';
+      if (busIdVal == _busId && _busNumber != null && _busNumber!.isNotEmpty && _busNumber != '---') {
+        busNumber = _busNumber!;
+      } else if (busIdVal != null) {
         final busData = await DriverDataManager().getBusById(busIdVal);
         if (busData != null) {
           busNumber = busData['bus_number']?.toString() ?? '---';

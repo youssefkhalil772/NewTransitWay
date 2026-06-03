@@ -158,7 +158,6 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
           _busHeading = newHeading;
         });
         _mapController.move(newLoc, 14.5);
-        _mapController.rotate(newHeading);
       } else if (newLoc != _busLocation || newHeading != _busHeading) {
         _startGlidingAnimation(newLoc, newHeading);
       }
@@ -196,7 +195,6 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
         _busHeading = animHeading;
       });
       _mapController.move(animLoc, _mapController.camera.zoom);
-      _mapController.rotate(animHeading);
     });
 
 
@@ -252,7 +250,6 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
                     onPressed: () {
                       if (_busLocation != null) {
                         _animatedMapMove(_busLocation!, 15.0);
-                        _mapController.rotate(_busHeading);
                       }
                     },
                     backgroundColor: Colors.white,
@@ -280,7 +277,11 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> with TickerProvid
             initialCenter: _busLocation ?? const LatLng(30.0444, 31.2357), 
             initialZoom: 14.5,
             interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
-
+            onMapReady: () {
+              if (_busLocation != null) {
+                _mapController.move(_busLocation!, 14.5);
+              }
+            },
           ),
           children: [
             TileLayer(

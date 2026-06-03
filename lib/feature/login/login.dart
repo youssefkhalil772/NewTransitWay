@@ -128,7 +128,10 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
 
         if (userData != null) {
           // Check for ban
-          if (userData['is_banned'] == true) {
+          final isBanned = userData['is_banned'] == true || 
+                           userData['status']?.toString().toLowerCase() == 'banned' || 
+                           userData['status']?.toString().toLowerCase() == 'blocked';
+          if (isBanned) {
             await supabase.auth.signOut();
             if (!mounted) return;
             setState(() => _isLoading = false);

@@ -6,6 +6,7 @@ import '../../../core/networking/api_constants.dart';
 import '../../../core/networking/supabase_init.dart';
 import '../../../core/routes/routes_manager.dart';
 import '../../../core/utils/sound_manager.dart';
+import '../../home/presentation/widgets/custom_points_badge.dart';
 import 'notification_model.dart';
 
 // Global NavigatorKey for accessing context from anywhere
@@ -25,6 +26,8 @@ class InAppNotificationService {
   int _latestUnreadCount = 0;
   int get latestUnreadCount => _latestUnreadCount;
   
+  static ValueNotifier<Map<String, dynamic>?> userProfileNotifier = ValueNotifier(null);
+
   final _unreadCountController = StreamController<int>.broadcast();
   Stream<int> get unreadCountStream => _unreadCountController.stream;
 
@@ -85,8 +88,18 @@ class InAppNotificationService {
           if (data.isNotEmpty) {
             final userData = data.first;
             
+            // Expose the raw userData to the rest of the app (e.g. Profile Screen)
+            userProfileNotifier.value = userData;
+            
+            // 0. Real-time Points / Balance Update
+            final latestPoints = (userData['balance'] ?? userData['points'] ?? 0).toInt();
+            CustomPointsBadge.updateGlobalBalance(latestPoints);
+            
             // 1. Check for ban status
-            if (userData['is_banned'] == true) {
+            final isBanned = userData['is_banned'] == true || 
+                             userData['status']?.toString().toLowerCase() == 'banned' || 
+                             userData['status']?.toString().toLowerCase() == 'blocked';
+            if (isBanned) {
               final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
               _showForcedBanDialog('Account Suspended', reason);
             }
@@ -235,7 +248,10 @@ class InAppNotificationService {
 
       if (userData != null) {
         // 1. Check for ban
-        if (userData['is_banned'] == true) {
+        final isBanned = userData['is_banned'] == true || 
+                         userData['status']?.toString().toLowerCase() == 'banned' || 
+                         userData['status']?.toString().toLowerCase() == 'blocked';
+        if (isBanned) {
           final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
           _showForcedBanDialog('Account Suspended', reason);
           return true;

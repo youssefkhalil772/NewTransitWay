@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
@@ -54,10 +55,32 @@ class _TripQrScreenState extends State<TripQrScreen> {
   }
 
   Future<void> _initData() async {
-    // We let VisibilityDetector handle the first generation
+    _setupRealtime();
   }
 
+  Future<void> _setupRealtime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final driverId = prefs.getString('driverId') ?? Supabase.instance.client.auth.currentUser?.id;
+    final currentBusId = prefs.getString('busId');
 
+    if (driverId == null || currentBusId == null || currentBusId.isEmpty) {
+      if (mounted) setState(() { _errorMessage = 'You must log in first'; _isLoading = false; });
+      return;
+    }
+
+    _tripSubscription?.cancel();
+    _tripSubscription = Supabase.instance.client
+        .from('trips')
+        .stream(primaryKey: ['id'])
+        .eq('bus_id', currentBusId)
+        .listen((data) {
+          if (!mounted) return;
+          // Whenever the trips table changes for this bus, regenerate the QR.
+          _generateQr(showLoading: _qrToken == null);
+        }, onError: (err) {
+          debugPrint("Trip QR Stream Error: $err");
+        });
+  }
 
   Future<void> _generateQr({bool showLoading = true}) async {
     if (showLoading && mounted) {

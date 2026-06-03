@@ -26,8 +26,8 @@ class DriverAuthServices {
 
       if (driverData != null) {
         final isBanned = driverData['is_banned'] == true || 
-                         driverData['status'] == 'banned' || 
-                         driverData['status'] == 'blocked';
+                         driverData['status']?.toString().toLowerCase() == 'banned' || 
+                         driverData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw 'Your account has been banned by the admin.';
