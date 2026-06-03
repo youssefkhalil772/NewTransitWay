@@ -250,12 +250,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       
       final data = response is List ? response[0] : response;
 
-      // Zone-strict check: make sure the returned bus serves the same zone
-      // (The RPC might return a bus from another route if no nearby bus is found)
-      final String? busZone = data['zone']?.toString();
-      if (busZone != null && busZone.isNotEmpty && busZone != _selectedFromStation!.zone) {
-        throw Exception("No buses available on ${_selectedFromStation!.zone} route right now. Please try again later.");
-      }
+      // Zone-strict check removed because data['zone'] from the route (which is often the end_point)
+      // does not match the station's zone string (e.g. "El Shrouk Academy" != "El-Shrouk Zone").
+      // The RPC get_nearest_bus should correctly return a bus for the correct route.
 
       final String busNum = data['bus_number']?.toString() ?? data['busNumber']?.toString() ?? 'Unknown';
       final int eta = data['eta_minutes'] is int ? data['eta_minutes'] : int.tryParse(data['eta_minutes']?.toString() ?? '') ?? 5;

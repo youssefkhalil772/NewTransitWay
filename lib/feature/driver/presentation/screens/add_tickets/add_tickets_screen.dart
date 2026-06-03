@@ -11,6 +11,7 @@ import 'package:transite_way/feature/driver/data/driver_data_manager.dart';
 import 'package:transite_way/feature/driver/presentation/screens/widgets/skeleton_loader.dart';
 import 'package:transite_way/feature/home/data/models/route_model.dart';
 import 'package:intl/intl.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main Screen
@@ -81,7 +82,11 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
     _setupRealtime();
   }
 
-  void _setupRealtime() {
+  void _setupRealtime() async {
+    final prefs = await SharedPreferences.getInstance();
+    _busId = prefs.getString('busId');
+    _busNumber = prefs.getString('busNumber') ?? '---';
+
     if (_busId == null || _busId!.isEmpty) {
       if (mounted) setState(() => _isLoadingTickets = false);
       return;
@@ -181,7 +186,20 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget body = _buildBody();
+    final Widget body = VisibilityDetector(
+      key: const Key('add_tickets_tab'),
+      onVisibilityChanged: (info) async {
+        if (info.visibleFraction > 0.5) {
+          final prefs = await SharedPreferences.getInstance();
+          final currentBusId = prefs.getString('busId');
+          if (currentBusId != _busId) {
+            // Bus assignment changed! Refresh.
+            _manualRefresh();
+          }
+        }
+      },
+      child: _buildBody(),
+    );
     if (widget.isTab) return body;
     return Scaffold(backgroundColor: Colors.white, body: body);
   }
@@ -439,33 +457,75 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await Supabase.instance.client.functions.invoke(
-        'add-manual-tickets',
-        body: {'driverId': driverId, 'numberOfTickets': count},
-      );
-      final data = response.data;
-      
-      // If the response explicitly states an error or success is false
-      final bool hasError = data is Map && (
-        data['error'] != null || 
-        data['success'] == false || 
-        (data.containsKey('message') && data['message'].toString().toLowerCase().contains('error'))
-      );
-
-      if (hasError) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          final errorMsg = data['error']?.toString() ?? data['message']?.toString() ?? 'Failed to issue tickets';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_translateError(errorMsg)),
-            backgroundColor: Colors.red, behavior: SnackBarBehavior.floating,
-          ));
+      // 1. Ensure we have busId
+      final prefs = await SharedPreferences.getInstance();
+      String? currentBusId = prefs.getString('busId');
+      if (currentBusId == null || currentBusId.isEmpty) {
+        final driverData = await SupabaseConfig.client
+            .from('drivers')
+            .select('busId, current_bus_id')
+            .eq('id', driverId)
+            .maybeSingle();
+        currentBusId = driverData?['busId']?.toString() ?? driverData?['current_bus_id']?.toString();
+        if (currentBusId == null || currentBusId.isEmpty) {
+          throw 'مفيش باص متعين ليك';
         }
-        return;
       }
+
+      // 2. Get active trip
+      final tripData = await SupabaseConfig.client
+          .from('trips')
+          .select('route_id')
+          .eq('bus_id', currentBusId)
+          .isFilter('end_time', null)
+          .maybeSingle();
+          
+      if (tripData == null || tripData['route_id'] == null) {
+        throw 'مفيش رحلة نشطة دلوقتي، ابدأ رحلة أولاً';
+      }
+      final String routeId = tripData['route_id'].toString();
+
+      // 3. Get route info
+      final routeData = await SupabaseConfig.client
+          .from('routes')
+          .select('id, line_number, start_point, price')
+          .eq('id', routeId)
+          .maybeSingle();
+          
+      if (routeData == null || routeData['price'] == null) {
+        throw 'السعر أو الخط غير صالح';
+      }
+      
+      final price = (routeData['price'] as num).toDouble();
+      final routeName = routeData['start_point']?.toString() ?? routeData['line_number']?.toString() ?? 'Unknown Route';
+
+      // 4. Insert tickets directly (bypass buggy edge function)
+      List<Map<String, dynamic>> ticketsToInsert = [];
+      for (int i = 0; i < count; i++) {
+        final code = 'MANUAL-' + DateTime.now().millisecondsSinceEpoch.toString() + i.toString();
+        ticketsToInsert.add({
+          'user_id': null, // manual tickets don't belong to a passenger app user
+          'bus_id': currentBusId,
+          'route_id': routeId,
+          'ticket_code': code,
+          'status': 'active',
+          'price': price,
+        });
+      }
+
+      final insertedTickets = await SupabaseConfig.client
+          .from('tickets')
+          .insert(ticketsToInsert)
+          .select('id');
+
       if (mounted) {
         setState(() {
-          _successData = data is Map ? Map<String, dynamic>.from(data) : null;
+          _successData = {
+            'numberOfTickets': count,
+            'pricePerTicket': price,
+            'routeName': routeName,
+            'ticketIds': (insertedTickets as List).map((t) => t['id']).toList(),
+          };
           _isLoading = false;
         });
       }

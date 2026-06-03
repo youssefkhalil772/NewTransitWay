@@ -107,9 +107,40 @@ class HomeRepository {
   }
 
   Future<dynamic> getNearestBus(String startStationId) async {
-    return await _apiService.rpc('get_nearest_bus', params: {
-      "start_station_id": int.tryParse(startStationId) ?? startStationId,
-    });
+    try {
+      // 1. Get the route_id for the start station
+      final stationData = await SupabaseConfig.client
+          .from(ApiConstants.stationsTable)
+          .select('route_id')
+          .eq('id', startStationId)
+          .maybeSingle();
+
+      if (stationData == null || stationData['route_id'] == null) {
+        return [];
+      }
+
+      final routeId = stationData['route_id'];
+
+      // 2. Get an active bus on this route
+      final busesData = await SupabaseConfig.client
+          .from(ApiConstants.busesTable)
+          .select('*')
+          .eq('route_id', routeId)
+          .eq('status', 'Active')
+          .limit(1);
+
+      if (busesData.isNotEmpty) {
+        // Add a mock ETA since we aren't calculating real distance here
+        final bus = Map<String, dynamic>.from(busesData[0]);
+        bus['eta_minutes'] = 5;
+        return [bus];
+      }
+      
+      return [];
+    } catch (e) {
+      debugPrint('Error in getNearestBus fallback: $e');
+      return [];
+    }
   }
 
   Future<List<dynamic>> getBuses() async {

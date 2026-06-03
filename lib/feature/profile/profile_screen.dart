@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,11 +83,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(20.r),
               child: _userPhoto.startsWith('http')
-                  ? Image.network(_userPhoto, fit: BoxFit.contain)
+                  ? Image.network(
+                      _userPhoto,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: Colors.grey, size: 100.sp),
+                    )
                   : (_userPhoto.contains('assets') 
                       ? Image.asset(_userPhoto, fit: BoxFit.contain)
                       : (_userPhoto.isNotEmpty 
-                          ? Image.file(File(_userPhoto), fit: BoxFit.contain)
+                          ? (_userPhoto.length > 200 
+                              ? Image.memory(base64Decode(_userPhoto.contains(',') ? _userPhoto.split(',').last : _userPhoto), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp))
+                              : Image.file(File(_userPhoto), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp)))
                           : Icon(Icons.person, color: Colors.grey, size: 100.sp))),
             ),
             SizedBox(height: 15.h),

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transite_way/core/widgets/common_profile_view.dart';
 import 'package:transite_way/feature/driver/data/driver_auth_service.dart';
 import 'edit_profile_screen.dart';
@@ -29,6 +32,13 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
   String _driverPhone = "";
   String _licenseNumber = "";
   String _profileImagePath = "";
+  StreamSubscription? _driverSubscription;
+
+  @override
+  void dispose() {
+    _driverSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -58,42 +68,46 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
       });
     }
 
-    // 2. Immediate Background Sync from Supabase (Source of Truth)
+    // 2. Real-time Background Sync from Supabase (Source of Truth)
     final String? driverId = prefs.getString('driverId');
     if (driverId != null && driverId.isNotEmpty) {
-      try {
-        debugPrint("📡 Syncing Profile for driverId: $driverId");
-        final driverData = await _driverService.getDriverData(driverId);
-        
-        // Correct keys for drivers table
-        name = driverData['full_name'] ?? driverData['name'] ?? driverData['fullName'] ?? name;
-        phone = driverData['phone_number'] ?? driverData['phone'] ?? driverData['phoneNumber'] ?? phone;
-        email = driverData['email'] ?? email;
-        license = driverData['license_number'] ?? driverData['licenseNumber'] ?? license;
-        serverPhoto = driverData['photo'] ?? serverPhoto;
+      _driverSubscription?.cancel();
+      _driverSubscription = Supabase.instance.client
+          .from('drivers')
+          .stream(primaryKey: ['id'])
+          .eq('id', driverId)
+          .listen((data) async {
+            if (data.isNotEmpty) {
+              final driverData = data.first;
+              
+              String newName = driverData['full_name'] ?? driverData['name'] ?? driverData['fullName'] ?? _driverName;
+              String newPhone = driverData['phone_number'] ?? driverData['phone'] ?? driverData['phoneNumber'] ?? _driverPhone;
+              String newEmail = driverData['email'] ?? _driverEmail;
+              String newLicense = driverData['license_number'] ?? driverData['licenseNumber'] ?? _licenseNumber;
+              String? newServerPhoto = driverData['photo'];
 
-        // Persist fresh data
-        await prefs.setString('driverName', name);
-        await prefs.setString('driverPhone', phone);
-        await prefs.setString('driverEmail', email);
-        await prefs.setString('licenseNumber', license);
-        if (serverPhoto != null) await prefs.setString('driverPhoto', serverPhoto);
+              // Persist fresh data
+              await prefs.setString('driverName', newName);
+              await prefs.setString('driverPhone', newPhone);
+              await prefs.setString('driverEmail', newEmail);
+              await prefs.setString('licenseNumber', newLicense);
+              if (newServerPhoto != null) await prefs.setString('driverPhoto', newServerPhoto);
 
-        if (mounted) {
-          setState(() {
-            _driverName = name;
-            _driverEmail = email;
-            _driverPhone = phone;
-            _licenseNumber = license;
-            if (serverPhoto != null && serverPhoto.isNotEmpty) {
-              _profileImagePath = serverPhoto;
+              if (mounted) {
+                setState(() {
+                  _driverName = newName;
+                  _driverEmail = newEmail;
+                  _driverPhone = newPhone;
+                  _licenseNumber = newLicense;
+                  if (newServerPhoto != null && newServerPhoto.isNotEmpty) {
+                    _profileImagePath = newServerPhoto;
+                  }
+                });
+              }
             }
+          }, onError: (error) {
+            debugPrint("🛑 Profile DB Sync Stream Error: $error");
           });
-          debugPrint("✅ Profile Synced from DB: $name | $phone");
-        }
-      } catch (e) {
-        debugPrint("🛑 Profile DB Sync Error: $e");
-      }
     }
   }
 
@@ -111,8 +125,14 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
               child: _profileImagePath.isEmpty
                   ? Icon(Icons.person, color: Colors.grey, size: 100.sp)
                   : (_profileImagePath.startsWith('http')
-                      ? Image.network(_profileImagePath, fit: BoxFit.contain)
-                      : Image.file(File(_profileImagePath), fit: BoxFit.contain)),
+                      ? Image.network(
+                          _profileImagePath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: Colors.grey, size: 100.sp),
+                        )
+                      : (_profileImagePath.length > 200 
+                          ? Image.memory(base64Decode(_profileImagePath.contains(',') ? _profileImagePath.split(',').last : _profileImagePath), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp))
+                          : Image.file(File(_profileImagePath), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp)))),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -265,7 +266,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     : (widget.currentPhoto.isNotEmpty && widget.currentPhoto.startsWith('http')
                         ? Image.network(widget.currentPhoto, fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                        : Icon(Icons.person, color: ColorManager.white, size: 40.sp)),
+                        : (widget.currentPhoto.length > 200 
+                            ? Image.memory(base64Decode(widget.currentPhoto.contains(',') ? widget.currentPhoto.split(',').last : widget.currentPhoto), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
+                            : Icon(Icons.person, color: ColorManager.white, size: 40.sp))),
               ),
               Positioned(
                 bottom: 0,

@@ -15,6 +15,7 @@ import 'package:transite_way/feature/driver/data/driver_data_manager.dart';
 import 'package:transite_way/core/networking/connectivity_service.dart';
 import '../../../../../../core/resources/color_manager.dart';
 import 'package:transite_way/core/widgets/swipe_to_confirm.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class HomeTabBody extends StatefulWidget {
   final Function(List<StationModel> stations) onStartTrip;
@@ -37,7 +38,9 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   List<StationModel> _routeStations = [];
   bool _isLoading = true;
   bool _isStartingTrip = false;
+  bool _hasActiveTrip = false;
   StreamSubscription? _busSubscription;
+  StreamSubscription? _tripSubscription;
 
   @override
   void initState() {
@@ -48,11 +51,12 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   @override
   void dispose() {
     _busSubscription?.cancel();
+    _tripSubscription?.cancel();
     _trackingService.stopTracking();
     super.dispose();
   }
 
-  void _setupRealtime() {
+  void _setupRealtime() async {
     final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentDriverId == null) return;
 
@@ -63,10 +67,36 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         .eq('driver_id', currentDriverId)
         .listen((data) {
           if (data.isNotEmpty && !_isLoading) {
-            debugPrint("🔄 HomeTab: Realtime update triggered");
+            debugPrint("🔄 HomeTab: Bus Realtime update triggered");
             _loadAllData();
           }
         });
+
+    final prefs = await SharedPreferences.getInstance();
+    final busId = prefs.getString('busId');
+    
+    if (busId != null && busId.isNotEmpty) {
+      _tripSubscription?.cancel();
+      _tripSubscription = SupabaseConfig.client
+          .from('trips')
+          .stream(primaryKey: ['id'])
+          .eq('bus_id', busId)
+          .listen((data) {
+            if (data.isNotEmpty) {
+              // Find if there is an active trip (end_time is null)
+              final activeTrip = data.firstWhere((trip) => trip['end_time'] == null, orElse: () => <String, dynamic>{});
+              final bool isActive = activeTrip.isNotEmpty;
+              
+              if (mounted && _hasActiveTrip != isActive) {
+                debugPrint("🔄 HomeTab: Trip Realtime update triggered: $isActive");
+                prefs.setBool('isTripActive', isActive);
+                setState(() {
+                  _hasActiveTrip = isActive;
+                });
+              }
+            }
+          });
+    }
   }
 
   bool _isBusAssigned = false;
@@ -164,19 +194,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       final allRoutes = await DriverDataManager().getRoutes();
       final allStations = await DriverDataManager().getStations();
 
-      final int? oldRouteId = busData!['route_id'] as int?;
-      final int? lineNumber = int.tryParse(busData!['route_name']?.toString() ?? '');
-      debugPrint('🚌 Bus route_id: $oldRouteId, route_name (lineNumber): $lineNumber');
+      final String? oldRouteId = busData!['route_id']?.toString();
+      final String? busRouteName = busData!['route_name']?.toString();
+      debugPrint('🚌 Bus route_id: $oldRouteId, route_name: $busRouteName');
       debugPrint('📋 Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}');
 
-      // Try matching route by line_number (which is mapped to RouteModel.id)
+      // Try matching route by name
       RouteModel? matchedRoute;
-      if (lineNumber != null) {
+      if (busRouteName != null && busRouteName.isNotEmpty) {
         try {
-          matchedRoute = allRoutes.firstWhere((r) => r.id == lineNumber);
+          matchedRoute = allRoutes.firstWhere((r) => r.name == busRouteName);
           debugPrint('✅ Route matched: ${matchedRoute.name}');
         } catch (_) {
-          debugPrint('❌ No route found with line_number=$lineNumber in ${allRoutes.length} lines');
+          debugPrint('❌ No route found with name=$busRouteName in ${allRoutes.length} lines');
           matchedRoute = null;
         }
       } else {
@@ -185,12 +215,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
 
       final bool routeAssigned = matchedRoute != null;
 
-      if (routeAssigned) {
-        final rZone = matchedRoute!.zone.toLowerCase().replaceAll(' ', '');
-        _routeStations = allStations
-            .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
-            .toList()
-          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      if (routeAssigned && busData!['route_id'] != null) {
+        try {
+          final resStations = await SupabaseConfig.client
+              .from('stations')
+              .select('*')
+              .eq('route_id', busData['route_id'])
+              .order('order_index', ascending: true);
+          _routeStations = resStations.map<StationModel>((json) => StationModel.fromJson(json)).toList();
+          debugPrint('📍 Loaded ${_routeStations.length} stations for route ${busData['route_id']}');
+        } catch (e) {
+          debugPrint('⚠️ Error loading stations by route_id: $e');
+          _routeStations = [];
+        }
       } else {
         _routeStations = [];
       }
@@ -234,6 +271,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           _stationsCount = _routeStations.length;
           _isBusAssigned = true;
           _isRouteAssigned = routeAssigned;
+          _hasActiveTrip = hasActiveTrip;
           _isLoading = false;
         });
       }
@@ -258,6 +296,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       await prefs.setBool('isTripActive', true);
 
       if (mounted) {
+        setState(() => _hasActiveTrip = true);
         widget.onStartTrip(_routeStations);
       }
     } catch (e) {
@@ -274,12 +313,32 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     }
   }
 
+  Future<void> _checkTripStateSilently() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      bool isTripActive = prefs.getBool('isTripActive') ?? false;
+      if (mounted && _hasActiveTrip != isTripActive) {
+        setState(() {
+          _hasActiveTrip = isTripActive;
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _isLoading ? _buildSkeleton() : _buildContent(),
+    return VisibilityDetector(
+      key: const ValueKey('home_tab_visibility'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction == 1.0) {
+          _checkTripStateSilently();
+        }
+      },
+      child: SafeArea(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _isLoading ? _buildSkeleton() : _buildContent(),
+        ),
       ),
     );
   }
@@ -430,15 +489,30 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                   ),
                   child: Column(
                     children: [
-                      const Text('Trip tracking is ready',
+                      Text(_hasActiveTrip ? 'You have an active trip' : 'Trip tracking is ready',
                           style: TextStyle(fontWeight: FontWeight.w500)),
                       SizedBox(height: 16.h),
-                      SwipeToConfirm(
-                        text: "SWIPE TO START TRIP",
-                        onConfirm: _handleStartTrip,
-                        isLoading: _isStartingTrip,
-                        baseColor: ColorManager.lightGreen,
-                      ),
+                      if (_hasActiveTrip)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => widget.onStartTrip(_routeStations),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ColorManager.lightGreen,
+                              padding: EdgeInsets.symmetric(vertical: 16.h),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                              elevation: 0,
+                            ),
+                            child: Text('Go to Active Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16.sp)),
+                          ),
+                        )
+                      else
+                        SwipeToConfirm(
+                          text: "SWIPE TO START TRIP",
+                          onConfirm: _handleStartTrip,
+                          isLoading: _isStartingTrip,
+                          baseColor: ColorManager.lightGreen,
+                        ),
                     ],
                   ),
                 ),

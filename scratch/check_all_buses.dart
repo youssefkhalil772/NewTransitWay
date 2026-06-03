@@ -7,7 +7,7 @@ void main() async {
 
   Future<void> checkTable(String table) async {
     print('--- Checking $table ---');
-    final uri = Uri.parse('$supabaseUrl/$table?limit=2');
+    final uri = Uri.parse('$supabaseUrl/$table');
     final response = await HttpClient().getUrl(uri)
       ..headers.add('apikey', supabaseKey)
       ..headers.add('Authorization', 'Bearer $supabaseKey');
@@ -23,5 +23,4 @@ void main() async {
   }
 
   await checkTable('buses');
-  await checkTable('routes');
 }

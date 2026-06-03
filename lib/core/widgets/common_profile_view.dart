@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 import '../networking/supabase_init.dart';
 import '../routes/routes_manager.dart';
 
@@ -56,6 +57,7 @@ class CommonProfileView extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     bool isNetwork = imagePath.startsWith('http');
     bool isAsset = imagePath.contains('assets/');
+    bool isBase64 = imagePath.length > 200 && !isNetwork && !isAsset;
     bool hasValidImage = imagePath.isNotEmpty && imagePath != 'assets/logo/3.png';
 
     return Padding(
@@ -86,7 +88,9 @@ class CommonProfileView extends StatelessWidget {
                         : (hasValidImage
                             ? (isAsset 
                                 ? Image.asset(imagePath, fit: BoxFit.cover)
-                                : Image.file(File(imagePath), fit: BoxFit.cover))
+                                : (isBase64 
+                                    ? Image.memory(base64Decode(imagePath.contains(',') ? imagePath.split(',').last : imagePath), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, size: 50.r, color: Colors.white))
+                                    : Image.file(File(imagePath), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, size: 50.r, color: Colors.white))))
                             : Icon(Icons.person, size: 50.r, color: Colors.white)),
                   ),
                 ),

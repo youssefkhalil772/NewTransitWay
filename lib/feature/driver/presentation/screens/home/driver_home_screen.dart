@@ -21,6 +21,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _selectedIndex = 0;
   int _routesRefreshKey = 0;
   List<StationModel> _currentTripStations = [];
+  bool _isCheckingState = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInitialState();
+  }
+
+  Future<void> _checkInitialState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isTripActive = prefs.getBool('isTripActive') ?? false;
+    if (isTripActive && mounted) {
+      setState(() {
+        _selectedIndex = 3; // Jump to Routes tab
+        _isCheckingState = false;
+      });
+    } else if (mounted) {
+      setState(() {
+        _isCheckingState = false;
+      });
+    }
+  }
 
   Future<void> _onTabChanged(int index, {List<StationModel>? stations}) async {
     // If navigating to Routes with stations (Start Trip pressed), go immediately
@@ -81,7 +103,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       appBar: _selectedIndex == 0
           ? null
           : CustomAppBar(isDriver: true, showPoints: false),
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: _isCheckingState 
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF39C449))) 
+          : IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: ColorManager.white,

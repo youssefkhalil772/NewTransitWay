@@ -57,19 +57,25 @@ class TrackingService {
       throw Exception("Bus not found or no route assigned to this bus");
     }
     
-    final lineNum = int.tryParse(busData['route_name']?.toString() ?? '') ?? busData['route_id'];
+    String? routeUuid = busData['route_id']?.toString();
 
-    final routeData = await supabase
-        .from('routes')
-        .select('id')
-        .eq('line_number', lineNum)
-        .maybeSingle();
-
-    if (routeData == null) {
-      throw Exception("Route with line number $lineNum not found");
+    if (routeUuid == null || routeUuid.isEmpty) {
+      final routeName = busData['route_name']?.toString();
+      if (routeName != null && routeName.isNotEmpty) {
+        final routeData = await supabase
+            .from('routes')
+            .select('id')
+            .eq('name', routeName)
+            .maybeSingle();
+        if (routeData != null) {
+          routeUuid = routeData['id']?.toString();
+        }
+      }
     }
 
-    final routeUuid = routeData['id'];
+    if (routeUuid == null || routeUuid.isEmpty) {
+      throw Exception("Route not found for this bus (no valid route_id or route_name)");
+    }
 
     try {
       await supabase
@@ -89,6 +95,7 @@ class TrackingService {
       'bus_id': busId,
       'route_id': routeUuid,
       'start_time': DateTime.now().toUtc().toIso8601String(),
+      'status': 'active', // Important for the RPC get_nearest_bus
     });
 
     await supabase
@@ -218,11 +225,15 @@ class TrackingService {
   Future<void> _updateBusPosition(String busId, double lat, double lng, double speed) async {
     try {
       await SupabaseConfig.client.from(ApiConstants.busesTable).update({
-        'current_lat': lat,
-        'current_lng': lng,
+        'lat': lat,
+        'lng': lng,
+        'latitude': lat,
+        'longitude': lng,
         'status': 'Active',
       }).eq('id', busId);
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error updating bus position: $e');
+    }
   }
 
   Future<void> _updateTrackingHistory(String busId, double lat, double lng, double speed) async {

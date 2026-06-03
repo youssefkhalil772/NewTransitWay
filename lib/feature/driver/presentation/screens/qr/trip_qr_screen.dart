@@ -68,30 +68,99 @@ class _TripQrScreenState extends State<TripQrScreen> {
     }
 
     try {
-      final driverId = Supabase.instance.client.auth.currentUser?.id;
+      final prefs = await SharedPreferences.getInstance();
+      final driverId = prefs.getString('driverId') ?? Supabase.instance.client.auth.currentUser?.id;
       if (driverId == null) {
         if (mounted) setState(() { _errorMessage = 'You must log in first'; _isLoading = false; });
         return;
       }
 
-      final response = await Supabase.instance.client.functions.invoke(
-        'generate-qr',
-        body: {'driverId': driverId},
-      );
+      final currentBusId = prefs.getString('busId');
 
-      final data = response.data;
+      if (currentBusId == null || currentBusId.isEmpty) {
+        throw 'Driver or bus not found';
+      }
 
-      if (data is Map && data['error'] != null) {
-        if (mounted) setState(() { _errorMessage = _translateError(data['error'].toString()); _isLoading = false; });
-        return;
+      // 2. Get bus info
+      final busData = await Supabase.instance.client
+          .from('buses')
+          .select('id, bus_number')
+          .eq('id', currentBusId)
+          .maybeSingle();
+
+      if (busData == null) {
+        throw 'Driver or bus not found';
+      }
+
+      // 3. Get active trip
+      final tripData = await Supabase.instance.client
+          .from('trips')
+          .select('route_id')
+          .eq('bus_id', currentBusId)
+          .isFilter('end_time', null)
+          .maybeSingle();
+
+      final bool isActive = tripData != null;
+      final String? routeId = tripData?['route_id']?.toString();
+
+      // 4. Get or Create QR
+      final existingQr = await Supabase.instance.client
+          .from('route_qrs')
+          .select('id, token, route_id')
+          .eq('bus_id', currentBusId)
+          .order('created_at', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      String token;
+      String? finalRouteId = routeId;
+
+      if (existingQr != null && existingQr['token'] != null) {
+        token = existingQr['token'].toString();
+        // Update existing QR
+        await Supabase.instance.client.from('route_qrs').update({
+          'is_active': isActive,
+          'route_id': routeId ?? existingQr['route_id'],
+          'driver_id': driverId,
+        }).eq('id', existingQr['id']);
+        
+        if (routeId != null) finalRouteId = routeId;
+      } else {
+        token = DateTime.now().millisecondsSinceEpoch.toString() + currentBusId.substring(0, 4).toUpperCase();
+        // Insert new QR
+        await Supabase.instance.client.from('route_qrs').insert({
+          'route_id': routeId,
+          'bus_id': currentBusId,
+          'driver_id': driverId,
+          'token': token,
+          'qr_code': token,
+          'is_active': isActive,
+        });
+      }
+
+      // 5. Get route info
+      String routeName = 'Route Info Unavailable';
+      double? price;
+
+      if (finalRouteId != null) {
+        final routeData = await Supabase.instance.client
+            .from('routes')
+            .select('name, start_point, price')
+            .eq('id', finalRouteId)
+            .maybeSingle();
+
+        if (routeData != null) {
+          routeName = routeData['name']?.toString() ?? routeData['start_point']?.toString() ?? 'Unknown Route';
+          price = (routeData['price'] as num?)?.toDouble();
+        }
       }
 
       if (mounted) {
         setState(() {
-          _qrToken = data['token']?.toString();
-          _routeName = data['routeName']?.toString();
-          _price = (data['price'] as num?)?.toDouble();
-          _busNumber = data['busNumber']?.toString() ?? data['busId']?.toString();
+          _qrToken = token;
+          _routeName = routeName;
+          _price = price;
+          _busNumber = busData['bus_number']?.toString() ?? currentBusId;
           _isLoading = false;
           _errorMessage = null;
         });
