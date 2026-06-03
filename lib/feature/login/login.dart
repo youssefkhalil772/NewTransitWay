@@ -127,20 +127,48 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
             .maybeSingle();
 
         if (userData != null) {
-          // Check for ban
-          final isBanned = userData['is_banned'] == true || 
+          // Check for ban FIRST before doing anything else
+          final rawBanned = userData['is_banned'];
+          final isBanned = rawBanned == true || 
+                           rawBanned == 1 ||
+                           rawBanned?.toString().toLowerCase() == 'true' ||
+                           rawBanned?.toString().toLowerCase() == 'yes' ||
                            userData['status']?.toString().toLowerCase() == 'banned' || 
                            userData['status']?.toString().toLowerCase() == 'blocked';
+          debugPrint('🔍 Ban check: is_banned=$rawBanned (${rawBanned.runtimeType}), status=${userData['status']}, isBanned=$isBanned');
           if (isBanned) {
             await supabase.auth.signOut();
             if (!mounted) return;
             setState(() => _isLoading = false);
-            final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Login failed: Account Suspended.\nReason: $reason'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 5),
+            final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended by the admin.';
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.block, color: Colors.red, size: 28),
+                    SizedBox(width: 8),
+                    Text('Account Suspended', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Your account has been suspended by the admin.'),
+                    const SizedBox(height: 12),
+                    const Text('Reason:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(reason, style: const TextStyle(color: Colors.red)),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
               ),
             );
             return;
