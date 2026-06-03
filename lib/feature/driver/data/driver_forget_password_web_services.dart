@@ -9,18 +9,19 @@ class DriverForgetPasswordWebServices {
   Future<String?> getEmailByPhone(String phone) async {
     try {
       log("Requesting getEmailByPhone with phone: $phone");
-      final response = await _client
-          .from(ApiConstants.driversTable)
-          .select('email')
-          .eq('phone', phone)
-          .maybeSingle();
+      final response = await _client.rpc(
+        'get_driver_email_by_phone',
+        params: {'p_phone': phone},
+      );
 
       log("Response: $response");
 
-      if (response != null) {
-        return response['email'];
+      if (response != null && response is String) {
+        return response;
+      } else if (response != null && response is Map && response.containsKey('email')) {
+         return response['email'] as String?;
       }
-      return null;
+      return response?.toString();
     } catch (e) {
       log("Error in getEmailByPhone: $e");
       return null;

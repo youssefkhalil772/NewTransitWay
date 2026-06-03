@@ -43,7 +43,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
     await prefs.setString('driverPhoto', data['photo'] ?? data['image'] ?? "");
     
     if (data['busId'] != null) {
-      await prefs.setInt('busId', data['busId']);
+      await prefs.setString('busId', data['busId'].toString());
     }
 
     await prefs.setString('userRole', 'driver');
@@ -74,6 +74,17 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
       },
       child: Scaffold(
         backgroundColor: ColorManager.white,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: BackButton(
+            color: Colors.black,
+            onPressed: () => RoutesManager.navigateAndRemoveUntil(
+              context,
+              RoutesManager.role,
+            ),
+          ),
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),

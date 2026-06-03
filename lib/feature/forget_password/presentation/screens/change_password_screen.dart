@@ -38,6 +38,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   void _handleReset() async {
+    FocusScope.of(context).unfocus();
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       bool success = await ForgetPasswordWebServices().confirmReset(widget.email, widget.code, _passController.text);

@@ -8,16 +8,17 @@ class ForgetPasswordWebServices {
 
   Future<String?> getEmailByPhone(String phone) async {
     try {
-      final response = await _client
-          .from(ApiConstants.usersTable)
-          .select('email')
-          .eq('phone', phone)
-          .maybeSingle();
+      final response = await _client.rpc(
+        'get_user_email_by_phone',
+        params: {'p_phone': phone},
+      );
 
-      if (response != null) {
-        return response['email'];
+      if (response != null && response is String) {
+        return response;
+      } else if (response != null && response is Map && response.containsKey('email')) {
+         return response['email'] as String?;
       }
-      return null;
+      return response?.toString();
     } catch (e) {
       debugPrint("🛑 getEmailByPhone Error: $e");
       return null;

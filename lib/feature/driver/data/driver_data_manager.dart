@@ -9,34 +9,50 @@ class DriverDataManager {
   DriverDataManager._internal();
 
   List<RouteModel>? _routes;
+  Map<String, String>? _routeNamesByUuid;
   List<StationModel>? _stations;
   final Map<String, Map<String, dynamic>> _buses = {};
 
-  Future<void> prefetchData() async {
+  Future<void> prefetchData({bool forceRefresh = false}) async {
+    if (_routes != null && !forceRefresh) return;
     try {
-      final routesRes = await SupabaseConfig.client.from('lines').select('*, zones(name)');
+      final routesRes = await SupabaseConfig.client.from('routes').select('*');
+      _routeNamesByUuid = {};
       _routes = routesRes.map<RouteModel>((json) {
+        final name = json['name']?.toString() ?? json['start_point']?.toString() ?? json['line_number'].toString();
+        if (json['id'] != null) {
+          _routeNamesByUuid![json['id'].toString()] = name;
+        }
         return RouteModel.fromJson({
           'id': int.tryParse(json['line_number']?.toString() ?? '') ?? 0,
-          'name': json['start_point']?.toString() ?? json['line_number'].toString(),
-          'zone': json['zones'] != null ? json['zones']['name'] : 'Unknown',
+          'name': name,
+          'zone': json['end_point']?.toString() ?? 'Unknown',
           'price': double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
         });
       }).toList();
 
-      final stationsRes = await SupabaseConfig.client.from('stations').select('*');
+      final stationsRes = await SupabaseConfig.client
+          .from('stations')
+          .select('*')
+          .order('zone', ascending: true)
+          .order('order_index', ascending: true);
       _stations = stationsRes.map<StationModel>((json) => StationModel.fromJson(json)).toList();
+      _stations!.sort((a, b) {
+        int zoneCompare = a.zone.compareTo(b.zone);
+        if (zoneCompare != 0) return zoneCompare;
+        return a.orderIndex.compareTo(b.orderIndex);
+      });
     } catch (e) {
     }
   }
 
-  Future<List<RouteModel>> getRoutes() async {
-    if (_routes == null) await prefetchData();
+  Future<List<RouteModel>> getRoutes({bool forceRefresh = false}) async {
+    if (_routes == null || forceRefresh) await prefetchData(forceRefresh: forceRefresh);
     return _routes ?? [];
   }
 
-  Future<List<StationModel>> getStations() async {
-    if (_stations == null) await prefetchData();
+  Future<List<StationModel>> getStations({bool forceRefresh = false}) async {
+    if (_stations == null || forceRefresh) await prefetchData(forceRefresh: forceRefresh);
     return _stations ?? [];
   }
 
@@ -47,6 +63,11 @@ class DriverDataManager {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<String?> getRouteNameByUuid(String uuid) async {
+    if (_routeNamesByUuid == null) await prefetchData(forceRefresh: true);
+    return _routeNamesByUuid?[uuid];
   }
 
   Future<Map<String, dynamic>?> getBusById(String busId) async {
@@ -64,6 +85,7 @@ class DriverDataManager {
   
   void clearCache() {
     _routes = null;
+    _routeNamesByUuid = null;
     _stations = null;
     _buses.clear();
   }

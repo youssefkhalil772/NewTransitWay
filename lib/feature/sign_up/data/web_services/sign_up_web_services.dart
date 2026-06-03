@@ -49,7 +49,6 @@ class SignUpWebServices {
             'full_name': signUpRequestBody.fullName,
             'email': signUpRequestBody.email,
             'phone_number': signUpRequestBody.phone,
-            if (photoUrl != null) 'photo': photoUrl,
           })
           .select()
           .single();

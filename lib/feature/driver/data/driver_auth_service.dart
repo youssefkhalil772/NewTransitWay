@@ -24,6 +24,16 @@ class DriverAuthServices {
           .eq('email', email)
           .maybeSingle();
 
+      if (driverData != null) {
+        final isBanned = driverData['is_banned'] == true || 
+                         driverData['status'] == 'banned' || 
+                         driverData['status'] == 'blocked';
+        if (isBanned) {
+          await _client.auth.signOut();
+          throw 'Your account has been banned by the admin.';
+        }
+      }
+
       if (driverData == null) {
         throw 'Driver account not found';
       }
@@ -43,19 +53,30 @@ class DriverAuthServices {
   /// Fetches driver data with their assigned bus details (joined).
   Future<Map<String, dynamic>> getDriverData(String driverId) async {
     try {
-      final response = await _client
+      var response = await _client
           .from(ApiConstants.driversTable)
           .select()
           .eq('id', driverId)
-          .single();
+          .maybeSingle();
 
-      return response;
+      if (response == null) {
+        final email = _client.auth.currentUser?.email;
+        if (email != null) {
+          response = await _client
+              .from(ApiConstants.driversTable)
+              .select()
+              .eq('email', email)
+              .maybeSingle();
+        }
+      }
+
+      return response ?? {};
     } catch (e) {
       debugPrint("🛑 getDriverData Error: $e");
       if (e is PostgrestException) {
         debugPrint("🛑 Postgrest Error Details: ${e.message} | ${e.details}");
       }
-      throw 'Failed to fetch driver data';
+      return {};
     }
   }
 

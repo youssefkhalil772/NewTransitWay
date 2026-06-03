@@ -36,51 +36,50 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "User not found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 2. Verify QR is active
+    // 2. Verify QR exists
     const { data: routeQr, error: qrError } = await supabase
       .from("route_qrs")
       .select("*")
       .eq("token", qrToken)
-      .eq("is_active", true)
       .single();
 
     if (qrError || !routeQr) {
       return new Response(
-        JSON.stringify({ error: "Invalid or expired QR" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Invalid QR code" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 3. Verify Active Trip on this bus (ended_at is null)
+    // 3. Verify Active Trip on this bus (end_time is null)
     const { data: activeTrip, error: tripError } = await supabase
       .from("trips")
       .select("*")
       .eq("bus_id", routeQr.bus_id)
-      .is("ended_at", null)
-      .single();
+      .is("end_time", null)
+      .maybeSingle();
 
-    if (tripError || !activeTrip) {
+    if (!routeQr.is_active || tripError || !activeTrip) {
       return new Response(
-        JSON.stringify({ error: "No active trip on this bus" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No active trip right now" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // 4. Get route info and price
     const { data: route, error: routeError } = await supabase
-      .from("lines")
+      .from("routes")
       .select("start_point, price")
-      .eq("line_number", routeQr.route_id)
+      .eq("id", routeQr.route_id)
       .single();
 
     if (routeError || !route || !route.price) {
       return new Response(
         JSON.stringify({ error: "Route or zone not found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -96,7 +95,7 @@ serve(async (req) => {
     if (balanceError || !userData || (userData.balance ?? 0) < fare) {
       return new Response(
         JSON.stringify({ error: "Insufficient balance" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -123,6 +122,7 @@ serve(async (req) => {
         bus_id: routeQr.bus_id,
         ticket_code: ticketCode,
         status: "active",
+        price: route.price,
       })
       .select()
       .single();

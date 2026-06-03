@@ -21,7 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = "User Name";
   String _userEmail = "email@example.com";
   String _userPhone = "";
-  String _userPhoto = 'assets/logo/3.png';
+  String _userPhoto = '';
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userName = savedName ?? "Passenger User";
       _userEmail = savedEmail ?? "passenger@transit.com";
       _userPhone = savedPhone ?? "";
-      _userPhoto = savedPhoto ?? 'assets/logo/3.png';
+      _userPhoto = (savedPhoto != null && savedPhoto.isNotEmpty) ? savedPhoto : '';
     });
   }
 
@@ -85,7 +85,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? Image.network(_userPhoto, fit: BoxFit.contain)
                   : (_userPhoto.contains('assets') 
                       ? Image.asset(_userPhoto, fit: BoxFit.contain)
-                      : Image.file(File(_userPhoto), fit: BoxFit.contain)),
+                      : (_userPhoto.isNotEmpty 
+                          ? Image.file(File(_userPhoto), fit: BoxFit.contain)
+                          : Icon(Icons.person, color: Colors.grey, size: 100.sp))),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(
@@ -133,6 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => RoutesManager.navigateTo(context, RoutesManager.notifications),
             trailing: StreamBuilder<int>(
               stream: InAppNotificationService().unreadCountStream,
+              initialData: InAppNotificationService().latestUnreadCount,
               builder: (context, snapshot) {
                 final count = snapshot.data ?? 0;
                 if (count == 0) return const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey);

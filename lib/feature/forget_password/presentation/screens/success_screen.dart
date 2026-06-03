@@ -9,6 +9,7 @@ class SuccessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
@@ -21,9 +22,8 @@ class SuccessScreen extends StatelessWidget {
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Spacer(flex: 2),
-
             Center(
               child: Stack(
                 alignment: Alignment.center,
@@ -69,7 +69,7 @@ class SuccessScreen extends StatelessWidget {
               ),
             ),
 
-            const Spacer(flex: 3),
+            SizedBox(height: 50.h),
 
             SizedBox(
               width: double.infinity,
@@ -98,7 +98,6 @@ class SuccessScreen extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(height: 40.h),
           ],
         ),
       ),

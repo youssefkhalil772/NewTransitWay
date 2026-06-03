@@ -200,7 +200,10 @@ class _RoutesScreenState extends State<RoutesScreen>
       final matchedRoute = allRoutes.firstWhere((r) => r.id == routeId, orElse: () => allRoutes.first);
       
       final rZone = matchedRoute.zone.toLowerCase().replaceAll(' ', '');
-      final stations = allStations.where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone).toList();
+      final stations = allStations
+          .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
+          .toList()
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
       
       if (mounted) {
         setState(() {
@@ -508,6 +511,12 @@ class _RoutesScreenState extends State<RoutesScreen>
   /// Driver manually pressed the red SOS button (not from crash detection).
   void _sendSosManually() {
     _sosTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _showSosCountdown = false;
+        _sosCountdownSeconds = 15;
+      });
+    }
     _showSosDialog(context);
   }
 
@@ -529,68 +538,80 @@ class _RoutesScreenState extends State<RoutesScreen>
               Text('SOS — Report Issue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'What happened?',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: messageController,
-                maxLines: 3,
-                maxLength: 200,
-                decoration: InputDecoration(
-                  hintText: 'Describe the issue (e.g. engine stopped, flat tire…)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'What happened?',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: messageController,
+                  maxLines: 3,
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    hintText: 'Describe the issue (e.g. engine stopped, flat tire…)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
-            // Cancel
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            // Breakdown Report
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: isSendingBreakdown ? null : () async {
-                final msg = messageController.text.trim();
-                if (msg.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please describe the issue first.')),
-                  );
-                  return;
-                }
-                setDialogState(() => isSendingBreakdown = true);
-                Navigator.pop(ctx);
-                await _sendBreakdownReport(msg);
-              },
-              icon: const Icon(Icons.build, size: 16, color: Colors.white),
-              label: const Text('Report Breakdown', style: TextStyle(color: Colors.white)),
-            ),
-            // Emergency
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                Navigator.pop(ctx);
-                _triggerAndSendEmergency();
-              },
-              icon: const Icon(Icons.emergency, size: 16, color: Colors.white),
-              label: const Text('Emergency!', style: TextStyle(color: Colors.white)),
-            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Emergency (Primary, Red, at the top)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    final msg = messageController.text.trim();
+                    Navigator.pop(ctx);
+                    _triggerAndSendEmergency(msg.isNotEmpty ? msg : null);
+                  },
+                  icon: const Icon(Icons.emergency, size: 20, color: Colors.white),
+                  label: const Text('Emergency!', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 10),
+                // Breakdown Report
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: isSendingBreakdown ? null : () async {
+                    final msg = messageController.text.trim();
+                    if (msg.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please describe the issue first.')),
+                      );
+                      return;
+                    }
+                    setDialogState(() => isSendingBreakdown = true);
+                    Navigator.pop(ctx);
+                    await _sendBreakdownReport(msg);
+                  },
+                  icon: const Icon(Icons.build, size: 20, color: Colors.white),
+                  label: const Text('Report Breakdown', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 10),
+                // Cancel
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                ),
+              ],
+            )
           ],
         ),
       ),
@@ -616,7 +637,7 @@ class _RoutesScreenState extends State<RoutesScreen>
 
   /// Trigger a brand-new SOS alert and immediately escalate to emergency.
   /// Used when the driver presses the manual SOS button without a crash event.
-  Future<void> _triggerAndSendEmergency() async {
+  Future<void> _triggerAndSendEmergency([String? message]) async {
     if (_isSendingSos) return;
     _isSendingSos = true;
 
@@ -627,6 +648,7 @@ class _RoutesScreenState extends State<RoutesScreen>
       final alertId = await SosService.triggerSos(
         driverId: ids.driverId,
         busId: ids.busId,
+        message: message,
       );
 
       if (alertId != null) {

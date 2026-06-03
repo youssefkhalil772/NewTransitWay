@@ -41,7 +41,7 @@ class TrackingService {
 
   Future<void> startTrip(String busId) async {
     startLocationStream(busId);
-    _setupTripOnBackend(busId).catchError((e) {});
+    await _setupTripOnBackend(busId);
   }
 
   Future<void> _setupTripOnBackend(String busId) async {
@@ -57,20 +57,38 @@ class TrackingService {
       throw Exception("Bus not found or no route assigned to this bus");
     }
     
-    final routeId = int.tryParse(busData['route_name']?.toString() ?? '') ?? busData['route_id'];
+    final lineNum = int.tryParse(busData['route_name']?.toString() ?? '') ?? busData['route_id'];
+
+    final routeData = await supabase
+        .from('routes')
+        .select('id')
+        .eq('line_number', lineNum)
+        .maybeSingle();
+
+    if (routeData == null) {
+      throw Exception("Route with line number $lineNum not found");
+    }
+
+    final routeUuid = routeData['id'];
 
     try {
       await supabase
           .from('trips')
-          .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
+          .update({'end_time': DateTime.now().toUtc().toIso8601String()})
           .eq('bus_id', busId)
-          .isFilter('ended_at', null); 
+          .isFilter('end_time', null); 
+          
+      // Also reactivate the QR code so printed QRs work for the new trip
+      await supabase
+          .from('route_qrs')
+          .update({'is_active': true})
+          .eq('bus_id', busId);
     } catch (e) {}
 
     await supabase.from('trips').insert({
       'bus_id': busId,
-      'route_id': routeId,
-      'started_at': DateTime.now().toUtc().toIso8601String(),
+      'route_id': routeUuid,
+      'start_time': DateTime.now().toUtc().toIso8601String(),
     });
 
     await supabase
@@ -86,9 +104,9 @@ class TrackingService {
       try {
         await supabase
             .from('trips')
-            .update({'ended_at': DateTime.now().toUtc().toIso8601String()})
+            .update({'end_time': DateTime.now().toUtc().toIso8601String()})
             .eq('bus_id', busId)
-            .isFilter('ended_at', null);
+            .isFilter('end_time', null);
 
         await supabase
             .from('tickets')

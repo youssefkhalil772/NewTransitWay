@@ -2,8 +2,8 @@ import 'package:supabase/supabase.dart';
 
 void main() async {
   final client = SupabaseClient(
-    'https://jajoznoeoewigkpbuzzx.supabase.co',
-    'sb_publishable_zNYeNGu6L5zd2pi_Eigl4g_LyCdk2uE'
+    'https://vrgcsoeepbwnedzjwiqb.supabase.co',
+    'sb_publishable_JrtzuMXTW2IODfSWrcnasA_Ogpk09U6'
   );
 
   // You can execute a generic query to see the tables if RPC or REST allows it, but normally you cannot directly query information_schema from the anon client.

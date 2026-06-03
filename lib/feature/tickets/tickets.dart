@@ -9,7 +9,6 @@ import '../../core/networking/api_constants.dart';
 import '../../core/networking/supabase_init.dart';
 import '../../core/widgets/custom_ticket_card.dart';
 import '../home/presentation/widgets/custom_app_bar.dart';
-import '../home/data/home_repository.dart';
 import '../../core/resources/color_manager.dart';
 
 class MyTicketsScreen extends StatefulWidget {
@@ -97,40 +96,34 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
   Future<List<dynamic>> _enrichTicketsLocally(
     List<Map<String, dynamic>> rawTickets,
   ) async {
-    final routes = await UserDataManager().getRoutes();
-    final buses = await HomeRepository().getBuses();
+    // Ensure caches are loaded
+    await UserDataManager().prefetchData();
 
-    return rawTickets.map((t) {
+    final enriched = await Future.wait(rawTickets.map((t) async {
       final ticket = Map<String, dynamic>.from(t);
-      final routeId = ticket['route_id'] as int?;
-      final busId = ticket['bus_id'];
+      final routeIdVal = ticket['route_id']?.toString();
+      final busIdVal = ticket['bus_id']?.toString();
 
-      if (routeId != null) {
-        try {
-          final matchedRoute = routes.firstWhere((r) => r.id == routeId);
-          ticket['routes'] = {
-            'name': matchedRoute.name,
-            'price': matchedRoute.price,
-          };
-        } catch (_) {
-          ticket['routes'] = null;
-        }
+      // Resolve route name via UUID cache
+      String routeName = '---';
+      if (routeIdVal != null) {
+        routeName = await UserDataManager().getRouteNameByUuid(routeIdVal) ?? '---';
       }
+      ticket['routes'] = {'name': routeName, 'price': ticket['price'] ?? 0.0};
 
-      if (busId != null) {
-        try {
-          final matchedBus =
-              buses.firstWhere((b) => b['id'].toString() == busId.toString());
-          ticket['buses'] = {
-            'bus_number': matchedBus['bus_number'],
-          };
-        } catch (_) {
-          ticket['buses'] = null;
-        }
+      // Resolve bus number via UUID cache
+      String busNumber = '---';
+      if (busIdVal != null) {
+        busNumber = await UserDataManager().getBusNumberById(busIdVal) ?? '---';
       }
+      ticket['buses'] = {'bus_number': busNumber};
+
       return ticket;
-    }).toList();
+    }));
+
+    return enriched;
   }
+
 
   List<dynamic> get _activeTickets => _allTickets.where((t) {
     final status = t['status']?.toString().toLowerCase() ?? '';

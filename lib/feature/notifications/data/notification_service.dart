@@ -22,8 +22,16 @@ class InAppNotificationService {
   final Set<String> _seenNotificationIds = {};
   bool _isInitialized = false;
   
+  int _latestUnreadCount = 0;
+  int get latestUnreadCount => _latestUnreadCount;
+  
   final _unreadCountController = StreamController<int>.broadcast();
   Stream<int> get unreadCountStream => _unreadCountController.stream;
+
+  void _updateUnreadCount(int count) {
+    _latestUnreadCount = count;
+    _unreadCountController.add(count);
+  }
 
   Future<void> startMonitoring() async {
     stopMonitoring(); // Ensure any existing listeners are cleared
@@ -38,14 +46,14 @@ class InAppNotificationService {
         .eq('user_id', userId)
         .listen((List<Map<String, dynamic>> data) {
           if (data.isEmpty) {
-            _unreadCountController.add(0);
+            _updateUnreadCount(0);
             _isInitialized = true;
             return;
           }
           
           // Count unread
           final unreadCount = data.where((n) => (n['is_read'] ?? n['isRead'] ?? false) == false).length;
-          _unreadCountController.add(unreadCount);
+          _updateUnreadCount(unreadCount);
 
           // Find newly inserted notifications by checking seen IDs
           for (var notif in data) {
@@ -109,8 +117,12 @@ class InAppNotificationService {
     _userSub = null;
   }
 
-  /// Returns the current user's UUID from SharedPreferences.
+  /// Returns the current user's UUID from Supabase auth first, falling back to SharedPreferences.
   Future<String?> _getUserId() async {
+    final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      return currentUserId;
+    }
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('userId');
   }
@@ -163,7 +175,7 @@ class InAppNotificationService {
         notifications: notifList,
       );
 
-      _unreadCountController.add(data.unreadCount);
+      _updateUnreadCount(data.unreadCount);
       return data;
     } catch (e) {
       debugPrint("🛑 Fetch Notifications Error: $e");
@@ -201,7 +213,7 @@ class InAppNotificationService {
           .eq('user_id', userId)
           .eq('is_read', false);
 
-      _unreadCountController.add(0);
+      _updateUnreadCount(0);
       return true;
     } catch (e) {
       debugPrint("🛑 Mark All Read Error: $e");
@@ -250,7 +262,7 @@ class InAppNotificationService {
     IconData iconData = Icons.notifications_active;
 
     String title = (data['title'] ?? "").toString();
-    String body = (data['body'] ?? "").toString();
+    String body = (data['message'] ?? data['body'] ?? "").toString();
     bool isRead = data['is_read'] ?? data['isRead'] ?? false;
     
     if (isRead) return; 

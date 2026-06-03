@@ -132,11 +132,12 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
       return tB.compareTo(tA);
     });
 
-    return sortedTickets.map((t) {
-      final routeId = t['route_id'] as int?;
-      RouteModel? matchedRoute;
-      if (routeId != null) {
-        try { matchedRoute = routes.firstWhere((r) => r.id == routeId); } catch (_) {}
+    final enriched = await Future.wait(sortedTickets.map((t) async {
+      final routeIdVal = t['route_id']?.toString();
+      
+      String routeName = 'Unknown Route';
+      if (routeIdVal != null) {
+        routeName = await DriverDataManager().getRouteNameByUuid(routeIdVal) ?? 'Unknown Route';
       }
 
       DateTime? createdAt;
@@ -147,11 +148,20 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
       if (s == 'active' || s == 'sold' || s == 'valid') {
         status = TicketStatus.sold;
       } else if (s == 'expired' || s == 'used') status = TicketStatus.expired;
+      
+      final busIdVal = t['bus_id']?.toString();
+      String busNumber = _busNumber ?? '---';
+      if ((busNumber == '---' || busNumber.isEmpty) && busIdVal != null) {
+        final busData = await DriverDataManager().getBusById(busIdVal);
+        if (busData != null) {
+          busNumber = busData['bus_number']?.toString() ?? '---';
+        }
+      }
 
       return TicketHistoryItem(
-        route: matchedRoute?.name ?? 'Unknown Route',
-        busNumber: _busNumber ?? '---',
-        price: matchedRoute?.price.toStringAsFixed(0) ?? '0',
+        route: routeName,
+        busNumber: busNumber,
+        price: t['price']?.toString() ?? '0',
         time: createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--',
         date: createdAt != null ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal()) : '--/--',
         dateTime: createdAt ?? DateTime.now(),
@@ -159,7 +169,8 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
         rawStatus: s == 'active' ? 'Sold' : (t['status']?.toString() ?? 'Unknown'),
         ticketType: (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
       );
-    }).toList();
+    }));
+    return enriched;
   }
 
   Future<void> _manualRefresh() async {

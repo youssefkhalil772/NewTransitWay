@@ -13,7 +13,14 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: LoginScreenBody());
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const BackButton(color: Colors.black),
+      ),
+      body: const LoginScreenBody(),
+    );
   }
 }
 
@@ -44,7 +51,7 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
     setState(() => _isGoogleLoading = true);
     try {
       const webClientId =
-          '70582803851-b1k4a91jngbhlqep4tnjt46vvimi3h6t.apps.googleusercontent.com';
+          '782099245403-no3fn19n0kbq0rv1jvpheuekba22bfpa.apps.googleusercontent.com';
 
       final GoogleSignIn googleSignIn = GoogleSignIn(
         serverClientId: webClientId,

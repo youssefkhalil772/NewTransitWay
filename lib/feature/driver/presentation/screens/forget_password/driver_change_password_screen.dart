@@ -39,6 +39,7 @@ class _DriverChangePasswordScreenState extends State<DriverChangePasswordScreen>
   }
 
   void _handleReset() async {
+    FocusScope.of(context).unfocus();
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       bool success = await DriverForgetPasswordWebServices().confirmReset(

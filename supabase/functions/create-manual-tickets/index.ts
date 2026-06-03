@@ -29,24 +29,24 @@ serve(async (req) => {
     // Step 1: Get the bus assigned to this driver
     const { data: driverData, error: driverError } = await supabase
       .from("drivers")
-      .select("bus_id")
+      .select("\"busId\"")
       .eq("id", driverId)
       .maybeSingle();
 
-    if (driverError || !driverData?.bus_id) {
+    if (driverError || !driverData?.busId) {
       return new Response(
         JSON.stringify({ error: "No bus assigned to driver" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const busId = driverData.bus_id;
+    const busId = driverData.busId;
 
     // Step 2: Get active trip
     const { data: trip, error: tripError } = await supabase
       .from("trips")
       .select("route_id")
       .eq("bus_id", busId)
-      .is("ended_at", null)
+      .is("end_time", null)
       .maybeSingle();
 
     if (tripError || !trip) {
@@ -58,9 +58,9 @@ serve(async (req) => {
 
     // Step 3: Get route price and name
     const { data: routeData, error: routeError } = await supabase
-      .from("lines")
-      .select("line_number, start_point, price")
-      .eq("line_number", trip.route_id)
+      .from("routes")
+      .select("id, line_number, start_point, price")
+      .eq("id", trip.route_id)
       .maybeSingle();
 
     if (routeError || !routeData || !routeData.price) {
@@ -73,12 +73,10 @@ serve(async (req) => {
     const now = new Date().toISOString();
 
     // Step 4: Insert tickets into the database
-    // Removed driver_id, number_of_tickets, and price because they are not in the schema.
-    // We use user_id to store the driverId, and generate a ticket_code.
     const ticketsToInsert = Array.from({ length: numberOfTickets }, () => ({
       user_id: driverId,
       bus_id: busId,
-      route_id: routeData.line_number,
+      route_id: routeData.id,
       ticket_code: "MANUAL-" + crypto.randomUUID().substring(0, 8).toUpperCase(),
       status: "active"
     }));

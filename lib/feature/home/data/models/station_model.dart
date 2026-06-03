@@ -6,6 +6,7 @@ class StationModel {
   final String zone; // استخدمنا الزون بدلاً من الـ routeId
   final String latLong;
   final LatLng position;
+  final int orderIndex;
 
   StationModel({
     required this.id,
@@ -13,6 +14,7 @@ class StationModel {
     required this.zone,
     required this.latLong,
     required this.position,
+    required this.orderIndex,
   });
 
   factory StationModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,9 @@ class StationModel {
       zone: json['zone']?.toString() ?? "Unknown",
       latLong: json['latLong']?.toString() ?? json['lat_long']?.toString() ?? "$lat&$lng",
       position: pos,
+      orderIndex: json['order_index'] is int
+          ? json['order_index']
+          : int.tryParse(json['order_index']?.toString() ?? '') ?? 0,
     );
   }
 }

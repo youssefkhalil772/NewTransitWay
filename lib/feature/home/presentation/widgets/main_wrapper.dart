@@ -82,8 +82,6 @@ class _MainWrapperState extends State<MainWrapper> {
             if (index == 1) _ticketsRefreshKey++;
             if (index == 2) _qrRefreshKey++;
           });
-          // Update balance automatically every time the user changes the tab
-          // This ensures that if the admin changes something, the user sees it immediately
           CustomPointsBadge.fetchAndRefreshGlobalBalance();
         },
         type: BottomNavigationBarType.fixed,

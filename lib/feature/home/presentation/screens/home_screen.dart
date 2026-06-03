@@ -487,7 +487,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return StatefulBuilder(builder: (context, setModalState) {
         List<StationModel> stationsToDisplay = _allStations;
         if (!isFrom && _selectedFromStation != null) {
-          stationsToDisplay = _allStations.where((s) => s.zone == _selectedFromStation!.zone && s.id != _selectedFromStation!.id).toList();
+          stationsToDisplay = _allStations
+              .where((s) => s.zone == _selectedFromStation!.zone && s.orderIndex > _selectedFromStation!.orderIndex)
+              .toList();
         }
         List<StationModel> filtered = stationsToDisplay.where((s) => s.name.toLowerCase().contains(searchController.text.toLowerCase())).toList();
         return Container(height: 0.8.sh, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25.r))), padding: EdgeInsets.all(20.w), child: Column(children: [Container(width: 40.w, height: 4.h, color: Colors.grey[300]), SizedBox(height: 20.h), const Text("Select Station", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), if (!isFrom && _selectedFromStation != null) Text("Route: ${_selectedFromStation!.zone}", style: TextStyle(color: RouteModel.getColorFromName(_selectedFromStation!.zone), fontSize: 13)), SizedBox(height: 15.h), TextField(controller: searchController, decoration: InputDecoration(hintText: "Search stations...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r))), onChanged: (value) => setModalState(() {})), Expanded(child: filtered.isEmpty ? const Center(child: Text("No stations found")) : ListView.builder(physics: const ClampingScrollPhysics(), itemCount: filtered.length, itemBuilder: (context, index) { 
@@ -599,6 +601,7 @@ class _StaticHeader extends StatelessWidget {
   Widget _buildNotificationIcon(BuildContext context) {
     return StreamBuilder<int>(
       stream: InAppNotificationService().unreadCountStream,
+      initialData: InAppNotificationService().latestUnreadCount,
       builder: (context, snapshot) {
         int count = snapshot.data ?? 0;
         return Stack(

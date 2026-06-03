@@ -12,6 +12,7 @@ class SosService {
   static Future<String?> triggerSos({
     required String driverId,
     required String busId,
+    String? message,
   }) async {
     try {
       Position? position;
@@ -33,6 +34,7 @@ class SosService {
         'bus_id': busId,
         'latitude': position?.latitude ?? 0.0,
         'longitude': position?.longitude ?? 0.0,
+        if (message != null && message.isNotEmpty) 'message': message,
       };
 
       debugPrint('📡 SOS Payload: $bodyPayload');
@@ -64,6 +66,7 @@ class SosService {
         'latitude': position?.latitude ?? 0.0,
         'longitude': position?.longitude ?? 0.0,
         'status': 'Pending',
+        if (message != null && message.isNotEmpty) 'message': message,
         'created_at': cairoTime,
       }).select('id').maybeSingle();
 
@@ -168,12 +171,57 @@ class SosService {
     }
   }
 
-  /// Convenience method to load driverId & busId from SharedPreferences
+  /// Convenience method to load driverId & busId.
+  /// Falls back to DB lookup if SharedPreferences values are missing.
   static Future<({String driverId, String busId})> loadIds() async {
     final prefs = await SharedPreferences.getInstance();
-    return (
-      driverId: prefs.getString('driverId') ?? '',
-      busId: prefs.getString('busId') ?? '',
-    );
+    String driverId = prefs.getString('driverId') ?? '';
+    String busId = prefs.getString('busId') ?? '';
+
+    // If either is missing, fetch from DB using auth user
+    if (driverId.isEmpty || busId.isEmpty) {
+      try {
+        final authUser = Supabase.instance.client.auth.currentUser;
+        final authId = authUser?.id;
+        final email = authUser?.email;
+
+        Map<String, dynamic>? driverData;
+
+        // Try by auth ID first
+        if (authId != null) {
+          final res = await Supabase.instance.client
+              .from('drivers')
+              .select('id, "busId"')
+              .eq('id', authId)
+              .limit(1);
+          if (res.isNotEmpty) driverData = res.first;
+        }
+
+        // Fallback: try by email
+        if (driverData == null && email != null) {
+          final res = await Supabase.instance.client
+              .from('drivers')
+              .select('id, "busId"')
+              .eq('email', email)
+              .limit(1);
+          if (res.isNotEmpty) driverData = res.first;
+        }
+
+        if (driverData != null) {
+          if (driverId.isEmpty && driverData['id'] != null) {
+            driverId = driverData['id'].toString();
+            await prefs.setString('driverId', driverId);
+          }
+          if (busId.isEmpty && driverData['busId'] != null) {
+            busId = driverData['busId'].toString();
+            await prefs.setString('busId', busId);
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ SosService.loadIds DB fallback failed: $e');
+      }
+    }
+
+    return (driverId: driverId, busId: busId);
   }
 }

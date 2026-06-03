@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -83,14 +84,61 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       }
 
       // Always load driver name first regardless of bus assignment
-      final driverData = await _driverService.getDriverData(currentDriverId);
-      final String driverName = driverData['full_name'] ?? driverData['name'] ?? 'Driver';
+      String driverName = 'Driver';
+      try {
+        final driverData = await _driverService.getDriverData(currentDriverId);
+        driverName = driverData['full_name'] ?? driverData['name'] ?? 'Driver';
+      } catch (e) {
+        // Fallback to cached name from SharedPreferences
+        driverName = prefs.getString('driverName') ?? 'Driver';
+        debugPrint('⚠️ Could not load driver data from DB, using cached: $driverName');
+      }
 
-      final busData = await SupabaseConfig.client
-          .from(ApiConstants.busesTable)
-          .select('*')
-          .eq('driver_id', currentDriverId)
-          .maybeSingle();
+      final currentEmail = SupabaseConfig.client.auth.currentUser?.email;
+      
+      Map<String, dynamic>? driverDbData;
+      try {
+        final resId = await SupabaseConfig.client
+            .from(ApiConstants.driversTable)
+            .select('*')
+            .eq('id', currentDriverId)
+            .limit(1);
+        if (resId.isNotEmpty) driverDbData = resId.first;
+            
+        if (driverDbData == null && currentEmail != null) {
+          final resEmail = await SupabaseConfig.client
+              .from(ApiConstants.driversTable)
+              .select('*')
+              .eq('email', currentEmail)
+              .limit(1);
+          if (resEmail.isNotEmpty) driverDbData = resEmail.first;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching driverDbData: $e');
+      }
+
+      final String? assignedBusId = driverDbData?['busId']?.toString();
+
+      Map<String, dynamic>? busData;
+      try {
+        if (assignedBusId != null && assignedBusId.isNotEmpty) {
+          final resBusId = await SupabaseConfig.client
+              .from(ApiConstants.busesTable)
+              .select('*')
+              .eq('id', assignedBusId)
+              .limit(1);
+          if (resBusId.isNotEmpty) busData = resBusId.first;
+        } else {
+          final resDriverId = await SupabaseConfig.client
+              .from(ApiConstants.busesTable)
+              .select('*')
+              .eq('driver_id', currentDriverId)
+              .limit(1);
+          if (resDriverId.isNotEmpty) busData = resDriverId.first;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching busData: $e');
+      }
 
       if (busData == null) {
         // No bus assigned to this driver
@@ -116,8 +164,8 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       final allRoutes = await DriverDataManager().getRoutes();
       final allStations = await DriverDataManager().getStations();
 
-      final int? oldRouteId = busData['route_id'] as int?;
-      final int? lineNumber = int.tryParse(busData['route_name']?.toString() ?? '');
+      final int? oldRouteId = busData!['route_id'] as int?;
+      final int? lineNumber = int.tryParse(busData!['route_name']?.toString() ?? '');
       debugPrint('🚌 Bus route_id: $oldRouteId, route_name (lineNumber): $lineNumber');
       debugPrint('📋 Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}');
 
@@ -141,41 +189,47 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         final rZone = matchedRoute!.zone.toLowerCase().replaceAll(' ', '');
         _routeStations = allStations
             .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
-            .toList();
+            .toList()
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
       } else {
         _routeStations = [];
       }
 
       try {
+        final targetDriverId = driverDbData?['id'] ?? currentDriverId;
         await SupabaseConfig.client
             .from('drivers')
-            .update({'bus_id': busData['id']})
-            .eq('id', currentDriverId);
+            .update({'bus_id': busData!['id']})
+            .eq('id', targetDriverId);
       } catch (_) {}
 
-      await prefs.setString('busId', busData['id'].toString());
-      if (routeAssigned) await prefs.setInt('routeId', matchedRoute.id);
-      await prefs.setString('busNumber', busData['bus_number']?.toString() ?? '---');
+      await prefs.setString('busId', busData!['id'].toString());
+      if (routeAssigned && matchedRoute != null) await prefs.setInt('routeId', matchedRoute.id);
+      await prefs.setString('busNumber', busData!['bus_number']?.toString() ?? '---');
       if (routeAssigned) {
         final double price = matchedRoute.price > 0 ? matchedRoute.price : 30.0;
         await prefs.setDouble('ticketPrice', price);
       }
 
-      // Check active trip
-      final activeTrip = await SupabaseConfig.client
-          .from('trips')
-          .select('id')
-          .eq('bus_id', busData['id'])
-          .isFilter('ended_at', null)
-          .maybeSingle();
+      // Check active trip (column is end_time, not ended_at)
+      bool hasActiveTrip = false;
+      try {
+        final activeTripRes = await SupabaseConfig.client
+            .from('trips')
+            .select('id')
+            .eq('bus_id', busData!['id'])
+            .isFilter('end_time', null)
+            .limit(1);
+        hasActiveTrip = activeTripRes.isNotEmpty;
+      } catch (_) {}
 
-      await prefs.setBool('isTripActive', activeTrip != null);
+      await prefs.setBool('isTripActive', hasActiveTrip);
 
       if (mounted) {
         setState(() {
           _driverName = driverName;
-          _busNumber = busData['bus_number']?.toString() ?? '---';
-          _plateNumber = busData['plate_number']?.toString() ?? '---';
+          _busNumber = busData!['bus_number']?.toString() ?? '---';
+          _plateNumber = busData!['plate_number']?.toString() ?? '---';
           _routeName = routeAssigned ? matchedRoute!.name : 'No Route Assigned';
           _stationsCount = _routeStations.length;
           _isBusAssigned = true;

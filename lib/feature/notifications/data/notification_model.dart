@@ -53,7 +53,7 @@ class NotificationModel {
     return NotificationModel(
       id: json['id']?.toString() ?? '',
       title: json['title'] ?? '',
-      body: json['body'] ?? '',
+      body: json['message'] ?? json['body'] ?? '',
       type: json['type'] ?? 'general',
       isRead: json['is_read'] ?? json['isRead'] ?? false,
       createdAt: parsedDate,

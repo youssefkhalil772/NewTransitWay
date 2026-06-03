@@ -2,12 +2,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 void main() async {
-  final url = Uri.parse('https://jajoznoeoewigkpbuzzx.supabase.co/rest/v1/?apikey=sb_publishable_zNYeNGu6L5zd2pi_Eigl4g_LyCdk2uE');
+  final url = Uri.parse('https://vrgcsoeepbwnedzjwiqb.supabase.co/rest/v1/?apikey=sb_publishable_JrtzuMXTW2IODfSWrcnasA_Ogpk09U6');
   
   try {
     final response = await http.get(url, headers: {
-      'apikey': 'sb_publishable_zNYeNGu6L5zd2pi_Eigl4g_LyCdk2uE',
-      'Authorization': 'Bearer sb_publishable_zNYeNGu6L5zd2pi_Eigl4g_LyCdk2uE',
+      'apikey': 'sb_publishable_JrtzuMXTW2IODfSWrcnasA_Ogpk09U6',
+      'Authorization': 'Bearer sb_publishable_JrtzuMXTW2IODfSWrcnasA_Ogpk09U6',
     });
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);

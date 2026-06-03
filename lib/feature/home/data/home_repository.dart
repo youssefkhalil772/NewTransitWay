@@ -31,12 +31,12 @@ class HomeRepository {
 
   Future<List<RouteModel>> getRoutes() async {
     try {
-      final response = await SupabaseConfig.client.from('lines').select('*, zones(name)');
+      final response = await SupabaseConfig.client.from('routes').select('*');
       return (response as List).map((json) {
         return RouteModel.fromJson({
           'id': int.tryParse(json['line_number']?.toString() ?? '') ?? 0,
-          'name': json['start_point']?.toString() ?? json['line_number'].toString(),
-          'zone': json['zones'] != null ? json['zones']['name'] : 'Unknown',
+          'name': json['name']?.toString() ?? json['start_point']?.toString() ?? json['line_number'].toString(),
+          'zone': json['end_point']?.toString() ?? 'Unknown',
           'price': double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
         });
       }).toList();

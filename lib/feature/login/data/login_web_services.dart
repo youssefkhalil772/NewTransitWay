@@ -24,6 +24,17 @@ class LoginWebServices {
           .eq('email', email)
           .maybeSingle();
 
+      // Check if user is banned
+      if (userData != null) {
+        final isBanned = userData['is_banned'] == true || 
+                         userData['status'] == 'banned' || 
+                         userData['status'] == 'blocked';
+        if (isBanned) {
+          await _client.auth.signOut();
+          throw "Your account has been banned by the admin.";
+        }
+      }
+
       return {
         'token': response.session?.accessToken ?? '',
         'userId': userData?['id'] ?? response.user!.id,
@@ -63,11 +74,21 @@ class LoginWebServices {
           .eq('email', email)
           .maybeSingle();
 
+      // Check if user is banned
+      if (userData != null) {
+        final isBanned = userData['is_banned'] == true || 
+                         userData['status'] == 'banned' || 
+                         userData['status'] == 'blocked';
+        if (isBanned) {
+          await _client.auth.signOut();
+          throw "Your account has been banned by the admin.";
+        }
+      }
+
       userData ??= await _client.from(ApiConstants.usersTable).insert({
           'id': response.user!.id,
           'email': email,
           'full_name': response.user!.userMetadata?['full_name'] ?? '',
-          'photo': response.user!.userMetadata?['avatar_url'] ?? '',
         }).select().single();
 
       return {

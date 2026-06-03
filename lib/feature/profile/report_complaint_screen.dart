@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
-import 'package:transite_way/core/utils/error_handlers.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -98,9 +98,15 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Get saved user info from SharedPreferences
+      // Get saved user info
       final prefs       = await SharedPreferences.getInstance();
-      final userId      = prefs.getString('userId');
+      final currentAuthUser = SupabaseConfig.client.auth.currentUser;
+      
+      if (currentAuthUser == null) {
+        throw "Your session has expired. Please sign out and log in again.";
+      }
+      
+      final userId      = currentAuthUser.id;
       final reporterName = prefs.getString('fullName') ?? '';
 
       // Upload image (Mandatory)
@@ -109,7 +115,6 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
       final mimeType = (ext == 'jpg' || ext == 'jpeg') ? 'image/jpeg' : 'image/$ext';
       
       final ts    = DateTime.now().millisecondsSinceEpoch;
-      // Match the working naming convention: original_TIMESTAMP_FILENAME
       final fileName = 'original_${ts}_${_imageFile!.path.split('\\').last.split('/').last}';
       final path  = fileName;
 
@@ -124,15 +129,46 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
       
       debugPrint("📸 Complaint Image Uploaded: $imageUrl");
 
+      // ── Call AI Backend ───────────────────────────────────────────────────
+      String? processedImage;
+      List<dynamic> aiPredictions = [];
+      bool problemDetected = false;
+
+      try {
+        final aiResponse = await HttpClient().postUrl(Uri.parse('http://54.91.157.86:8000/predict'))
+            .then((request) {
+              request.headers.contentType = ContentType.json;
+              request.write('{"image_url": "$imageUrl", "description": "${_descController.text.trim()}"}');
+              return request.close();
+            })
+            .timeout(const Duration(seconds: 30));
+
+        if (aiResponse.statusCode == 200) {
+          final responseBody = await aiResponse.transform(utf8.decoder).join();
+          final data = json.decode(responseBody);
+          processedImage = data['output_image'];
+          aiPredictions = data['predictions'] ?? [];
+          problemDetected = aiPredictions.isNotEmpty;
+          debugPrint("🤖 AI Analysis Complete: $data");
+        } else {
+          debugPrint("🤖 AI Error: Status ${aiResponse.statusCode}");
+        }
+      } catch (e) {
+        debugPrint("🤖 AI Request Failed: $e");
+      }
+
       // Insert into 'complaints' table
       await SupabaseConfig.client.from('complaints').insert({
         'user_id':          userId,
-        'problem_detected': true, 
-        'text_complaint':   _descController.text.trim(),
+        'subject':          'Bus Complaint (AI Processed)',
+        'description':      _descController.text.trim(),
+        'problem_detected': problemDetected, 
         'reporter_name':    reporterName.isNotEmpty ? reporterName : null,
         'reporter_role':    'Passenger',
         'status':           'Pending',
         'original_image':   imageUrl,
+        'processed_image':  processedImage,
+        'ai_predictions':   aiPredictions,
         'created_at':       DateTime.now().toIso8601String(),
       });
 
@@ -143,7 +179,7 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _errorMsg = ErrorHandlers.getErrorMessage(e);
+          _errorMsg = e.toString();
         });
       }
     }

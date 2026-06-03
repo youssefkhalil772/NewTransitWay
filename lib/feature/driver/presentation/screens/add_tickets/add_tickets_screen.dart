@@ -129,19 +129,30 @@ class _AddTicketsScreenState extends State<AddTicketsScreen> {
       return tB.compareTo(tA);
     });
 
-    return sortedTickets.map((t) {
+    final enriched = await Future.wait(sortedTickets.map((t) async {
       final ticket = Map<String, dynamic>.from(t);
-      final routeId = ticket['route_id'] as int?;
+      final routeIdVal = ticket['route_id']?.toString();
       
-      RouteModel? matchedRoute;
-      if (routeId != null) {
-        try { matchedRoute = routes.firstWhere((r) => r.id == routeId); } catch (_) {}
+      String routeName = 'Unknown Route';
+      if (routeIdVal != null) {
+        routeName = await DriverDataManager().getRouteNameByUuid(routeIdVal) ?? 'Unknown Route';
       }
       
-      ticket['routes'] = matchedRoute != null ? {'name': matchedRoute.name, 'price': matchedRoute.price} : null;
-      ticket['buses'] = {'bus_number': _busNumber}; // Bus is constant for this stream!
+      ticket['routes'] = {'name': routeName, 'price': ticket['price'] ?? 0.0};
+          
+      final busIdVal = ticket['bus_id']?.toString();
+      String busNumber = _busNumber ?? '---';
+      if ((busNumber == '---' || busNumber.isEmpty) && busIdVal != null) {
+        final busData = await DriverDataManager().getBusById(busIdVal);
+        if (busData != null) {
+          busNumber = busData['bus_number']?.toString() ?? '---';
+        }
+      }
+          
+      ticket['buses'] = {'bus_number': busNumber};
       return ticket;
-    }).toList();
+    }));
+    return enriched;
   }
 
   Future<void> _manualRefresh() async {
@@ -429,7 +440,7 @@ class _IssueTicketsSheetState extends State<_IssueTicketsSheet> {
     setState(() => _isLoading = true);
     try {
       final response = await Supabase.instance.client.functions.invoke(
-        'Manual-Tickets',
+        'add-manual-tickets',
         body: {'driverId': driverId, 'numberOfTickets': count},
       );
       final data = response.data;
