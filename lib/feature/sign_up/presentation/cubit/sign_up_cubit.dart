@@ -17,12 +17,14 @@ class SignUpCubit extends Cubit<SignUpState> {
       if (response.containsKey('userId') || response.containsKey('token')) {
         emit(SignUpSuccess());
       } else {
-         emit(SignUpFailure(errorMessage: "Registration failed without details"));
+        emit(
+          SignUpFailure(errorMessage: "Registration failed without details"),
+        );
       }
     } catch (e) {
       String errorMessage = e.toString();
-      if (errorMessage.toLowerCase().contains('email') || 
-          errorMessage.toLowerCase().contains('phone') || 
+      if (errorMessage.toLowerCase().contains('email') ||
+          errorMessage.toLowerCase().contains('phone') ||
           errorMessage.toLowerCase().contains('exist') ||
           errorMessage.toLowerCase().contains('registered')) {
         emit(SignUpEmailOrPhoneExists(message: errorMessage));

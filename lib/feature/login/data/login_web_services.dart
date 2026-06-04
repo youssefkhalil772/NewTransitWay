@@ -17,18 +17,17 @@ class LoginWebServices {
         throw "Login failed. Please check your credentials.";
       }
 
-      // Fetch user profile data from users table
       final userData = await _client
           .from(ApiConstants.usersTable)
           .select()
           .eq('email', email)
           .maybeSingle();
 
-      // Check if user is banned
       if (userData != null) {
-        final isBanned = userData['is_banned'] == true || 
-                         userData['status']?.toString().toLowerCase() == 'banned' || 
-                         userData['status']?.toString().toLowerCase() == 'blocked';
+        final isBanned =
+            userData['is_banned'] == true ||
+            userData['status']?.toString().toLowerCase() == 'banned' ||
+            userData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw "Your account has been banned by the admin.";
@@ -40,7 +39,11 @@ class LoginWebServices {
         'userId': userData?['id'] ?? response.user!.id,
         'fullName': userData?['fullName'] ?? userData?['full_name'] ?? '',
         'email': email,
-        'phone': userData?['phone_number'] ?? userData?['phone'] ?? userData?['phoneNumber'] ?? '',
+        'phone':
+            userData?['phone_number'] ??
+            userData?['phone'] ??
+            userData?['phoneNumber'] ??
+            '',
         'photo': userData?['photo'] ?? '',
         'userPoints': userData?['balance'] ?? userData?['points'] ?? 0,
         ...?userData,
@@ -66,7 +69,6 @@ class LoginWebServices {
         throw "Google authentication failed";
       }
 
-      // Fetch or create user profile
       final email = response.user!.email ?? '';
       var userData = await _client
           .from(ApiConstants.usersTable)
@@ -74,22 +76,26 @@ class LoginWebServices {
           .eq('email', email)
           .maybeSingle();
 
-      // Check if user is banned
       if (userData != null) {
-        final isBanned = userData['is_banned'] == true || 
-                         userData['status']?.toString().toLowerCase() == 'banned' || 
-                         userData['status']?.toString().toLowerCase() == 'blocked';
+        final isBanned =
+            userData['is_banned'] == true ||
+            userData['status']?.toString().toLowerCase() == 'banned' ||
+            userData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw "Your account has been banned by the admin.";
         }
       }
 
-      userData ??= await _client.from(ApiConstants.usersTable).insert({
-          'id': response.user!.id,
-          'email': email,
-          'full_name': response.user!.userMetadata?['full_name'] ?? '',
-        }).select().single();
+      userData ??= await _client
+          .from(ApiConstants.usersTable)
+          .insert({
+            'id': response.user!.id,
+            'email': email,
+            'full_name': response.user!.userMetadata?['full_name'] ?? '',
+          })
+          .select()
+          .single();
 
       return {
         'token': response.session?.accessToken ?? '',

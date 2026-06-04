@@ -23,26 +23,30 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    
+
     _controller = AnimationController(
-      vsync: this, 
-      duration: const Duration(milliseconds: 1200)
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
     );
-    
-    _fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn)
-    );
-    
-    _scale = Tween<double>(begin: 0.75, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut)
-    );
+
+    _fade = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+
+    _scale = Tween<double>(
+      begin: 0.75,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
     _controller.forward();
 
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
 
     _startAppFlow();
   }
@@ -65,7 +69,6 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
     if (userRole == 'driver' && driverId != null && driverId.isNotEmpty) {
       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.driverHome);
     } else if (userRole == 'passenger' && userId != null && userId.isNotEmpty) {
-      // Check if the user is banned before letting them in
       final isBanned = await InAppNotificationService().checkBanStatus();
       if (isBanned) return; // Ban dialog will handle the rest
       RoutesManager.navigateAndRemoveUntil(context, RoutesManager.mainWrapper);
@@ -85,10 +88,7 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
             scale: _scale,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                // Logo
-                Image.asset(ImageAssets.logo, height: 200.h),
-              ],
+              children: [Image.asset(ImageAssets.logo, height: 200.h)],
             ),
           ),
         ),

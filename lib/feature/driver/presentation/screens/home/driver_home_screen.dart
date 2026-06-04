@@ -45,7 +45,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Future<void> _onTabChanged(int index, {List<StationModel>? stations}) async {
-    // If navigating to Routes with stations (Start Trip pressed), go immediately
     if (stations != null && stations.isNotEmpty) {
       setState(() {
         _currentTripStations = stations;
@@ -55,7 +54,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       return;
     }
 
-    // For QR and Tickets tabs, check if trip is active
     if (index == 1 || index == 2) {
       final prefs = await SharedPreferences.getInstance();
       final isTripActive = prefs.getBool('isTripActive') ?? false;
@@ -81,7 +79,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // استخدمنا IndexedStack عشان يحافظ على حالة الصفحات في الذاكرة وميعدش بنائهم
     final List<Widget> pages = [
       HomeTabBody(
         onStartTrip: (stations) => _onTabChanged(3, stations: stations),
@@ -103,8 +100,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       appBar: _selectedIndex == 0
           ? null
           : CustomAppBar(isDriver: true, showPoints: false),
-      body: _isCheckingState 
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF39C449))) 
+      body: _isCheckingState
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF39C449)),
+            )
           : IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

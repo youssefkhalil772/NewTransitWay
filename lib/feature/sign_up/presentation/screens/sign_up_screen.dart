@@ -18,7 +18,8 @@ class SignUpPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => SignUpCubit(SignUpRepositoryImpl(SignUpWebServices())),
+      create: (context) =>
+          SignUpCubit(SignUpRepositoryImpl(SignUpWebServices())),
       child: const SignUpScreen(),
     );
   }
@@ -67,7 +68,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _hasMinLength = password.length >= 8;
       _hasLetterAndNumber =
           password.contains(RegExp(r'[a-z]')) &&
-              password.contains(RegExp(r'[0-9]'));
+          password.contains(RegExp(r'[0-9]'));
       _hasSpecialChar = password.contains(RegExp(r'[!@#\$%^&*]'));
     });
   }
@@ -89,7 +90,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.camera);
+                  final image = await picker.pickImage(
+                    source: ImageSource.camera,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -99,7 +102,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.gallery);
+                  final image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -113,9 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _cropImage(String filePath) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => _CropScreen(imagePath: filePath),
-      ),
+      MaterialPageRoute(builder: (_) => _CropScreen(imagePath: filePath)),
     );
     if (result != null && result is String) {
       setState(() => _selectedImage = File(result));
@@ -133,19 +136,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
             listener: (context, state) {
               if (state is SignUpSuccess) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Account created successfully! Please log in.')),
+                  const SnackBar(
+                    content: Text(
+                      'Account created successfully! Please log in.',
+                    ),
+                  ),
                 );
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
               } else if (state is SignUpFailure) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(state.errorMessage)),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(state.errorMessage)));
               } else if (state is SignUpEmailOrPhoneExists) {
                 _showEmailOrPhoneExistsDialog(state.message);
               }
             },
             builder: (context, state) {
-               if (state is SignUpLoading) {
+              if (state is SignUpLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
               return SingleChildScrollView(
@@ -207,20 +216,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onTap: _pickImage,
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Color(0xFF065F46), shape: BoxShape.circle),
-                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF065F46),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        const Text("Upload your photo", style: TextStyle(color: Colors.grey, fontSize: 12)),
+        const Text(
+          "Upload your photo",
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
       ],
     );
   }
 
- void _showEmailOrPhoneExistsDialog(String message) {
+  void _showEmailOrPhoneExistsDialog(String message) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -237,8 +256,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
             TextButton(
               child: const Text('Go to Sign In'),
               onPressed: () {
-                Navigator.of(context).pop(); 
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginScreen()));
+                Navigator.of(context).pop();
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
               },
             ),
           ],
@@ -265,7 +286,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Let’s Get Started',
+          'Letâ€™s Get Started',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -362,7 +383,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             if (value == null || value.isEmpty) {
               return 'Please enter your email';
             }
-            if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+            if (!RegExp(
+              r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+            ).hasMatch(value)) {
               return 'Please enter a valid email';
             }
             return null;
@@ -434,7 +457,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               return 'Please enter a password';
             }
             if (!_hasMinLength || !_hasLetterAndNumber || !_hasSpecialChar) {
-                return 'Password does not meet all conditions.';
+              return 'Password does not meet all conditions.';
             }
             return null;
           },
@@ -539,7 +562,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: ElevatedButton(
         onPressed: () {
           if (_formKey.currentState!.validate()) {
-            final fullName = '${_firstNameController.text} ${_lastNameController.text}';
+            final fullName =
+                '${_firstNameController.text} ${_lastNameController.text}';
             final requestBody = SignUpRequestBody(
               fullName: fullName,
               email: _emailController.text,
@@ -572,7 +596,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         GestureDetector(
           onTap: () {
-             Navigator.of(context).push(MaterialPageRoute(builder: (context) => const LoginScreen()));
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+            );
           },
           child: const Text(
             'Sign In',
@@ -604,7 +630,10 @@ class _CropScreenState extends State<_CropScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: const Color(0xFF065F46),
-        title: const Text('Crop Photo', style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text(
+          'Crop Photo',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -612,11 +641,15 @@ class _CropScreenState extends State<_CropScreen> {
             onPressed: () async {
               try {
                 final bitmap = await _controller.crop();
-                
+
                 final dir = await getTemporaryDirectory();
-                final file = File('${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                final data = await bitmap.toByteData(format: ui.ImageByteFormat.png);
-                
+                final file = File(
+                  '${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                );
+                final data = await bitmap.toByteData(
+                  format: ui.ImageByteFormat.png,
+                );
+
                 if (data != null) {
                   await file.writeAsBytes(data.buffer.asUint8List());
                   if (context.mounted) {
@@ -627,7 +660,13 @@ class _CropScreenState extends State<_CropScreen> {
                 debugPrint("Crop Error: $e");
               }
             },
-            child: const Text('DONE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'DONE',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),

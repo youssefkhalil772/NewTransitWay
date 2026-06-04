@@ -3,7 +3,8 @@ import 'package:latlong2/latlong.dart';
 class StationModel {
   final String id;
   final String name;
-  final String zone; // استخدمنا الزون بدلاً من الـ routeId
+  final String
+  zone; // Ø§Ø³ØªØ®Ø¯Ù…Ù†Ø§ Ø§Ù„Ø²ÙˆÙ† Ø¨Ø¯Ù„Ø§Ù‹ Ù…Ù† Ø§Ù„Ù€ routeId
   final String latLong;
   final LatLng position;
   final int orderIndex;
@@ -20,25 +21,37 @@ class StationModel {
   factory StationModel.fromJson(Map<String, dynamic> json) {
     double lat = 0.0;
     double lng = 0.0;
-    
+
     if (json['latitude'] != null && json['longitude'] != null) {
-      lat = (json['latitude'] is num) ? json['latitude'].toDouble() : double.tryParse(json['latitude'].toString()) ?? 0.0;
-      lng = (json['longitude'] is num) ? json['longitude'].toDouble() : double.tryParse(json['longitude'].toString()) ?? 0.0;
+      lat = (json['latitude'] is num)
+          ? json['latitude'].toDouble()
+          : double.tryParse(json['latitude'].toString()) ?? 0.0;
+      lng = (json['longitude'] is num)
+          ? json['longitude'].toDouble()
+          : double.tryParse(json['longitude'].toString()) ?? 0.0;
     } else {
-      String latLongStr = json['latLong']?.toString() ?? json['lat_long']?.toString() ?? "0.0,0.0";
-      var parts = latLongStr.contains('&') ? latLongStr.split('&') : latLongStr.split(',');
+      String latLongStr =
+          json['latLong']?.toString() ??
+          json['lat_long']?.toString() ??
+          "0.0,0.0";
+      var parts = latLongStr.contains('&')
+          ? latLongStr.split('&')
+          : latLongStr.split(',');
       if (parts.length >= 2) {
         lat = double.tryParse(parts[0].trim()) ?? 0.0;
         lng = double.tryParse(parts[1].trim()) ?? 0.0;
       }
     }
-    
+
     LatLng pos = LatLng(lat, lng);
     return StationModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Unknown Station',
       zone: json['zone']?.toString() ?? "Unknown",
-      latLong: json['latLong']?.toString() ?? json['lat_long']?.toString() ?? "$lat&$lng",
+      latLong:
+          json['latLong']?.toString() ??
+          json['lat_long']?.toString() ??
+          "$lat&$lng",
       position: pos,
       orderIndex: json['order_index'] is int
           ? json['order_index']

@@ -34,7 +34,6 @@ class PointsScreen extends StatelessWidget {
         children: [
           SizedBox(height: 20.h),
 
-          // ── Step Indicator ──────────────────────────────────────
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 100.w),
             child: Row(
@@ -50,7 +49,6 @@ class PointsScreen extends StatelessWidget {
 
           SizedBox(height: 32.h),
 
-          // ── Image Container ─────────────────────────────────────
           Expanded(
             child: Container(
               margin: EdgeInsets.symmetric(horizontal: 24.w),
@@ -62,10 +60,6 @@ class PointsScreen extends StatelessWidget {
                   ImageAssets.PaymentSuccess,
                   height: 332.h,
                   width: 375.w,
-                  // fit: BoxFit.contain, // Changed from BoxFit.none to contain
-                  // errorBuilder: (context, error, stackTrace) {
-                  //   return const _PlaceholderIllustration();
-                  // },
                 ),
               ),
             ),
@@ -86,33 +80,28 @@ class PointsScreen extends StatelessWidget {
 
           Text(
             'Added $pointsAdded Point${pointsAdded > 1 ? 's' : ''} To Your Balance',
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade500),
           ),
 
           SizedBox(height: 28.h),
 
-          // ── Back To Home Button ─────────────────────────────────
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 24.w),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // Use RoutesManager if available, otherwise direct navigation
                   try {
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       RoutesManager.mainWrapper,
-                          (route) => false,
+                      (route) => false,
                     );
                   } catch (e) {
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       '/home',
-                          (route) => false,
+                      (route) => false,
                     );
                   }
                 },
@@ -140,14 +129,10 @@ class PointsScreen extends StatelessWidget {
           SizedBox(height: 16.h),
         ],
       ),
-
-      // ── Bottom Nav ──────────────────────────────────────────────
-      // bottomNavigationBar: _BottomNav(currentIndex: 3),
     );
   }
 }
 
-// ── Step Circle ───────────────────────────────────────────────────
 class _StepCircle extends StatelessWidget {
   final int number;
   final bool isActive;
@@ -176,20 +161,15 @@ class _StepCircle extends StatelessWidget {
   }
 }
 
-// ── Step Line ─────────────────────────────────────────────────────
 class _StepLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        height: 2.h,
-        color: darkGreen,
-      ),
+      child: Container(height: 2.h, color: darkGreen),
     );
   }
 }
 
-// ── Placeholder if image not found ───────────────────────────────
 class _PlaceholderIllustration extends StatelessWidget {
   const _PlaceholderIllustration();
 
@@ -208,87 +188,3 @@ class _PlaceholderIllustration extends StatelessWidget {
     );
   }
 }
-
-// ── Bottom Navigation ─────────────────────────────────────────────
-// class _BottomNav extends StatelessWidget {
-//   final int currentIndex;
-//   const _BottomNav({required this.currentIndex});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final items = [
-//       {'icon': Icons.home_outlined, 'label': 'Home', 'route': RoutesManager.mainWrapper},
-//       {'icon': Icons.confirmation_number_outlined, 'label': 'Tickets', 'route': RoutesManager.tickets},
-//       {'icon': Icons.qr_code_scanner, 'label': 'Scan QR', 'route': RoutesManager.qrScanner},
-//       {'icon': Icons.person_outline, 'label': 'Profile', 'route': RoutesManager.profile},
-//     ];
-//
-//     return Container(
-//       decoration: BoxDecoration(
-//         color: white,
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black12,
-//             blurRadius: 8,
-//             offset: const Offset(0, -2),
-//           ),
-//         ],
-//       ),
-//       padding: EdgeInsets.symmetric(vertical: 10.h),
-//       child: Row(
-//         mainAxisAlignment: MainAxisAlignment.spaceAround,
-//         children: List.generate(items.length, (index) {
-//           final isSelected = index == currentIndex;
-//           return GestureDetector(
-//             onTap: () {
-//               if (!isSelected) {
-//                 final route = items[index]['route'] as String;
-//                 // Navigate using RoutesManager or direct
-//                 try {
-//                   Navigator.pushNamed(context, route);
-//                 } catch (e) {
-//                   // Fallback navigation
-//                   if (route == RoutesManager.mainWrapper) {
-//                     Navigator.pushNamedAndRemoveUntil(
-//                         context,
-//                         route,
-//                             (route) => false
-//                     );
-//                   } else {
-//                     Navigator.pushNamed(context, route);
-//                   }
-//                 }
-//               }
-//             },
-//             child: Column(
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 Icon(
-//                   items[index]['icon'] as IconData,
-//                   color: isSelected ? darkGreen : Colors.grey,
-//                   size: 24.sp,
-//                 ),
-//                 SizedBox(height: 4.h),
-//                 Text(
-//                   items[index]['label'] as String,
-//                   style: TextStyle(
-//                     fontSize: 11.sp,
-//                     color: isSelected ? darkGreen : Colors.grey,
-//                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-//                   ),
-//                 ),
-//                 if (isSelected) ...[
-//                   SizedBox(height: 4.h),
-//                   Container(
-//                     width: 20.w,
-//                     height: 2.h,
-//                     color: darkGreen,
-//                   ),
-//                 ],
-//               ],
-//             ),
-//           );
-//         }),
-//       ),
-//     );
-//   }

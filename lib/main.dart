@@ -4,6 +4,7 @@ import 'package:overlay_support/overlay_support.dart';
 import 'package:transite_way/config/theme/theme_manager.dart';
 import 'package:transite_way/core/routes/routes_manager.dart';
 import 'package:transite_way/core/networking/supabase_init.dart';
+import 'package:transite_way/feature/home/data/user_data_manager.dart';
 import 'package:transite_way/feature/notifications/data/notification_service.dart';
 import 'package:transite_way/core/networking/connectivity_service.dart';
 
@@ -13,10 +14,12 @@ final RouteObserver<ModalRoute<void>> routeObserver =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase
   await SupabaseConfig.initialize();
   await ConnectivityService().initialize();
-  InAppNotificationService().startMonitoring();
+
+  InAppNotificationService()
+      .startMonitoring(); // notifications + user ban/profile
+  UserDataManager().startRealtime(); // stations + routes + buses
 
   runApp(const TransitWay());
 }

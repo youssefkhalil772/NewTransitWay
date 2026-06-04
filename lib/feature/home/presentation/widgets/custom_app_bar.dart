@@ -39,17 +39,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onBackPressed ?? () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back, color: Colors.black),
             ),
-          
+
           Flexible(
             child: isDriver ? _buildDriverLogo() : _buildPassengerLogo(),
           ),
-          
+
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildConnectivityIndicator(),
-              if (showPoints && !isDriver) 
-                const CustomPointsBadge(),
+              if (showPoints && !isDriver) const CustomPointsBadge(),
             ],
           ),
         ],
@@ -64,14 +63,22 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       children: [
         Flexible(
           child: Text(
-            "Transit", 
-            style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.black),
+            "Transit",
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         Text(
-          "Way", 
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: darkGreen),
+          "Way",
+          style: TextStyle(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+            color: darkGreen,
+          ),
         ),
         Icon(Icons.location_on, color: darkGreen, size: 18.sp),
       ],
@@ -87,21 +94,38 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("Transit", style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: Colors.black)),
-            Text("Way", style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold, color: lightGreen)),
+            Text(
+              "Transit",
+              style: TextStyle(
+                fontSize: 28.sp,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            Text(
+              "Way",
+              style: TextStyle(
+                fontSize: 28.sp,
+                fontWeight: FontWeight.bold,
+                color: lightGreen,
+              ),
+            ),
             SizedBox(width: 4.w),
             Icon(Icons.location_on, color: lightGreen, size: 20.sp),
           ],
         ),
         Padding(
-          padding: EdgeInsets.only(left: 45.w), // تحريك كلمة Driver لتكون تحت Way تقريباً
+          padding: EdgeInsets.only(
+            left: 45.w,
+          ), // ØªØ­Ø±ÙŠÙƒ ÙƒÙ„Ù…Ø© Driver Ù„ØªÙƒÙˆÙ† ØªØ­Øª Way ØªÙ‚Ø±ÙŠØ¨Ø§Ù‹
           child: Text(
             "Driver",
             style: TextStyle(
-              fontSize: 18.sp, 
-              fontWeight: FontWeight.bold, 
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
               color: Colors.black,
-              height: 0.8, // تقليل المسافة الرأسية بين السطرين
+              height:
+                  0.8, // ØªÙ‚Ù„ÙŠÙ„ Ø§Ù„Ù…Ø³Ø§ÙØ© Ø§Ù„Ø±Ø£Ø³ÙŠØ© Ø¨ÙŠÙ† Ø§Ù„Ø³Ø·Ø±ÙŠÙ†
             ),
           ),
         ),
@@ -115,21 +139,23 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       initialData: ConnectivityService().isOnline,
       builder: (context, snapshot) {
         final bool isOnline = snapshot.data ?? true;
-        
+
         return Container(
           margin: EdgeInsets.symmetric(horizontal: 4.w),
           padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
           decoration: BoxDecoration(
-            color: isOnline ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+            color: isOnline
+                ? Colors.green.withOpacity(0.1)
+                : Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(6.r),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isOnline ? Icons.check_circle_outline : Icons.wifi_off_rounded, 
-                color: isOnline ? Colors.green : Colors.red, 
-                size: 12.sp
+                isOnline ? Icons.check_circle_outline : Icons.wifi_off_rounded,
+                color: isOnline ? Colors.green : Colors.red,
+                size: 12.sp,
               ),
               SizedBox(width: 3.w),
               Text(

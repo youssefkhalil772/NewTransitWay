@@ -30,10 +30,16 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   void _startTimer() {
-    setState(() { _secondsRemaining = 60; _canResend = false; });
+    setState(() {
+      _secondsRemaining = 60;
+      _canResend = false;
+    });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining == 0) {
-        setState(() { _timer?.cancel(); _canResend = true; });
+        setState(() {
+          _timer?.cancel();
+          _canResend = true;
+        });
       } else {
         setState(() => _secondsRemaining--);
       }
@@ -47,7 +53,9 @@ class _OtpScreenState extends State<OtpScreen> {
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
         margin: EdgeInsets.all(20.w),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
       ),
     );
   }
@@ -56,11 +64,20 @@ class _OtpScreenState extends State<OtpScreen> {
     String fullCode = _controllers.map((e) => e.text).join();
     if (fullCode.length == 6) {
       setState(() => _isLoading = true);
-      bool isValid = await ForgetPasswordWebServices().verifyOtp(email: widget.email, otp: fullCode);
+      bool isValid = await ForgetPasswordWebServices().verifyOtp(
+        email: widget.email,
+        otp: fullCode,
+      );
       setState(() => _isLoading = false);
       if (isValid) {
         if (!mounted) return;
-        Navigator.push(context, MaterialPageRoute(builder: (_) => ChangePasswordScreen(email: widget.email, code: fullCode)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                ChangePasswordScreen(email: widget.email, code: fullCode),
+          ),
+        );
       } else {
         _showCustomError("The code is incorrect. Please try again.");
       }
@@ -85,16 +102,26 @@ class _OtpScreenState extends State<OtpScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(leading: const BackButton(color: Colors.black), backgroundColor: Colors.transparent, elevation: 0),
+      appBar: AppBar(
+        leading: const BackButton(color: Colors.black),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 20.w),
-            Text("Enter the code", style: TextStyle(fontSize: 26.sp, fontWeight: FontWeight.bold)),
+            Text(
+              "Enter the code",
+              style: TextStyle(fontSize: 26.sp, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 10.w),
-            Text("An authentification code has been\nsent to your email", style: TextStyle(fontSize: 14.sp, color: Colors.grey)),
+            Text(
+              "An authentification code has been\nsent to your email",
+              style: TextStyle(fontSize: 14.sp, color: Colors.grey),
+            ),
             SizedBox(height: 40.w),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -104,24 +131,63 @@ class _OtpScreenState extends State<OtpScreen> {
             Center(
               child: Column(
                 children: [
-                  Text(_secondsRemaining > 0 ? "Resend in 00:${_secondsRemaining.toString().padLeft(2, '0')}" : "Didn't receive code?", style: TextStyle(color: Colors.grey)),
+                  Text(
+                    _secondsRemaining > 0
+                        ? "Resend in 00:${_secondsRemaining.toString().padLeft(2, '0')}"
+                        : "Didn't receive code?",
+                    style: TextStyle(color: Colors.grey),
+                  ),
                   TextButton(
-                    onPressed: _canResend ? () async {
-                      _startTimer();
-                      await ForgetPasswordWebServices().requestReset(widget.email);
-                    } : null,
-                    child: Text("Resend Code", style: TextStyle(color: _canResend ? const Color(0XFF054F3A) : Colors.grey, fontWeight: FontWeight.bold)),
+                    onPressed: _canResend
+                        ? () async {
+                            _startTimer();
+                            await ForgetPasswordWebServices().requestReset(
+                              widget.email,
+                            );
+                          }
+                        : null,
+                    child: Text(
+                      "Resend Code",
+                      style: TextStyle(
+                        color: _canResend
+                            ? const Color(0XFF054F3A)
+                            : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
             const Spacer(),
             SizedBox(
-              width: double.infinity, height: 55.w,
+              width: double.infinity,
+              height: 55.w,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0XFF054F3A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.w))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0XFF054F3A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.w),
+                  ),
+                ),
                 onPressed: _isLoading ? null : _handleVerify,
-                child: _isLoading ? SizedBox(width: 25.w, height: 25.w, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text("Verify", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold)),
+                child: _isLoading
+                    ? SizedBox(
+                        width: 25.w,
+                        height: 25.w,
+                        child: const CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "Verify",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             SizedBox(height: 30.w),
@@ -133,26 +199,48 @@ class _OtpScreenState extends State<OtpScreen> {
 
   Widget _otpBox(int index) {
     return SizedBox(
-      width: 45.w, height: 55.w,
+      width: 45.w,
+      height: 55.w,
       child: KeyboardListener(
         focusNode: FocusNode(skipTraversal: true),
         onKeyEvent: (event) {
-          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
-            if (_controllers[index].text.isEmpty && index > 0) _focusNodes[index - 1].requestFocus();
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            if (_controllers[index].text.isEmpty && index > 0)
+              _focusNodes[index - 1].requestFocus();
           }
         },
         child: TextField(
           controller: _controllers[index],
           focusNode: _focusNodes[index],
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: const Color(0XFF054F3A)),
+          style: TextStyle(
+            fontSize: 20.sp,
+            fontWeight: FontWeight.bold,
+            color: const Color(0XFF054F3A),
+          ),
           keyboardType: TextInputType.number,
-          inputFormatters: [LengthLimitingTextInputFormatter(1), FilteringTextInputFormatter.digitsOnly],
-          onChanged: (v) { if (v.isNotEmpty && index < 5) _focusNodes[index + 1].requestFocus(); },
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(1),
+            FilteringTextInputFormatter.digitsOnly,
+          ],
+          onChanged: (v) {
+            if (v.isNotEmpty && index < 5)
+              _focusNodes[index + 1].requestFocus();
+          },
           decoration: InputDecoration(
             contentPadding: EdgeInsets.zero,
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.w), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.w), borderSide: const BorderSide(color: Color(0XFF054F3A), width: 1.5)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.w),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.w),
+              borderSide: const BorderSide(
+                color: Color(0XFF054F3A),
+                width: 1.5,
+              ),
+            ),
           ),
         ),
       ),

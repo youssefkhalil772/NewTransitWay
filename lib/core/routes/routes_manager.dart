@@ -50,9 +50,9 @@ abstract class RoutesManager {
     onboardingScreen: (context) => const OnboardingScreen(),
     login: (context) => const LoginScreen(),
     loginDriver: (context) => BlocProvider(
-          create: (context) => DriverLoginCubit(DriverAuthServices()),
-          child: const DriverLoginScreen(),
-        ),
+      create: (context) => DriverLoginCubit(DriverAuthServices()),
+      child: const DriverLoginScreen(),
+    ),
     driverSplash: (context) => const DriverSplash(),
     forgetPassword: (context) => const PasswordRecoveryScreen(),
     mainWrapper: (context) => const MainWrapper(),
@@ -62,7 +62,8 @@ abstract class RoutesManager {
     tickets: (context) => const MyTicketsScreen(),
     profile: (context) => const ProfileScreen(),
     editUserProfile: (context) {
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+      final args =
+          ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
       return UserEditProfileScreen(
         currentName: args['name'],
         currentPhone: args['phone'],
@@ -78,25 +79,27 @@ abstract class RoutesManager {
     if (settings.name == notificationDetails) {
       final notification = settings.arguments as NotificationModel;
       return MaterialPageRoute(
-        builder: (context) => NotificationDetailsScreen(notification: notification),
+        builder: (context) =>
+            NotificationDetailsScreen(notification: notification),
       );
     }
 
     final WidgetBuilder? builder = routes[settings.name];
     if (builder != null) {
-      return MaterialPageRoute(
-        builder: builder,
-        settings: settings,
-      );
+      return MaterialPageRoute(builder: builder, settings: settings);
     }
     return null;
   }
-  
+
   static void navigateAndRemoveUntil(BuildContext context, String routeName) {
     Navigator.pushNamedAndRemoveUntil(context, routeName, (route) => false);
   }
 
-  static void navigateTo(BuildContext context, String routeName, {Object? arguments}) {
+  static void navigateTo(
+    BuildContext context,
+    String routeName, {
+    Object? arguments,
+  }) {
     Navigator.pushNamed(context, routeName, arguments: arguments);
   }
 }

@@ -12,22 +12,24 @@ class CustomPointsBadge extends StatefulWidget {
   static Future<void> fetchAndRefreshGlobalBalance() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // طباعة كل الداتا المتسيفة للتأكد
-      debugPrint("🔍 All Prefs Keys: ${prefs.getKeys()}");
 
-      final dynamic rawId = prefs.get('userId') ?? prefs.get('id') ?? prefs.get('driverId');
+      debugPrint("ðŸ” All Prefs Keys: ${prefs.getKeys()}");
+
+      final dynamic rawId =
+          prefs.get('userId') ?? prefs.get('id') ?? prefs.get('driverId');
       String? userId;
       if (rawId != null) {
         userId = rawId.toString();
       }
 
       if (userId == null || userId.isEmpty) {
-        debugPrint("⚠️ PointsBadge: No userId found in prefs. Found rawId: $rawId");
+        debugPrint(
+          "âš ï¸ PointsBadge: No userId found in prefs. Found rawId: $rawId",
+        );
         return;
       }
 
-      debugPrint("📡 Fetching balance for userId: $userId");
+      debugPrint("ðŸ“¡ Fetching balance for userId: $userId");
 
       final response = await SupabaseConfig.client
           .from(ApiConstants.usersTable)
@@ -35,16 +37,16 @@ class CustomPointsBadge extends StatefulWidget {
           .eq('id', userId)
           .maybeSingle();
 
-      debugPrint("📡 Balance Response: $response");
+      debugPrint("ðŸ“¡ Balance Response: $response");
 
       if (response != null) {
         int latest = (response['balance'] ?? response['points'] ?? 0).toInt();
         balanceNotifier.value = latest;
         await prefs.setInt('userPoints', latest);
-        debugPrint("✅ Balance Linked: $latest");
+        debugPrint("âœ… Balance Linked: $latest");
       }
     } catch (e) {
-      debugPrint("🛑 Points Link Error: $e");
+      debugPrint("ðŸ›‘ Points Link Error: $e");
     }
   }
 

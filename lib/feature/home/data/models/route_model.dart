@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 class RouteModel {
   final int id;
   final String name;
-  final String zone; // إضافة حقل الـ zone هنا
-  final double price; // السعر من الداتا بيز
+  final String zone; // Ø¥Ø¶Ø§ÙØ© Ø­Ù‚Ù„ Ø§Ù„Ù€ zone Ù‡Ù†Ø§
+  final double price; // Ø§Ù„Ø³Ø¹Ø± Ù…Ù† Ø§Ù„Ø¯Ø§ØªØ§ Ø¨ÙŠØ²
   final Color color;
 
   RouteModel({
@@ -16,13 +16,13 @@ class RouteModel {
   });
 
   static const List<Color> _routePalette = [
-    Color(0xFF1B4D3E), 
-    Color(0xFF0D47A1), 
-    Color(0xFFB71C1C), 
-    Color(0xFF4A148C), 
-    Color(0xFFE65100), 
-    Color(0xFF004D40), 
-    Color(0xFF3E2723), 
+    Color(0xFF1B4D3E),
+    Color(0xFF0D47A1),
+    Color(0xFFB71C1C),
+    Color(0xFF4A148C),
+    Color(0xFFE65100),
+    Color(0xFF004D40),
+    Color(0xFF3E2723),
   ];
 
   static Color getColorFromName(String text) {
@@ -40,7 +40,8 @@ class RouteModel {
 
   factory RouteModel.fromJson(Map<String, dynamic> json) {
     String routeName = json['name'] ?? "";
-    String routeZone = json['zone'] ?? ""; // استلام الزون من الـ API
+    String routeZone =
+        json['zone'] ?? ""; // Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø²ÙˆÙ† Ù…Ù† Ø§Ù„Ù€ API
     double routePrice = (json['price'] as num?)?.toDouble() ?? 0.0;
     return RouteModel(
       id: json['id'],

@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -28,7 +27,6 @@ class HomeTabBody extends StatefulWidget {
 class _HomeTabBodyState extends State<HomeTabBody> {
   final DriverAuthServices _driverService = DriverAuthServices();
   final TrackingService _trackingService = TrackingService();
-
 
   String _driverName = "Loading...";
   String _busNumber = "---";
@@ -66,24 +64,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentDriverId == null) return;
 
-    // Listen for driver changes (e.g. reassigned to new bus)
     _driverSubscription?.cancel();
     _driverSubscription = SupabaseConfig.client
         .from(ApiConstants.driversTable)
         .stream(primaryKey: ['id'])
         .eq('id', currentDriverId)
         .listen((data) {
-          if (data.isNotEmpty && !_isLoading) {
+          if (data.isNotEmpty && mounted && !_isLoading) {
             final driver = data.first;
-            final dBusId = driver['busId']?.toString();
-            
-            bool changed = false;
-            if (_lastDriverBusId != null && dBusId != _lastDriverBusId) changed = true;
-            
-            _lastDriverBusId = dBusId;
-            
-            if (changed) {
-              debugPrint("🔄 HomeTab: Driver Realtime update triggered");
+            final newBusId = driver['busId']?.toString();
+
+            if (newBusId != _lastDriverBusId) {
+              _lastDriverBusId = newBusId;
+              debugPrint('ðŸ”„ HomeTab: Driver row changed â†’ reloading');
               _loadAllData();
             }
           }
@@ -91,9 +84,8 @@ class _HomeTabBodyState extends State<HomeTabBody> {
 
     final prefs = await SharedPreferences.getInstance();
     final busId = prefs.getString('busId');
-    
+
     if (busId != null && busId.isNotEmpty) {
-      // Listen for changes to the currently assigned bus (e.g. route changed)
       _busSubscription?.cancel();
       _busSubscription = SupabaseConfig.client
           .from('buses')
@@ -104,22 +96,25 @@ class _HomeTabBodyState extends State<HomeTabBody> {
               final bus = data.first;
               final bRouteId = bus['route_id']?.toString();
               final bPlate = bus['plate_number']?.toString();
-              
+
               bool changed = false;
-              if (_lastBusRouteId != null && bRouteId != _lastBusRouteId) changed = true;
-              if (_lastBusPlate != null && bPlate != _lastBusPlate) changed = true;
-              
+              if (_lastBusRouteId != null && bRouteId != _lastBusRouteId)
+                changed = true;
+              if (_lastBusPlate != null && bPlate != _lastBusPlate)
+                changed = true;
+
               _lastBusRouteId = bRouteId;
               _lastBusPlate = bPlate;
-              
+
               if (changed) {
-                debugPrint("🔄 HomeTab: Bus Details Realtime update triggered");
+                debugPrint(
+                  "ðŸ”„ HomeTab: Bus Details Realtime update triggered",
+                );
                 _loadAllData();
               }
             }
           });
 
-      // Listen for trips on this bus
       _tripSubscription?.cancel();
       _tripSubscription = SupabaseConfig.client
           .from('trips')
@@ -127,11 +122,16 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           .eq('bus_id', busId)
           .listen((data) {
             if (data.isNotEmpty) {
-              final activeTrip = data.firstWhere((trip) => trip['end_time'] == null, orElse: () => <String, dynamic>{});
+              final activeTrip = data.firstWhere(
+                (trip) => trip['end_time'] == null,
+                orElse: () => <String, dynamic>{},
+              );
               final bool isActive = activeTrip.isNotEmpty;
-              
+
               if (mounted && _hasActiveTrip != isActive) {
-                debugPrint("🔄 HomeTab: Trip Realtime update triggered: $isActive");
+                debugPrint(
+                  "ðŸ”„ HomeTab: Trip Realtime update triggered: $isActive",
+                );
                 prefs.setBool('isTripActive', isActive);
                 setState(() {
                   _hasActiveTrip = isActive;
@@ -158,19 +158,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         return;
       }
 
-      // Always load driver name first regardless of bus assignment
       String driverName = 'Driver';
       try {
         final driverData = await _driverService.getDriverData(currentDriverId);
         driverName = driverData['full_name'] ?? driverData['name'] ?? 'Driver';
       } catch (e) {
-        // Fallback to cached name from SharedPreferences
         driverName = prefs.getString('driverName') ?? 'Driver';
-        debugPrint('⚠️ Could not load driver data from DB, using cached: $driverName');
+        debugPrint(
+          'âš ï¸ Could not load driver data from DB, using cached: $driverName',
+        );
       }
 
       final currentEmail = SupabaseConfig.client.auth.currentUser?.email;
-      
+
       Map<String, dynamic>? driverDbData;
       try {
         final resId = await SupabaseConfig.client
@@ -179,7 +179,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
             .eq('id', currentDriverId)
             .limit(1);
         if (resId.isNotEmpty) driverDbData = resId.first;
-            
+
         if (driverDbData == null && currentEmail != null) {
           final resEmail = await SupabaseConfig.client
               .from(ApiConstants.driversTable)
@@ -189,7 +189,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           if (resEmail.isNotEmpty) driverDbData = resEmail.first;
         }
       } catch (e) {
-        debugPrint('⚠️ Error fetching driverDbData: $e');
+        debugPrint('âš ï¸ Error fetching driverDbData: $e');
       }
 
       final String? assignedBusId = driverDbData?['busId']?.toString();
@@ -212,11 +212,10 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           if (resDriverId.isNotEmpty) busData = resDriverId.first;
         }
       } catch (e) {
-        debugPrint('⚠️ Error fetching busData: $e');
+        debugPrint('âš ï¸ Error fetching busData: $e');
       }
 
       if (busData == null) {
-        // No bus assigned to this driver
         if (mounted) {
           setState(() {
             _driverName = driverName;
@@ -232,8 +231,6 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         return;
       }
 
-      // Bus found — now check route
-      // Force clear cache to always get fresh data from DB
       DriverDataManager().clearCache();
       await DriverDataManager().prefetchData();
       final allRoutes = await DriverDataManager().getRoutes();
@@ -241,21 +238,24 @@ class _HomeTabBodyState extends State<HomeTabBody> {
 
       final String? oldRouteId = busData!['route_id']?.toString();
       final String? busRouteName = busData!['route_name']?.toString();
-      debugPrint('🚌 Bus route_id: $oldRouteId, route_name: $busRouteName');
-      debugPrint('📋 Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}');
+      debugPrint('ðŸšŒ Bus route_id: $oldRouteId, route_name: $busRouteName');
+      debugPrint(
+        'ðŸ“‹ Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}',
+      );
 
-      // Try matching route by name
       RouteModel? matchedRoute;
       if (busRouteName != null && busRouteName.isNotEmpty) {
         try {
           matchedRoute = allRoutes.firstWhere((r) => r.name == busRouteName);
-          debugPrint('✅ Route matched: ${matchedRoute.name}');
+          debugPrint('âœ… Route matched: ${matchedRoute.name}');
         } catch (_) {
-          debugPrint('❌ No route found with name=$busRouteName in ${allRoutes.length} lines');
+          debugPrint(
+            'âŒ No route found with name=$busRouteName in ${allRoutes.length} lines',
+          );
           matchedRoute = null;
         }
       } else {
-        debugPrint('⚠️ bus has invalid or null route_name');
+        debugPrint('âš ï¸ bus has invalid or null route_name');
       }
 
       final bool routeAssigned = matchedRoute != null;
@@ -267,10 +267,14 @@ class _HomeTabBodyState extends State<HomeTabBody> {
               .select('*')
               .eq('route_id', busData['route_id'])
               .order('order_index', ascending: true);
-          _routeStations = resStations.map<StationModel>((json) => StationModel.fromJson(json)).toList();
-          debugPrint('📍 Loaded ${_routeStations.length} stations for route ${busData['route_id']}');
+          _routeStations = resStations
+              .map<StationModel>((json) => StationModel.fromJson(json))
+              .toList();
+          debugPrint(
+            'ðŸ“ Loaded ${_routeStations.length} stations for route ${busData['route_id']}',
+          );
         } catch (e) {
-          debugPrint('⚠️ Error loading stations by route_id: $e');
+          debugPrint('âš ï¸ Error loading stations by route_id: $e');
           _routeStations = [];
         }
       } else {
@@ -286,14 +290,17 @@ class _HomeTabBodyState extends State<HomeTabBody> {
       } catch (_) {}
 
       await prefs.setString('busId', busData!['id'].toString());
-      if (routeAssigned && matchedRoute != null) await prefs.setInt('routeId', matchedRoute.id);
-      await prefs.setString('busNumber', busData!['bus_number']?.toString() ?? '---');
+      if (routeAssigned && matchedRoute != null)
+        await prefs.setInt('routeId', matchedRoute.id);
+      await prefs.setString(
+        'busNumber',
+        busData!['bus_number']?.toString() ?? '---',
+      );
       if (routeAssigned) {
         final double price = matchedRoute.price > 0 ? matchedRoute.price : 30.0;
         await prefs.setDouble('ticketPrice', price);
       }
 
-      // Check active trip (column is end_time, not ended_at)
       bool hasActiveTrip = false;
       try {
         final activeTripRes = await SupabaseConfig.client
@@ -321,7 +328,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         });
       }
     } catch (e) {
-      debugPrint('❌ HomeTab _loadAllData error: $e');
+      debugPrint('âŒ HomeTab _loadAllData error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -469,9 +476,13 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                     Row(
                       children: [
                         Icon(
-                          _isRouteAssigned ? Icons.location_on_outlined : Icons.location_off_outlined,
+                          _isRouteAssigned
+                              ? Icons.location_on_outlined
+                              : Icons.location_off_outlined,
                           size: 26,
-                          color: _isRouteAssigned ? Colors.black : Colors.orange,
+                          color: _isRouteAssigned
+                              ? Colors.black
+                              : Colors.orange,
                         ),
                         SizedBox(width: 8.w),
                         Flexible(
@@ -479,7 +490,9 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                             _routeName,
                             style: TextStyle(
                               fontWeight: FontWeight.w500,
-                              color: _isRouteAssigned ? Colors.black : Colors.orange,
+                              color: _isRouteAssigned
+                                  ? Colors.black
+                                  : Colors.orange,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -488,7 +501,11 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                         _buildConnectivityIndicator(),
                         IconButton(
                           onPressed: _loadAllData,
-                          icon: Icon(Icons.refresh, size: 22.sp, color: Colors.black87),
+                          icon: Icon(
+                            Icons.refresh,
+                            size: 22.sp,
+                            color: Colors.black87,
+                          ),
                           tooltip: 'Reload',
                         ),
                       ],
@@ -496,12 +513,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                     const SizedBox(height: 29),
                     Text(
                       'Hello $_driverName!',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     SizedBox(height: 8.h),
                     Text(
-                      _isBusAssigned ? 'Start your trip now' : 'No bus assigned to your account yet',
-                      style: TextStyle(color: _isBusAssigned ? Colors.grey : Colors.orange),
+                      _isBusAssigned
+                          ? 'Start your trip now'
+                          : 'No bus assigned to your account yet',
+                      style: TextStyle(
+                        color: _isBusAssigned ? Colors.grey : Colors.orange,
+                      ),
                     ),
                   ],
                 ),
@@ -517,11 +541,13 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                   SizedBox(height: 15.h),
                   InfoCard(label: 'Route Name', value: _routeName),
                   SizedBox(height: 15.h),
-                  InfoCard(label: 'Number Of Stations', value: '$_stationsCount'),
+                  InfoCard(
+                    label: 'Number Of Stations',
+                    value: '$_stationsCount',
+                  ),
                 ],
               ),
             ),
-            // Only show swipe button if bus AND route are assigned
             if (_isBusAssigned && _isRouteAssigned)
               Padding(
                 padding: EdgeInsets.all(30.w),
@@ -534,8 +560,12 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                   ),
                   child: Column(
                     children: [
-                      Text(_hasActiveTrip ? 'You have an active trip' : 'Trip tracking is ready',
-                          style: TextStyle(fontWeight: FontWeight.w500)),
+                      Text(
+                        _hasActiveTrip
+                            ? 'You have an active trip'
+                            : 'Trip tracking is ready',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
                       SizedBox(height: 16.h),
                       if (_hasActiveTrip)
                         SizedBox(
@@ -545,10 +575,19 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: ColorManager.lightGreen,
                               padding: EdgeInsets.symmetric(vertical: 16.h),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
                               elevation: 0,
                             ),
-                            child: Text('Go to Active Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16.sp)),
+                            child: Text(
+                              'Go to Active Trip',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16.sp,
+                              ),
+                            ),
                           ),
                         )
                       else
@@ -575,14 +614,20 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28.sp),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.orange,
+                        size: 28.sp,
+                      ),
                       SizedBox(width: 12.w),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _isBusAssigned ? 'No Route Assigned' : 'No Bus Assigned',
+                              _isBusAssigned
+                                  ? 'No Route Assigned'
+                                  : 'No Bus Assigned',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15.sp,
@@ -594,7 +639,10 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                               _isBusAssigned
                                   ? 'Ask your admin to assign a route to your bus before starting a trip.'
                                   : 'Ask your admin to assign a bus to your driver account.',
-                              style: TextStyle(fontSize: 12.sp, color: Colors.orange.shade700),
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.orange.shade700,
+                              ),
                             ),
                           ],
                         ),
@@ -619,16 +667,18 @@ class _HomeTabBodyState extends State<HomeTabBody> {
         return Container(
           padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
           decoration: BoxDecoration(
-            color: isOnline ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+            color: isOnline
+                ? Colors.green.withOpacity(0.1)
+                : Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(6.r),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isOnline ? Icons.check_circle_outline : Icons.wifi_off_rounded, 
-                color: isOnline ? Colors.green : Colors.red, 
-                size: 12.sp
+                isOnline ? Icons.check_circle_outline : Icons.wifi_off_rounded,
+                color: isOnline ? Colors.green : Colors.red,
+                size: 12.sp,
               ),
               SizedBox(width: 3.w),
               Text(

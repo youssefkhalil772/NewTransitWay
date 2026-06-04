@@ -22,18 +22,30 @@ class DriverSuccessScreen extends StatelessWidget {
                 color: Color(0xFFE8F5E9),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_rounded, color: Color(0xFF39C449), size: 60),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF39C449),
+                size: 60,
+              ),
             ),
             SizedBox(height: 32.h),
             Text(
               "Password Changed!",
-              style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: const Color(0xFF1B2541)),
+              style: TextStyle(
+                fontSize: 24.sp,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1B2541),
+              ),
             ),
             SizedBox(height: 12.h),
             Text(
               "Your driver account password has been successfully updated. You can now log in with your new password.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15.sp, color: Colors.grey, height: 1.5),
+              style: TextStyle(
+                fontSize: 15.sp,
+                color: Colors.grey,
+                height: 1.5,
+              ),
             ),
             SizedBox(height: 50.h),
             SizedBox(
@@ -42,14 +54,25 @@ class DriverSuccessScreen extends StatelessWidget {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF39C449),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15.r),
+                  ),
                   elevation: 0,
                 ),
                 onPressed: () {
-                  // العودة لشاشة دخول السائق
-                  RoutesManager.navigateAndRemoveUntil(context, RoutesManager.loginDriver);
+                  RoutesManager.navigateAndRemoveUntil(
+                    context,
+                    RoutesManager.loginDriver,
+                  );
                 },
-                child: Text("Back to Login", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.bold)),
+                child: Text(
+                  "Back to Login",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],

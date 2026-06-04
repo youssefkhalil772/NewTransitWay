@@ -12,8 +12,11 @@ class DriverHomeScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/login'), // عدل المسار حسب مشروعك
-          )
+            onPressed: () => Navigator.pushReplacementNamed(
+              context,
+              '/login',
+            ), // Ø¹Ø¯Ù„ Ø§Ù„Ù…Ø³Ø§Ø± Ø­Ø³Ø¨ Ù…Ø´Ø±ÙˆØ¹Ùƒ
+          ),
         ],
       ),
       body: const Center(
@@ -27,7 +30,10 @@ class DriverHomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-            Text('Your trip management system will be here.', style: TextStyle(color: Colors.grey)),
+            Text(
+              'Your trip management system will be here.',
+              style: TextStyle(color: Colors.grey),
+            ),
           ],
         ),
       ),

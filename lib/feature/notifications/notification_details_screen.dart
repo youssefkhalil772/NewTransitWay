@@ -15,8 +15,10 @@ class NotificationDetailsScreen extends StatelessWidget {
 
     final title = notification.title.toLowerCase();
     final type = notification.type.toLowerCase();
-    
-    if (type == 'ban' || title.contains('suspended') || title.contains('banned')) {
+
+    if (type == 'ban' ||
+        title.contains('suspended') ||
+        title.contains('banned')) {
       themeColor = Colors.red;
       icon = Icons.block;
     } else if (type == 'warning' || title.contains('warning')) {
@@ -67,7 +69,9 @@ class NotificationDetailsScreen extends StatelessWidget {
             ),
             SizedBox(height: 8.h),
             Text(
-              DateFormat('EEEE, MMM d, yyyy - hh:mm a').format(notification.createdAt),
+              DateFormat(
+                'EEEE, MMM d, yyyy - hh:mm a',
+              ).format(notification.createdAt),
               style: TextStyle(fontSize: 14.sp, color: Colors.grey),
             ),
             SizedBox(height: 24.h),

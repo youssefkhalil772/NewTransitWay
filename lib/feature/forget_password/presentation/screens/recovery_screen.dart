@@ -23,7 +23,9 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
         backgroundColor: isError ? Colors.redAccent : const Color(0XFF054F3A),
         behavior: SnackBarBehavior.floating,
         margin: EdgeInsets.all(20.w),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
       ),
     );
   }
@@ -75,8 +77,15 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                   keyboardType: TextInputType.phone,
                   style: TextStyle(fontSize: 16.sp),
                   decoration: InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 16.w),
-                    prefixIcon: Icon(Icons.phone_android_outlined, color: const Color(0XFF054F3A), size: 22.sp),
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 18.h,
+                      horizontal: 16.w,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.phone_android_outlined,
+                      color: const Color(0XFF054F3A),
+                      size: 22.sp,
+                    ),
                     hintText: "Phone Number",
                     hintStyle: TextStyle(color: Colors.grey, fontSize: 14.sp),
                     filled: true,
@@ -87,7 +96,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12.r),
-                      borderSide: const BorderSide(color: Color(0XFF054F3A), width: 1.5),
+                      borderSide: const BorderSide(
+                        color: Color(0XFF054F3A),
+                        width: 1.5,
+                      ),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12.r),
@@ -95,7 +107,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12.r),
-                      borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: Colors.red,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   validator: (v) => (v == null || v.isEmpty || v.length < 11)
@@ -112,46 +127,58 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0XFF054F3A),
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                    ),
-                    onPressed: _isLoading ? null : () async {
-                      if (_formKey.currentState!.validate()) {
-                        setState(() => _isLoading = true);
-
-                        // الربط الحقيقي بالـ API
-                        final webServices = ForgetPasswordWebServices();
-                        String? realEmail = await webServices.getEmailByPhone(
-                            _phoneController.text.trim()
-                        );
-
-                        setState(() => _isLoading = false);
-
-                        if (realEmail != null && mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ConfirmEmailScreen(fullEmail: realEmail),
-                            ),
-                          );
-                        } else if (mounted) {
-                          _showSnackBar("No account found with this phone number", true);
-                        }
-                      }
-                    },
-                    child: _isLoading
-                        ? SizedBox(
-                      width: 24.w,
-                      height: 24.w,
-                      child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                        : Text(
-                      "Find Account",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.bold,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
                       ),
                     ),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() => _isLoading = true);
+
+                              final webServices = ForgetPasswordWebServices();
+                              String? realEmail = await webServices
+                                  .getEmailByPhone(
+                                    _phoneController.text.trim(),
+                                  );
+
+                              setState(() => _isLoading = false);
+
+                              if (realEmail != null && mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ConfirmEmailScreen(
+                                      fullEmail: realEmail,
+                                    ),
+                                  ),
+                                );
+                              } else if (mounted) {
+                                _showSnackBar(
+                                  "No account found with this phone number",
+                                  true,
+                                );
+                              }
+                            }
+                          },
+                    child: _isLoading
+                        ? SizedBox(
+                            width: 24.w,
+                            height: 24.w,
+                            child: const CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            "Find Account",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 SizedBox(height: 40.h),

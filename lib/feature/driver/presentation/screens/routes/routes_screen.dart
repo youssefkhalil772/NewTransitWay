@@ -37,7 +37,6 @@ class RoutesScreen extends StatefulWidget {
   State<RoutesScreen> createState() => _RoutesScreenState();
 }
 
-// ─── UI ───────────────────────────────────────────────────────────────────────
 extension _RoutesScreenUI on _RoutesScreenState {
   Widget buildMainScreen() {
     final Color routeColor = activeStations.isNotEmpty
@@ -57,11 +56,11 @@ extension _RoutesScreenUI on _RoutesScreenState {
                   FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
-                      initialCenter: _currentLocation ?? const LatLng(30.0444, 31.2357),
+                      initialCenter:
+                          _currentLocation ?? const LatLng(30.0444, 31.2357),
                       initialZoom: 16.5,
                       onMapReady: () {
                         _isMapReady = true;
-                        // Immediately center on bus if we have location
                         if (_currentLocation != null) {
                           _mapController.move(_currentLocation!, 16.5);
                         }
@@ -69,113 +68,118 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       interactionOptions: const InteractionOptions(
                         flags: InteractiveFlag.all,
                       ),
-
                     ),
                     children: [
-                      // Premium dark map tiles
                       TileLayer(
                         urlTemplate:
                             'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
                         subdomains: const ['a', 'b', 'c', 'd'],
                         retinaMode: RetinaMode.isHighDensity(context),
                       ),
-                      // Route polyline with glow effect
                       if (_polylinePoints.isNotEmpty) ...[
-                        // Glow layer
-                        PolylineLayer(polylines: [
-                          Polyline(
-                            points: _polylinePoints,
-                            color: routeColor.withValues(alpha: 0.25),
-                            strokeWidth: 14.0,
-                          ),
-                        ]),
-                        // Main route line
-                        PolylineLayer(polylines: [
-                          Polyline(
-                            points: _polylinePoints,
-                            color: _isFetchingRoute
-                                ? routeColor.withValues(alpha: 0.5)
-                                : routeColor,
-                            strokeWidth: 5.0,
-                            borderStrokeWidth: 1.5,
-                            borderColor: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ]),
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _polylinePoints,
+                              color: routeColor.withValues(alpha: 0.25),
+                              strokeWidth: 14.0,
+                            ),
+                          ],
+                        ),
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _polylinePoints,
+                              color: _isFetchingRoute
+                                  ? routeColor.withValues(alpha: 0.5)
+                                  : routeColor,
+                              strokeWidth: 5.0,
+                              borderStrokeWidth: 1.5,
+                              borderColor: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ],
+                        ),
                       ],
-                      // Station markers
-                      MarkerLayer(markers: [
-                        ...activeStations.asMap().entries.map((entry) {
-                          final int idx = entry.key;
-                          if (idx < _nextStationIndex) {
-                            return const Marker(
-                                point: LatLng(0, 0), child: SizedBox());
-                          }
-                          final bool isNext = idx == _nextStationIndex;
-                          return Marker(
-                            point: entry.value.position,
-                            width: isNext ? 36 : 24,
-                            height: isNext ? 36 : 24,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              decoration: BoxDecoration(
-                                color: isNext ? routeColor : Colors.white.withValues(alpha: 0.9),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isNext ? Colors.white : routeColor,
-                                  width: isNext ? 2.5 : 1.5,
-                                ),
-                                boxShadow: isNext
-                                    ? [
-                                        BoxShadow(
-                                          color: routeColor.withValues(alpha: 0.5),
-                                          blurRadius: 10,
-                                          spreadRadius: 2,
-                                        )
-                                      ]
-                                    : [],
-                              ),
-                              child: Icon(
-                                Icons.circle,
-                                color: isNext ? Colors.white : routeColor,
-                                size: isNext ? 12 : 8,
-                              ),
-                            ),
-                          );
-                        }),
-                        // Bus marker
-                        if (_currentLocation != null)
-                          Marker(
-                            point: _currentLocation!,
-                            width: 56,
-                            height: 56,
-                            child: Transform.rotate(
-                              angle: _currentHeading * (3.14159265 / 180),
-                              child: Container(
+                      MarkerLayer(
+                        markers: [
+                          ...activeStations.asMap().entries.map((entry) {
+                            final int idx = entry.key;
+                            if (idx < _nextStationIndex) {
+                              return const Marker(
+                                point: LatLng(0, 0),
+                                child: SizedBox(),
+                              );
+                            }
+                            final bool isNext = idx == _nextStationIndex;
+                            return Marker(
+                              point: entry.value.position,
+                              width: isNext ? 36 : 24,
+                              height: isNext ? 36 : 24,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
                                 decoration: BoxDecoration(
-                                  color: routeColor,
+                                  color: isNext
+                                      ? routeColor
+                                      : Colors.white.withValues(alpha: 0.9),
                                   shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: routeColor.withValues(alpha: 0.6),
-                                      blurRadius: 16,
-                                      spreadRadius: 4,
-                                    )
-                                  ],
+                                  border: Border.all(
+                                    color: isNext ? Colors.white : routeColor,
+                                    width: isNext ? 2.5 : 1.5,
+                                  ),
+                                  boxShadow: isNext
+                                      ? [
+                                          BoxShadow(
+                                            color: routeColor.withValues(
+                                              alpha: 0.5,
+                                            ),
+                                            blurRadius: 10,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
+                                      : [],
                                 ),
-                                child: const Icon(
-                                  Icons.navigation_rounded,
-                                  color: Colors.white,
-                                  size: 28,
+                                child: Icon(
+                                  Icons.circle,
+                                  color: isNext ? Colors.white : routeColor,
+                                  size: isNext ? 12 : 8,
+                                ),
+                              ),
+                            );
+                          }),
+                          if (_currentLocation != null)
+                            Marker(
+                              point: _currentLocation!,
+                              width: 56,
+                              height: 56,
+                              child: Transform.rotate(
+                                angle: _currentHeading * (3.14159265 / 180),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: routeColor,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: routeColor.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        blurRadius: 16,
+                                        spreadRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.navigation_rounded,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ]),
+                        ],
+                      ),
                     ],
                   ),
-                  // Speed + next stop overlay
                   _buildLiveStatusOverlay(routeColor),
-                  // Re-centering FAB
                   Positioned(
                     bottom: 130.h,
                     right: 15.w,
@@ -195,7 +199,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 8,
-                            )
+                            ),
                           ],
                         ),
                         child: Icon(
@@ -206,7 +210,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       ),
                     ),
                   ),
-                  // Rerouting indicator
                   if (_isFetchingRoute)
                     Positioned(
                       top: 12.h,
@@ -215,7 +218,9 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       child: Center(
                         child: Container(
                           padding: EdgeInsets.symmetric(
-                              horizontal: 14.w, vertical: 7.h),
+                            horizontal: 14.w,
+                            vertical: 7.h,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black87,
                             borderRadius: BorderRadius.circular(20.r),
@@ -248,7 +253,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
                 ],
               ),
             ),
-            // Bottom panel
             Expanded(
               flex: 45,
               child: Container(
@@ -264,12 +268,11 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 20,
                       offset: const Offset(0, -4),
-                    )
+                    ),
                   ],
                 ),
                 child: Column(
                   children: [
-                    // Handle
                     Container(
                       width: 36.w,
                       height: 4.h,
@@ -314,7 +317,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "TransitWay · Driver",
+                  "TransitWay Â· Driver",
                   style: TextStyle(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.bold,
@@ -332,7 +335,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
               ],
             ),
           ),
-          // Speed display
           Container(
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
             decoration: BoxDecoration(
@@ -349,7 +351,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
             ),
           ),
           SizedBox(width: 8.w),
-          // SOS button
           GestureDetector(
             onTap: _sendSosManually,
             child: Container(
@@ -362,14 +363,13 @@ extension _RoutesScreenUI on _RoutesScreenState {
                     color: Colors.red.withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.warning_rounded,
-                      color: Colors.white, size: 13.sp),
+                  Icon(Icons.warning_rounded, color: Colors.white, size: 13.sp),
                   SizedBox(width: 3.w),
                   Text(
                     'SOS',
@@ -396,7 +396,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
       left: 15.w,
       child: Row(
         children: [
-          // Speed card
           Container(
             width: 80.w,
             padding: EdgeInsets.symmetric(vertical: 10.h),
@@ -408,7 +407,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                   color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
-                )
+                ),
               ],
             ),
             child: Column(
@@ -435,7 +434,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
             ),
           ),
           SizedBox(width: 10.w),
-          // Next stop card
           Expanded(
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
@@ -447,7 +445,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                     color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ],
               ),
               child: Row(
@@ -473,8 +471,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       children: [
                         Text(
                           "Next stop",
-                          style: TextStyle(
-                              fontSize: 9.sp, color: Colors.grey),
+                          style: TextStyle(fontSize: 9.sp, color: Colors.grey),
                         ),
                         Text(
                           _currentNextStationName,
@@ -525,8 +522,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
               ),
             ),
             Container(
-              padding:
-                  EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
               decoration: BoxDecoration(
                 color: routeColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20.r),
@@ -543,7 +539,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
           ],
         ),
         SizedBox(height: 8.h),
-        // Progress bar
         ClipRRect(
           borderRadius: BorderRadius.circular(4.r),
           child: LinearProgressIndicator(
@@ -580,8 +575,8 @@ extension _RoutesScreenUI on _RoutesScreenState {
                       color: isReached
                           ? routeColor
                           : isNext
-                              ? Colors.orange
-                              : Colors.grey[300]!,
+                          ? Colors.orange
+                          : Colors.grey[300]!,
                       width: isNext ? 2.5 : 1.5,
                     ),
                     boxShadow: isNext
@@ -589,30 +584,27 @@ extension _RoutesScreenUI on _RoutesScreenState {
                             BoxShadow(
                               color: Colors.orange.withValues(alpha: 0.4),
                               blurRadius: 6,
-                            )
+                            ),
                           ]
                         : [],
                   ),
                   child: isReached
-                      ? const Icon(Icons.check,
-                          color: Colors.white, size: 9)
+                      ? const Icon(Icons.check, color: Colors.white, size: 9)
                       : isNext
-                          ? Container(
-                              margin: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                color: Colors.orange,
-                                shape: BoxShape.circle,
-                              ),
-                            )
-                          : null,
+                      ? Container(
+                          margin: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      : null,
                 ),
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 2.w,
-                      color: isReached
-                          ? routeColor
-                          : Colors.grey[200],
+                      color: isReached ? routeColor : Colors.grey[200],
                     ),
                   ),
               ],
@@ -630,20 +622,18 @@ extension _RoutesScreenUI on _RoutesScreenState {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14.sp,
-                      fontWeight:
-                          isNext ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isNext ? FontWeight.bold : FontWeight.w500,
                       color: isReached
                           ? Colors.grey[350]
                           : isNext
-                              ? Colors.black
-                              : Colors.grey[500],
-                      decoration:
-                          isReached ? TextDecoration.lineThrough : null,
+                          ? Colors.black
+                          : Colors.grey[500],
+                      decoration: isReached ? TextDecoration.lineThrough : null,
                     ),
                   ),
                   if (isNext)
                     Text(
-                      "Approaching · $_etaToNextStation",
+                      "Approaching Â· $_etaToNextStation",
                       style: TextStyle(
                         fontSize: 10.sp,
                         color: Colors.orange,
@@ -683,8 +673,9 @@ extension _RoutesScreenUI on _RoutesScreenState {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                    content: Text("Failed to end trip: $e"),
-                    backgroundColor: Colors.red),
+                  content: Text("Failed to end trip: $e"),
+                  backgroundColor: Colors.red,
+                ),
               );
             }
           } finally {
@@ -723,7 +714,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
-                  )
+                  ),
                 ],
               ),
               child: Row(
@@ -774,8 +765,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
             SizedBox(height: 24.h),
             Text(
               'No Active Trip',
-              style: TextStyle(
-                  fontSize: 22.sp, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10.h),
             Padding(
@@ -790,14 +780,16 @@ extension _RoutesScreenUI on _RoutesScreenState {
             ElevatedButton.icon(
               onPressed: widget.onGoHome,
               icon: const Icon(Icons.home_rounded, color: Colors.white),
-              label: const Text('Go to Home',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text(
+                'Go to Home',
+                style: TextStyle(color: Colors.white),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF39C449),
-                padding:
-                    EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r)),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
               ),
             ),
           ],
@@ -807,7 +799,6 @@ extension _RoutesScreenUI on _RoutesScreenState {
   }
 }
 
-// ─── Live animated dot widget ─────────────────────────────────────────────────
 class _LiveDot extends StatefulWidget {
   final Color color;
   const _LiveDot({required this.color});
@@ -828,9 +819,10 @@ class _LiveDotState extends State<_LiveDot>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _scale = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -850,7 +842,10 @@ class _LiveDotState extends State<_LiveDot>
           color: widget.color,
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: widget.color.withValues(alpha: 0.5), blurRadius: 6)
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.5),
+              blurRadius: 6,
+            ),
           ],
         ),
       ),

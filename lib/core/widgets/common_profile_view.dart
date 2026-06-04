@@ -11,8 +11,8 @@ import '../routes/routes_manager.dart';
 class CommonProfileView extends StatelessWidget {
   final String name;
   final String email;
-  final String? phone; // إضافة اختياري
-  final String? license; // إضافة اختياري
+  final String? phone; // Ø¥Ø¶Ø§ÙØ© Ø§Ø®ØªÙŠØ§Ø±ÙŠ
+  final String? license; // Ø¥Ø¶Ø§ÙØ© Ø§Ø®ØªÙŠØ§Ø±ÙŠ
   final String imagePath;
   final List<ProfileMenuItem> menuItems;
   final bool isDriver;
@@ -47,7 +47,8 @@ class CommonProfileView extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 25.w),
               child: const Divider(thickness: 2, color: Color(0xFFEEEEEE)),
             ),
-            itemBuilder: (context, index) => _buildMenuTile(context, menuItems[index]),
+            itemBuilder: (context, index) =>
+                _buildMenuTile(context, menuItems[index]),
           ),
         ),
       ],
@@ -58,7 +59,8 @@ class CommonProfileView extends StatelessWidget {
     bool isNetwork = imagePath.startsWith('http');
     bool isAsset = imagePath.contains('assets/');
     bool isBase64 = imagePath.length > 200 && !isNetwork && !isAsset;
-    bool hasValidImage = imagePath.isNotEmpty && imagePath != 'assets/logo/3.png';
+    bool hasValidImage =
+        imagePath.isNotEmpty && imagePath != 'assets/logo/3.png';
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 25.w),
@@ -74,7 +76,10 @@ class CommonProfileView extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.grey[200],
-                    border: Border.all(color: const Color(0xFFFFC107).withOpacity(0.5), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFFFFC107).withOpacity(0.5),
+                      width: 2,
+                    ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(50.r),
@@ -82,16 +87,46 @@ class CommonProfileView extends StatelessWidget {
                         ? CachedNetworkImage(
                             imageUrl: imagePath,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                            errorWidget: (context, url, error) => Icon(Icons.person, size: 50.r, color: Colors.white),
+                            placeholder: (context, url) => const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            errorWidget: (context, url, error) => Icon(
+                              Icons.person,
+                              size: 50.r,
+                              color: Colors.white,
+                            ),
                           )
                         : (hasValidImage
-                            ? (isAsset 
-                                ? Image.asset(imagePath, fit: BoxFit.cover)
-                                : (isBase64 
-                                    ? Image.memory(base64Decode(imagePath.contains(',') ? imagePath.split(',').last : imagePath), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, size: 50.r, color: Colors.white))
-                                    : Image.file(File(imagePath), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, size: 50.r, color: Colors.white))))
-                            : Icon(Icons.person, size: 50.r, color: Colors.white)),
+                              ? (isAsset
+                                    ? Image.asset(imagePath, fit: BoxFit.cover)
+                                    : (isBase64
+                                          ? Image.memory(
+                                              base64Decode(
+                                                imagePath.contains(',')
+                                                    ? imagePath.split(',').last
+                                                    : imagePath,
+                                              ),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, e, s) => Icon(
+                                                Icons.person,
+                                                size: 50.r,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : Image.file(
+                                              File(imagePath),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, e, s) => Icon(
+                                                Icons.person,
+                                                size: 50.r,
+                                                color: Colors.white,
+                                              ),
+                                            )))
+                              : Icon(
+                                  Icons.person,
+                                  size: 50.r,
+                                  color: Colors.white,
+                                )),
                   ),
                 ),
                 Positioned(
@@ -99,8 +134,15 @@ class CommonProfileView extends StatelessWidget {
                   right: 0,
                   child: Container(
                     padding: EdgeInsets.all(4.w),
-                    decoration: const BoxDecoration(color: Color(0xFF1B4D3E), shape: BoxShape.circle),
-                    child: Icon(Icons.remove_red_eye, color: Colors.white, size: 16.sp),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1B4D3E),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.remove_red_eye,
+                      color: Colors.white,
+                      size: 16.sp,
+                    ),
                   ),
                 ),
               ],
@@ -113,12 +155,20 @@ class CommonProfileView extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: Colors.black),
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   isDriver ? "Driver Account" : "Passenger Account",
-                  style: TextStyle(fontSize: 13.sp, color: const Color(0xFF39C449), fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    color: const Color(0xFF39C449),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 SizedBox(height: 4.h),
                 _buildInfoRow(Icons.email_outlined, email),
@@ -166,7 +216,15 @@ class CommonProfileView extends StatelessWidget {
           color: item.isLogout ? Colors.red : Colors.black,
         ),
       ),
-      trailing: item.trailing ?? (item.isLogout ? null : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey)),
+      trailing:
+          item.trailing ??
+          (item.isLogout
+              ? null
+              : const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: Colors.grey,
+                )),
       onTap: () async {
         if (item.isLogout) {
           _showLogoutDialog(context);
@@ -184,19 +242,25 @@ class CommonProfileView extends StatelessWidget {
         title: const Text('Log Out'),
         content: const Text('Are you sure you want to log out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               String? driverImg = prefs.getString('selected_driver_avatar');
               String? userImg = prefs.getString('selected_profile_avatar');
               String? driverPhoto = prefs.getString('driverPhoto');
-              
+
               await prefs.clear();
-              
-              if (driverImg != null) await prefs.setString('selected_driver_avatar', driverImg);
-              if (userImg != null) await prefs.setString('selected_profile_avatar', userImg);
-              if (driverPhoto != null) await prefs.setString('driverPhoto', driverPhoto);
+
+              if (driverImg != null)
+                await prefs.setString('selected_driver_avatar', driverImg);
+              if (userImg != null)
+                await prefs.setString('selected_profile_avatar', userImg);
+              if (driverPhoto != null)
+                await prefs.setString('driverPhoto', driverPhoto);
 
               try {
                 await GoogleSignIn().signOut();
@@ -207,7 +271,10 @@ class CommonProfileView extends StatelessWidget {
               }
 
               if (context.mounted) {
-                RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
+                RoutesManager.navigateAndRemoveUntil(
+                  context,
+                  RoutesManager.role,
+                );
               }
             },
             child: const Text('Log Out', style: TextStyle(color: Colors.red)),

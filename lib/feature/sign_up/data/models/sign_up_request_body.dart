@@ -1,4 +1,4 @@
-class SignUpRequestBody {
+﻿class SignUpRequestBody {
   final String fullName;
   final String email;
   final String password;

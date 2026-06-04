@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_init.dart';
@@ -7,7 +7,6 @@ import 'api_constants.dart';
 class ApiService {
   final SupabaseClient _client = SupabaseConfig.client;
 
-  // ── SELECT (GET equivalent) ─────────────────────────────────────
   Future<List<dynamic>> getAll(
     String table, {
     String select = '*',
@@ -25,12 +24,11 @@ class ApiService {
       final response = await query;
       return response as List<dynamic>;
     } catch (e) {
-      debugPrint("🛑 Supabase getAll($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase getAll($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── SELECT single row ───────────────────────────────────────────
   Future<Map<String, dynamic>> getOne(
     String table, {
     String select = '*',
@@ -46,12 +44,11 @@ class ApiService {
       final response = await query.single();
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase getOne($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase getOne($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── SELECT with maybeSingle (can return null) ───────────────────
   Future<Map<String, dynamic>?> getOneOrNull(
     String table, {
     String select = '*',
@@ -67,12 +64,11 @@ class ApiService {
       final response = await query.maybeSingle();
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase getOneOrNull($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase getOneOrNull($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── INSERT (POST equivalent) ────────────────────────────────────
   Future<Map<String, dynamic>> insert(
     String table,
     Map<String, dynamic> data,
@@ -81,12 +77,11 @@ class ApiService {
       final response = await _client.from(table).insert(data).select().single();
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase insert($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase insert($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── UPDATE (PUT equivalent) ─────────────────────────────────────
   Future<Map<String, dynamic>> update(
     String table,
     Map<String, dynamic> data, {
@@ -102,12 +97,11 @@ class ApiService {
       final response = await query.select().single();
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase update($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase update($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── UPDATE multiple rows ────────────────────────────────────────
   Future<void> updateMany(
     String table,
     Map<String, dynamic> data, {
@@ -122,12 +116,11 @@ class ApiService {
 
       await query;
     } catch (e) {
-      debugPrint("🛑 Supabase updateMany($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase updateMany($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── UPSERT ──────────────────────────────────────────────────────
   Future<Map<String, dynamic>> upsert(
     String table,
     Map<String, dynamic> data,
@@ -136,12 +129,11 @@ class ApiService {
       final response = await _client.from(table).upsert(data).select().single();
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase upsert($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase upsert($table) Error: $e");
       rethrow;
     }
   }
 
-  // ── RPC (Remote Procedure Call) ─────────────────────────────────
   Future<dynamic> rpc(
     String functionName, {
     Map<String, dynamic>? params,
@@ -150,12 +142,11 @@ class ApiService {
       final response = await _client.rpc(functionName, params: params ?? {});
       return response;
     } catch (e) {
-      debugPrint("🛑 Supabase rpc($functionName) Error: $e");
+      debugPrint("ðŸ›‘ Supabase rpc($functionName) Error: $e");
       rethrow;
     }
   }
 
-  // ── File Upload to Supabase Storage ─────────────────────────────
   Future<String?> uploadFile(String bucket, String path, File file) async {
     try {
       await _client.storage
@@ -164,12 +155,11 @@ class ApiService {
       final publicUrl = _client.storage.from(bucket).getPublicUrl(path);
       return publicUrl;
     } catch (e) {
-      debugPrint("🛑 Supabase uploadFile($bucket/$path) Error: $e");
+      debugPrint("ðŸ›‘ Supabase uploadFile($bucket/$path) Error: $e");
       rethrow;
     }
   }
 
-  // ── PUT with file upload (profile update replacement) ───────────
   Future<Map<String, dynamic>> updateProfile({
     required String table,
     required Map<String, dynamic> fields,
@@ -178,9 +168,7 @@ class ApiService {
     String fileKey = 'photo',
   }) async {
     try {
-      // Upload photo if provided
       if (file != null) {
-        // Generate unique path
         final String filtersKey = filters.values.join('_');
         final String ext = file.path.split('.').last;
         final String storagePath =
@@ -196,10 +184,9 @@ class ApiService {
         }
       }
 
-      // Update the table
       return await update(table, fields, filters: filters);
     } catch (e) {
-      debugPrint("🛑 Supabase updateProfile($table) Error: $e");
+      debugPrint("ðŸ›‘ Supabase updateProfile($table) Error: $e");
       rethrow;
     }
   }

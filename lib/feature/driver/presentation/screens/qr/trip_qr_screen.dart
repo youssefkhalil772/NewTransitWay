@@ -60,11 +60,17 @@ class _TripQrScreenState extends State<TripQrScreen> {
 
   Future<void> _setupRealtime() async {
     final prefs = await SharedPreferences.getInstance();
-    final driverId = prefs.getString('driverId') ?? Supabase.instance.client.auth.currentUser?.id;
+    final driverId =
+        prefs.getString('driverId') ??
+        Supabase.instance.client.auth.currentUser?.id;
     final currentBusId = prefs.getString('busId');
 
     if (driverId == null || currentBusId == null || currentBusId.isEmpty) {
-      if (mounted) setState(() { _errorMessage = 'You must log in first'; _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _errorMessage = 'You must log in first';
+          _isLoading = false;
+        });
       return;
     }
 
@@ -73,13 +79,15 @@ class _TripQrScreenState extends State<TripQrScreen> {
         .from('trips')
         .stream(primaryKey: ['id'])
         .eq('bus_id', currentBusId)
-        .listen((data) {
-          if (!mounted) return;
-          // Whenever the trips table changes for this bus, regenerate the QR.
-          _generateQr(showLoading: _qrToken == null);
-        }, onError: (err) {
-          debugPrint("Trip QR Stream Error: $err");
-        });
+        .listen(
+          (data) {
+            if (!mounted) return;
+            _generateQr(showLoading: _qrToken == null);
+          },
+          onError: (err) {
+            debugPrint("Trip QR Stream Error: $err");
+          },
+        );
   }
 
   Future<void> _generateQr({bool showLoading = true}) async {
@@ -92,9 +100,15 @@ class _TripQrScreenState extends State<TripQrScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final driverId = prefs.getString('driverId') ?? Supabase.instance.client.auth.currentUser?.id;
+      final driverId =
+          prefs.getString('driverId') ??
+          Supabase.instance.client.auth.currentUser?.id;
       if (driverId == null) {
-        if (mounted) setState(() { _errorMessage = 'You must log in first'; _isLoading = false; });
+        if (mounted)
+          setState(() {
+            _errorMessage = 'You must log in first';
+            _isLoading = false;
+          });
         return;
       }
 
@@ -104,7 +118,6 @@ class _TripQrScreenState extends State<TripQrScreen> {
         throw 'Driver or bus not found';
       }
 
-      // 2. Get bus info
       final busData = await Supabase.instance.client
           .from('buses')
           .select('id, bus_number')
@@ -115,7 +128,6 @@ class _TripQrScreenState extends State<TripQrScreen> {
         throw 'Driver or bus not found';
       }
 
-      // 3. Get active trip
       final tripData = await Supabase.instance.client
           .from('trips')
           .select('route_id')
@@ -126,7 +138,6 @@ class _TripQrScreenState extends State<TripQrScreen> {
       final bool isActive = tripData != null;
       final String? routeId = tripData?['route_id']?.toString();
 
-      // 4. Get or Create QR
       final existingQr = await Supabase.instance.client
           .from('route_qrs')
           .select('id, token, route_id')
@@ -140,17 +151,20 @@ class _TripQrScreenState extends State<TripQrScreen> {
 
       if (existingQr != null && existingQr['token'] != null) {
         token = existingQr['token'].toString();
-        // Update existing QR
-        await Supabase.instance.client.from('route_qrs').update({
-          'is_active': isActive,
-          'route_id': routeId ?? existingQr['route_id'],
-          'driver_id': driverId,
-        }).eq('id', existingQr['id']);
-        
+        await Supabase.instance.client
+            .from('route_qrs')
+            .update({
+              'is_active': isActive,
+              'route_id': routeId ?? existingQr['route_id'],
+              'driver_id': driverId,
+            })
+            .eq('id', existingQr['id']);
+
         if (routeId != null) finalRouteId = routeId;
       } else {
-        token = DateTime.now().millisecondsSinceEpoch.toString() + currentBusId.substring(0, 4).toUpperCase();
-        // Insert new QR
+        token =
+            DateTime.now().millisecondsSinceEpoch.toString() +
+            currentBusId.substring(0, 4).toUpperCase();
         await Supabase.instance.client.from('route_qrs').insert({
           'route_id': routeId,
           'bus_id': currentBusId,
@@ -161,7 +175,6 @@ class _TripQrScreenState extends State<TripQrScreen> {
         });
       }
 
-      // 5. Get route info
       String routeName = 'Route Info Unavailable';
       double? price;
 
@@ -173,7 +186,10 @@ class _TripQrScreenState extends State<TripQrScreen> {
             .maybeSingle();
 
         if (routeData != null) {
-          routeName = routeData['name']?.toString() ?? routeData['start_point']?.toString() ?? 'Unknown Route';
+          routeName =
+              routeData['name']?.toString() ??
+              routeData['start_point']?.toString() ??
+              'Unknown Route';
           price = (routeData['price'] as num?)?.toDouble();
         }
       }
@@ -204,11 +220,12 @@ class _TripQrScreenState extends State<TripQrScreen> {
       key: const ValueKey('trip_qr_visibility'),
       onVisibilityChanged: (info) {
         if (info.visibleFraction == 1.0) {
-          // Regenerate QR every time the user comes back to this tab
           _generateQr(showLoading: false);
         }
       },
-      child: widget.isTab ? _buildBody() : Scaffold(backgroundColor: Colors.white, body: _buildBody()),
+      child: widget.isTab
+          ? _buildBody()
+          : Scaffold(backgroundColor: Colors.white, body: _buildBody()),
     );
   }
 
@@ -216,11 +233,11 @@ class _TripQrScreenState extends State<TripQrScreen> {
     return SafeArea(
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
-        child: _isLoading 
+        child: _isLoading
             ? _buildLoadingSkeleton(key: const ValueKey('loading'))
             : _errorMessage != null
-                ? _buildErrorState(key: const ValueKey('error'))
-                : _buildContent(key: const ValueKey('content')),
+            ? _buildErrorState(key: const ValueKey('error'))
+            : _buildContent(key: const ValueKey('content')),
       ),
     );
   }
@@ -238,9 +255,17 @@ class _TripQrScreenState extends State<TripQrScreen> {
           SizedBox(height: 8.h),
           SkeletonLoader(width: 200.w, height: 16.h),
           SizedBox(height: 32.h),
-          SkeletonLoader(width: double.infinity, height: 80.h, borderRadius: 16.r),
+          SkeletonLoader(
+            width: double.infinity,
+            height: 80.h,
+            borderRadius: 16.r,
+          ),
           SizedBox(height: 24.h),
-          SkeletonLoader(width: double.infinity, height: 350.h, borderRadius: 24.r),
+          SkeletonLoader(
+            width: double.infinity,
+            height: 350.h,
+            borderRadius: 24.r,
+          ),
         ],
       ),
     );
@@ -271,16 +296,27 @@ class _TripQrScreenState extends State<TripQrScreen> {
       children: [
         Container(
           padding: EdgeInsets.all(14.w),
-          decoration: const BoxDecoration(color: _lightGreen, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: _lightGreen,
+            shape: BoxShape.circle,
+          ),
           child: const Icon(Icons.qr_code_2, color: _green, size: 36),
         ),
         SizedBox(height: 12.h),
-        Text('Trip QR Code',
-            style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.black87)),
+        Text(
+          'Trip QR Code',
+          style: TextStyle(
+            fontSize: 22.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
         SizedBox(height: 6.h),
-        Text('Show this QR to passengers for payment',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.sp, color: Colors.grey.shade600)),
+        Text(
+          'Show this QR to passengers for payment',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.sp, color: Colors.grey.shade600),
+        ),
       ],
     );
   }
@@ -303,7 +339,11 @@ class _TripQrScreenState extends State<TripQrScreen> {
               Expanded(
                 child: Text(
                   _routeName ?? '---',
-                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -316,7 +356,11 @@ class _TripQrScreenState extends State<TripQrScreen> {
               SizedBox(width: 8.w),
               Text(
                 'Ticket Price: ${_price?.toStringAsFixed(0) ?? '--'} EGP',
-                style: TextStyle(fontSize: 13.sp, color: Colors.black54, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -333,7 +377,11 @@ class _TripQrScreenState extends State<TripQrScreen> {
         borderRadius: BorderRadius.circular(24.r),
         border: Border.all(color: const Color(0xFFB8E7BE), width: 2),
         boxShadow: [
-          BoxShadow(color: _green.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 8))
+          BoxShadow(
+            color: _green.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
       child: Column(
@@ -343,21 +391,35 @@ class _TripQrScreenState extends State<TripQrScreen> {
             version: QrVersions.auto,
             size: 220.w,
             backgroundColor: Colors.white,
-            eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: _green),
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: _green,
+            ),
             dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.square, color: Color(0xFF1B4D3E)),
+              dataModuleShape: QrDataModuleShape.square,
+              color: Color(0xFF1B4D3E),
+            ),
           ),
           SizedBox(height: 16.h),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
-            decoration: BoxDecoration(color: _lightGreen, borderRadius: BorderRadius.circular(30.r)),
+            decoration: BoxDecoration(
+              color: _lightGreen,
+              borderRadius: BorderRadius.circular(30.r),
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.directions_bus, color: _green, size: 18),
                 SizedBox(width: 8.w),
-                Text('Bus #${_busNumber ?? '---'}',
-                    style: TextStyle(color: _green, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+                Text(
+                  'Bus #${_busNumber ?? '---'}',
+                  style: TextStyle(
+                    color: _green,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.sp,
+                  ),
+                ),
               ],
             ),
           ),
@@ -372,19 +434,25 @@ class _TripQrScreenState extends State<TripQrScreen> {
       child: ElevatedButton.icon(
         onPressed: _generateQr,
         icon: const Icon(Icons.refresh, color: Colors.white),
-        label: Text('Refresh QR',
-            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold, color: Colors.white)),
+        label: Text(
+          'Refresh QR',
+          style: TextStyle(
+            fontSize: 15.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _green,
           padding: EdgeInsets.symmetric(vertical: 14.h),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14.r),
+          ),
           elevation: 0,
         ),
       ),
     );
   }
-
-
 
   Widget _buildErrorState({Key? key}) {
     return Center(
@@ -400,24 +468,40 @@ class _TripQrScreenState extends State<TripQrScreen> {
                 color: Colors.red.shade50,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.error_outline, color: Colors.red.shade400, size: 48.sp),
+              child: Icon(
+                Icons.error_outline,
+                color: Colors.red.shade400,
+                size: 48.sp,
+              ),
             ),
             SizedBox(height: 20.h),
             Text(
               _errorMessage!,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
             SizedBox(height: 24.h),
             ElevatedButton.icon(
               onPressed: _generateQr,
               icon: const Icon(Icons.refresh, color: Colors.white),
-              label: Text('Try Again',
-                  style: TextStyle(fontSize: 14.sp, color: Colors.white, fontWeight: FontWeight.bold)),
+              label: Text(
+                'Try Again',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _green,
                 padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 14.h),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
               ),
             ),
           ],

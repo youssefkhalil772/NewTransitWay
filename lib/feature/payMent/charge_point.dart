@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:transite_way/core/resources/assest_manager.dart';
 import 'package:transite_way/feature/payMent/pay_details.dart';
-// Import for the payment details screen
 
 class ChargeMyPointsScreen extends StatefulWidget {
   const ChargeMyPointsScreen({super.key});
@@ -28,7 +27,10 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
         title: const Text(
           "Charge My Points",
           style: TextStyle(
-              color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         centerTitle: true,
       ),
@@ -39,7 +41,6 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
             children: [
               const SizedBox(height: 10),
 
-              /// --------- STEPS BAR ---------
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -53,7 +54,6 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
 
               const SizedBox(height: 20),
 
-              /// -------- IMAGE --------
               Image.asset(
                 ImageAssets.points,
                 height: MediaQuery.of(context).size.height * 0.40,
@@ -62,15 +62,16 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
 
               const SizedBox(height: 30),
 
-              /// -------- INPUT --------
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
                   hintText: "Enter the amount you want to pay with",
-                  hintStyle:
-                  TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 14,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 16),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -85,27 +86,30 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
 
               const SizedBox(height: 20),
 
-              /// -------- RATE TEXT --------
               RichText(
                 text: const TextSpan(
                   style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w500),
+                    fontSize: 14,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
                   children: [
                     TextSpan(text: "Amount "),
                     TextSpan(
-                        text: "100 EGP", style: TextStyle(color: Colors.green)),
+                      text: "100 EGP",
+                      style: TextStyle(color: Colors.green),
+                    ),
                     TextSpan(text: " = "),
                     TextSpan(
-                        text: "100 Points", style: TextStyle(color: Colors.red)),
+                      text: "100 Points",
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ],
                 ),
               ),
 
               const SizedBox(height: 50),
 
-              /// -------- BUTTON (Navigation Added Here) --------
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -117,20 +121,20 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
                     ),
                   ),
                   onPressed: () {
-                    // Navigate to payment details screen
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>  ChargePointsScreen(),
+                        builder: (context) => ChargePointsScreen(),
                       ),
                     );
                   },
                   child: const Text(
                     "Continue To Payment",
                     style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold),
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -154,7 +158,10 @@ class _ChargeMyPointsScreenState extends State<ChargeMyPointsScreen> {
         child: Text(
           num,
           style: const TextStyle(
-              color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

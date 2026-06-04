@@ -13,11 +13,11 @@ class TrackingService {
 
   StreamSubscription<Position>? _positionStreamSubscription;
   RealtimeChannel? _broadcastChannel;
-  
+
   Position? _lastSentPosition;
   Position? _currentPosition;
   DateTime? _lastDbWriteTime;
-  
+
   final List<Map<String, dynamic>> _offlineHistoryQueue = [];
   bool _isSyncingHistory = false;
 
@@ -33,9 +33,9 @@ class TrackingService {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return false;
     }
-    
+
     if (permission == LocationPermission.deniedForever) return false;
-    
+
     return true;
   }
 
@@ -53,10 +53,11 @@ class TrackingService {
         .eq('id', busId)
         .maybeSingle();
 
-    if (busData == null || (busData['route_id'] == null && busData['route_name'] == null)) {
+    if (busData == null ||
+        (busData['route_id'] == null && busData['route_name'] == null)) {
       throw Exception("Bus not found or no route assigned to this bus");
     }
-    
+
     String? routeUuid = busData['route_id']?.toString();
 
     if (routeUuid == null || routeUuid.isEmpty) {
@@ -74,7 +75,9 @@ class TrackingService {
     }
 
     if (routeUuid == null || routeUuid.isEmpty) {
-      throw Exception("Route not found for this bus (no valid route_id or route_name)");
+      throw Exception(
+        "Route not found for this bus (no valid route_id or route_name)",
+      );
     }
 
     try {
@@ -82,9 +85,8 @@ class TrackingService {
           .from('trips')
           .update({'end_time': DateTime.now().toUtc().toIso8601String()})
           .eq('bus_id', busId)
-          .isFilter('end_time', null); 
-          
-      // Also reactivate the QR code so printed QRs work for the new trip
+          .isFilter('end_time', null);
+
       await supabase
           .from('route_qrs')
           .update({'is_active': true})
@@ -144,7 +146,7 @@ class TrackingService {
     _lastSentPosition = null;
     _currentPosition = null;
     _lastDbWriteTime = null;
-    
+
     _broadcastChannel = SupabaseConfig.client.channel('public-tracking');
     _broadcastChannel!.subscribe((status, [error]) {});
 
@@ -169,84 +171,112 @@ class TrackingService {
       );
     }
 
-    _positionStreamSubscription = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-      (Position position) {
-        if (position.accuracy > 35.0) return;
+    _positionStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) {
+            if (position.accuracy > 35.0) return;
 
-        if (_currentPosition?.latitude != position.latitude || 
-            _currentPosition?.longitude != position.longitude) {
-          
-          _currentPosition = position;
-          _locationController.add(position);
+            if (_currentPosition?.latitude != position.latitude ||
+                _currentPosition?.longitude != position.longitude) {
+              _currentPosition = position;
+              _locationController.add(position);
 
-          double realSpeed = position.speed;
-          if (realSpeed < 1.0) realSpeed = 0.0;
+              double realSpeed = position.speed;
+              if (realSpeed < 1.0) realSpeed = 0.0;
 
-          _broadcastChannel?.sendBroadcastMessage(
-            event: 'bus_moved',
-            payload: {
-              'bus_id': busId,
-              'lat': position.latitude,
-              'lng': position.longitude,
-              'heading': position.heading,
-              'speed': realSpeed,
-            },
-          );
+              _broadcastChannel?.sendBroadcastMessage(
+                event: 'bus_moved',
+                payload: {
+                  'bus_id': busId,
+                  'lat': position.latitude,
+                  'lng': position.longitude,
+                  'heading': position.heading,
+                  'speed': realSpeed,
+                },
+              );
 
-          final now = DateTime.now();
-          final bool timePassed = _lastDbWriteTime == null || now.difference(_lastDbWriteTime!).inSeconds >= 10;
-          final bool distancePassed = _lastSentPosition == null || 
-              Geolocator.distanceBetween(
-                _lastSentPosition!.latitude, 
-                _lastSentPosition!.longitude, 
-                position.latitude, 
-                position.longitude
-              ) >= 50;
+              final now = DateTime.now();
+              final bool timePassed =
+                  _lastDbWriteTime == null ||
+                  now.difference(_lastDbWriteTime!).inSeconds >= 10;
+              final bool distancePassed =
+                  _lastSentPosition == null ||
+                  Geolocator.distanceBetween(
+                        _lastSentPosition!.latitude,
+                        _lastSentPosition!.longitude,
+                        position.latitude,
+                        position.longitude,
+                      ) >=
+                      50;
 
-          if (timePassed || distancePassed) {
-            _lastSentPosition = position;
-            _lastDbWriteTime = now;
-            sendToApi(busId, position.latitude, position.longitude, realSpeed);
-          }
-        }
-
-      },
-      onError: (e) {},
-    );
+              if (timePassed || distancePassed) {
+                _lastSentPosition = position;
+                _lastDbWriteTime = now;
+                sendToApi(
+                  busId,
+                  position.latitude,
+                  position.longitude,
+                  realSpeed,
+                );
+              }
+            }
+          },
+          onError: (e) {},
+        );
   }
 
-  Future<void> sendToApi(String busId, double lat, double lng, double speed) async {
+  Future<void> sendToApi(
+    String busId,
+    double lat,
+    double lng,
+    double speed,
+  ) async {
     await Future.wait([
       _updateBusPosition(busId, lat, lng, speed),
       _updateTrackingHistory(busId, lat, lng, speed),
     ]);
   }
 
-  Future<void> _updateBusPosition(String busId, double lat, double lng, double speed) async {
+  Future<void> _updateBusPosition(
+    String busId,
+    double lat,
+    double lng,
+    double speed,
+  ) async {
     try {
-      await SupabaseConfig.client.from(ApiConstants.busesTable).update({
-        'lat': lat,
-        'lng': lng,
-        'latitude': lat,
-        'longitude': lng,
-        'status': 'Active',
-      }).eq('id', busId);
+      await SupabaseConfig.client
+          .from(ApiConstants.busesTable)
+          .update({
+            'lat': lat,
+            'lng': lng,
+            'latitude': lat,
+            'longitude': lng,
+            'status': 'Active',
+          })
+          .eq('id', busId);
     } catch (e) {
       debugPrint('Error updating bus position: $e');
     }
   }
 
-  Future<void> _updateTrackingHistory(String busId, double lat, double lng, double speed) async {
+  Future<void> _updateTrackingHistory(
+    String busId,
+    double lat,
+    double lng,
+    double speed,
+  ) async {
     final record = {
       'bus_id': busId,
       'lat': lat,
       'lng': lng,
       'speed': (speed * 3.6).round(),
-      'created_at': DateTime.now().toUtc().toIso8601String(), 
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     };
 
     try {
-      await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(record);
+      await SupabaseConfig.client
+          .from(ApiConstants.trackingTable)
+          .insert(record);
       _syncOfflineHistory();
     } catch (e) {
       _offlineHistoryQueue.add(record);
@@ -259,9 +289,11 @@ class TrackingService {
 
     try {
       final batch = _offlineHistoryQueue.take(50).toList();
-      await SupabaseConfig.client.from(ApiConstants.trackingTable).insert(batch);
+      await SupabaseConfig.client
+          .from(ApiConstants.trackingTable)
+          .insert(batch);
       _offlineHistoryQueue.removeRange(0, batch.length);
-      
+
       if (_offlineHistoryQueue.isNotEmpty) {
         _isSyncingHistory = false;
         _syncOfflineHistory();

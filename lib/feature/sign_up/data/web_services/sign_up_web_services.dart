@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/networking/supabase_init.dart';
@@ -13,7 +13,6 @@ class SignUpWebServices {
     File? photo,
   ) async {
     try {
-      // 1. Create auth user
       final authResponse = await _client.auth.signUp(
         email: signUpRequestBody.email,
         password: signUpRequestBody.password,
@@ -23,7 +22,6 @@ class SignUpWebServices {
         throw "Registration failed. Please try again.";
       }
 
-      // 2. Upload photo if provided
       String? photoUrl;
       if (photo != null) {
         final String ext = photo.path.split('.').last;
@@ -61,7 +59,7 @@ class SignUpWebServices {
     } on AuthException catch (e) {
       throw e.message;
     } catch (e) {
-      debugPrint("🛑 SignUp Error: $e");
+      debugPrint("ðŸ›‘ SignUp Error: $e");
       if (e is String) rethrow;
       throw "Registration failed: $e";
     }

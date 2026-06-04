@@ -9,7 +9,10 @@ class SignUpRepositoryImpl implements SignUpRepository {
   SignUpRepositoryImpl(this._signUpWebServices);
 
   @override
-  Future<Map<String, dynamic>> signUp(SignUpRequestBody signUpRequestBody, File? photo) async {
+  Future<Map<String, dynamic>> signUp(
+    SignUpRequestBody signUpRequestBody,
+    File? photo,
+  ) async {
     return await _signUpWebServices.signUp(signUpRequestBody, photo);
   }
 }

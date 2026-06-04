@@ -19,7 +19,10 @@ class DriverDataManager {
       final routesRes = await SupabaseConfig.client.from('routes').select('*');
       _routeNamesByUuid = {};
       _routes = routesRes.map<RouteModel>((json) {
-        final name = json['name']?.toString() ?? json['start_point']?.toString() ?? json['line_number'].toString();
+        final name =
+            json['name']?.toString() ??
+            json['start_point']?.toString() ??
+            json['line_number'].toString();
         if (json['id'] != null) {
           _routeNamesByUuid![json['id'].toString()] = name;
         }
@@ -36,23 +39,26 @@ class DriverDataManager {
           .select('*')
           .order('zone', ascending: true)
           .order('order_index', ascending: true);
-      _stations = stationsRes.map<StationModel>((json) => StationModel.fromJson(json)).toList();
+      _stations = stationsRes
+          .map<StationModel>((json) => StationModel.fromJson(json))
+          .toList();
       _stations!.sort((a, b) {
         int zoneCompare = a.zone.compareTo(b.zone);
         if (zoneCompare != 0) return zoneCompare;
         return a.orderIndex.compareTo(b.orderIndex);
       });
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<List<RouteModel>> getRoutes({bool forceRefresh = false}) async {
-    if (_routes == null || forceRefresh) await prefetchData(forceRefresh: forceRefresh);
+    if (_routes == null || forceRefresh)
+      await prefetchData(forceRefresh: forceRefresh);
     return _routes ?? [];
   }
 
   Future<List<StationModel>> getStations({bool forceRefresh = false}) async {
-    if (_stations == null || forceRefresh) await prefetchData(forceRefresh: forceRefresh);
+    if (_stations == null || forceRefresh)
+      await prefetchData(forceRefresh: forceRefresh);
     return _stations ?? [];
   }
 
@@ -73,16 +79,19 @@ class DriverDataManager {
   Future<Map<String, dynamic>?> getBusById(String busId) async {
     if (_buses.containsKey(busId)) return _buses[busId];
     try {
-      final res = await SupabaseConfig.client.from('buses').select('*').eq('id', busId).maybeSingle();
+      final res = await SupabaseConfig.client
+          .from('buses')
+          .select('*')
+          .eq('id', busId)
+          .maybeSingle();
       if (res != null) {
         _buses[busId] = res;
         return res;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
-  
+
   void clearCache() {
     _routes = null;
     _routeNamesByUuid = null;

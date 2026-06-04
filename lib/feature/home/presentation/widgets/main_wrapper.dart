@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../profile/profile_screen.dart'; 
+import '../../../profile/profile_screen.dart';
 import '../../../qr_scanner/success_dialog.dart';
 import '../../../tickets/tickets.dart';
 import '../screens/home_screen.dart';
@@ -32,10 +32,8 @@ class _MainWrapperState extends State<MainWrapper> {
     setState(() {
       _userId = prefs.getString('userId');
     });
-    // Start listening to realtime notifications and ban status
     InAppNotificationService().startMonitoring();
 
-    // Update balance on app open
     CustomPointsBadge.fetchAndRefreshGlobalBalance();
   }
 
@@ -47,7 +45,9 @@ class _MainWrapperState extends State<MainWrapper> {
       onBackToHome: () => setState(() => _selectedIndex = 0),
     ),
     QRScannerPage(
-      key: _selectedIndex == 2 ? ValueKey('qr_active_$_qrRefreshKey') : const ValueKey('qr_inactive'),
+      key: _selectedIndex == 2
+          ? ValueKey('qr_active_$_qrRefreshKey')
+          : const ValueKey('qr_inactive'),
       isActive: _selectedIndex == 2,
       onBackToHome: () => setState(() => _selectedIndex = 0),
       onViewTickets: () {
@@ -70,10 +70,7 @@ class _MainWrapperState extends State<MainWrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages(),
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
@@ -87,12 +84,31 @@ class _MainWrapperState extends State<MainWrapper> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF1B6A4C),
         unselectedItemColor: Colors.grey,
-        selectedLabelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.sp),
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 12.sp,
+        ),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.confirmation_number_outlined), activeIcon: Icon(Icons.confirmation_number), label: 'Tickets'),
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), activeIcon: Icon(Icons.qr_code_scanner_sharp), label: 'Scan QR'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.confirmation_number_outlined),
+            activeIcon: Icon(Icons.confirmation_number),
+            label: 'Tickets',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            activeIcon: Icon(Icons.qr_code_scanner_sharp),
+            label: 'Scan QR',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
       ),
     );

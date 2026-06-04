@@ -16,7 +16,7 @@ class ProfileScreenDriver extends StatefulWidget {
   final VoidCallback? onAddTicketsTap;
 
   const ProfileScreenDriver({
-    super.key, 
+    super.key,
     this.isTab = false,
     this.onAddTicketsTap,
   });
@@ -48,8 +48,7 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
 
   Future<void> _loadDriverData() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // 1. Initial load from SharedPreferences for speed
+
     String name = prefs.getString('driverName') ?? "Driver";
     String email = prefs.getString('driverEmail') ?? "";
     String phone = prefs.getString('driverPhone') ?? "";
@@ -62,13 +61,12 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
         _driverEmail = email;
         _driverPhone = phone;
         _licenseNumber = license;
-        _profileImagePath = (serverPhoto != null && serverPhoto.isNotEmpty) 
-            ? serverPhoto 
+        _profileImagePath = (serverPhoto != null && serverPhoto.isNotEmpty)
+            ? serverPhoto
             : (prefs.getString('selected_driver_avatar') ?? "");
       });
     }
 
-    // 2. Real-time Background Sync from Supabase (Source of Truth)
     final String? driverId = prefs.getString('driverId');
     if (driverId != null && driverId.isNotEmpty) {
       _driverSubscription?.cancel();
@@ -76,38 +74,52 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
           .from('drivers')
           .stream(primaryKey: ['id'])
           .eq('id', driverId)
-          .listen((data) async {
-            if (data.isNotEmpty) {
-              final driverData = data.first;
-              
-              String newName = driverData['full_name'] ?? driverData['name'] ?? driverData['fullName'] ?? _driverName;
-              String newPhone = driverData['phone_number'] ?? driverData['phone'] ?? driverData['phoneNumber'] ?? _driverPhone;
-              String newEmail = driverData['email'] ?? _driverEmail;
-              String newLicense = driverData['license_number'] ?? driverData['licenseNumber'] ?? _licenseNumber;
-              String? newServerPhoto = driverData['photo'];
+          .listen(
+            (data) async {
+              if (data.isNotEmpty) {
+                final driverData = data.first;
 
-              // Persist fresh data
-              await prefs.setString('driverName', newName);
-              await prefs.setString('driverPhone', newPhone);
-              await prefs.setString('driverEmail', newEmail);
-              await prefs.setString('licenseNumber', newLicense);
-              if (newServerPhoto != null) await prefs.setString('driverPhoto', newServerPhoto);
+                String newName =
+                    driverData['full_name'] ??
+                    driverData['name'] ??
+                    driverData['fullName'] ??
+                    _driverName;
+                String newPhone =
+                    driverData['phone_number'] ??
+                    driverData['phone'] ??
+                    driverData['phoneNumber'] ??
+                    _driverPhone;
+                String newEmail = driverData['email'] ?? _driverEmail;
+                String newLicense =
+                    driverData['license_number'] ??
+                    driverData['licenseNumber'] ??
+                    _licenseNumber;
+                String? newServerPhoto = driverData['photo'];
 
-              if (mounted) {
-                setState(() {
-                  _driverName = newName;
-                  _driverEmail = newEmail;
-                  _driverPhone = newPhone;
-                  _licenseNumber = newLicense;
-                  if (newServerPhoto != null && newServerPhoto.isNotEmpty) {
-                    _profileImagePath = newServerPhoto;
-                  }
-                });
+                await prefs.setString('driverName', newName);
+                await prefs.setString('driverPhone', newPhone);
+                await prefs.setString('driverEmail', newEmail);
+                await prefs.setString('licenseNumber', newLicense);
+                if (newServerPhoto != null)
+                  await prefs.setString('driverPhoto', newServerPhoto);
+
+                if (mounted) {
+                  setState(() {
+                    _driverName = newName;
+                    _driverEmail = newEmail;
+                    _driverPhone = newPhone;
+                    _licenseNumber = newLicense;
+                    if (newServerPhoto != null && newServerPhoto.isNotEmpty) {
+                      _profileImagePath = newServerPhoto;
+                    }
+                  });
+                }
               }
-            }
-          }, onError: (error) {
-            debugPrint("🛑 Profile DB Sync Stream Error: $error");
-          });
+            },
+            onError: (error) {
+              debugPrint("ðŸ›‘ Profile DB Sync Stream Error: $error");
+            },
+          );
     }
   }
 
@@ -125,14 +137,38 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
               child: _profileImagePath.isEmpty
                   ? Icon(Icons.person, color: Colors.grey, size: 100.sp)
                   : (_profileImagePath.startsWith('http')
-                      ? Image.network(
-                          _profileImagePath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: Colors.grey, size: 100.sp),
-                        )
-                      : (_profileImagePath.length > 200 
-                          ? Image.memory(base64Decode(_profileImagePath.contains(',') ? _profileImagePath.split(',').last : _profileImagePath), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp))
-                          : Image.file(File(_profileImagePath), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp)))),
+                        ? Image.network(
+                            _profileImagePath,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.person,
+                              color: Colors.grey,
+                              size: 100.sp,
+                            ),
+                          )
+                        : (_profileImagePath.length > 200
+                              ? Image.memory(
+                                  base64Decode(
+                                    _profileImagePath.contains(',')
+                                        ? _profileImagePath.split(',').last
+                                        : _profileImagePath,
+                                  ),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => Icon(
+                                    Icons.person,
+                                    color: Colors.grey,
+                                    size: 100.sp,
+                                  ),
+                                )
+                              : Image.file(
+                                  File(_profileImagePath),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => Icon(
+                                    Icons.person,
+                                    color: Colors.grey,
+                                    size: 100.sp,
+                                  ),
+                                ))),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(
@@ -141,7 +177,7 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close, color: Colors.black),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -176,7 +212,7 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
               ),
             );
             if (result == true) {
-              _loadDriverData(); // تحديث البيانات لو رجع true
+              _loadDriverData(); // ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ù„Ùˆ Ø±Ø¬Ø¹ true
             }
           },
         ),
@@ -193,7 +229,9 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const TicketHistoryScreen()),
+              MaterialPageRoute(
+                builder: (context) => const TicketHistoryScreen(),
+              ),
             );
           },
         ),
@@ -208,9 +246,6 @@ class _ProfileScreenDriverState extends State<ProfileScreenDriver> {
 
     if (widget.isTab) return body;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: body,
-    );
+    return Scaffold(backgroundColor: Colors.white, body: body);
   }
 }

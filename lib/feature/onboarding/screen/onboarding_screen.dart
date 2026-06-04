@@ -27,8 +27,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               return OnboardingItem(
                 model: OnboardingModel.onboardingPages[index],
                 currentIndex: _currentIndex,
-                onGetStarted: () {
-                },
+                onGetStarted: () {},
               );
             },
           ),

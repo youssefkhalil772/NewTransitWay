@@ -9,7 +9,8 @@ class DriverConfirmEmailScreen extends StatefulWidget {
   const DriverConfirmEmailScreen({super.key, required this.fullEmail});
 
   @override
-  State<DriverConfirmEmailScreen> createState() => _DriverConfirmEmailScreenState();
+  State<DriverConfirmEmailScreen> createState() =>
+      _DriverConfirmEmailScreenState();
 }
 
 class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
@@ -25,23 +26,27 @@ class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
   void _sendOtp() async {
     setState(() => _isLoading = true);
 
-    bool ok = await DriverForgetPasswordWebServices().requestReset(widget.fullEmail);
+    bool ok = await DriverForgetPasswordWebServices().requestReset(
+      widget.fullEmail,
+    );
 
     setState(() => _isLoading = false);
 
     if (ok) {
       if (!mounted) return;
       Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => DriverOtpScreen(email: widget.fullEmail))
+        context,
+        MaterialPageRoute(
+          builder: (_) => DriverOtpScreen(email: widget.fullEmail),
+        ),
       );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error sending OTP. Please try again."),
-            backgroundColor: Colors.redAccent,
-          )
+        const SnackBar(
+          content: Text("Error sending OTP. Please try again."),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -51,9 +56,9 @@ class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: const BackButton(color: Colors.black)
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const BackButton(color: Colors.black),
       ),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -61,9 +66,16 @@ class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(height: 40.h),
-            Icon(Icons.mark_email_read_outlined, size: 80.w, color: ColorManager.lightGreen),
+            Icon(
+              Icons.mark_email_read_outlined,
+              size: 80.w,
+              color: ColorManager.lightGreen,
+            ),
             SizedBox(height: 30.h),
-            Text("Is this your email?", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold)),
+            Text(
+              "Is this your email?",
+              style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 15.h),
             Text(
               "We found a driver account linked to:",
@@ -76,9 +88,9 @@ class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
               width: double.infinity,
               padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
               decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: Colors.grey.shade200)
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: Colors.grey.shade200),
               ),
               child: Text(
                 maskedEmail,
@@ -103,16 +115,28 @@ class _DriverConfirmEmailScreenState extends State<DriverConfirmEmailScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ColorManager.lightGreen,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
                 ),
                 onPressed: _isLoading ? null : _sendOtp,
                 child: _isLoading
                     ? SizedBox(
-                    width: 24.w,
-                    height: 24.w,
-                    child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                )
-                    : Text("Yes, Send Code", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold)),
+                        width: 24.w,
+                        height: 24.w,
+                        child: const CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "Yes, Send Code",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             SizedBox(height: 40.h),

@@ -18,14 +18,12 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
   @override
   void initState() {
     super.initState();
-    // استخدام دالة الـ Masking من الـ WebServices الأصلية بتاعتك
     maskedEmail = ForgetPasswordWebServices().maskEmail(widget.fullEmail);
   }
 
   void _sendOtp() async {
     setState(() => _isLoading = true);
 
-    // الربط الحقيقي بـ API الـ TransitWay لإرسال كود الـ OTP للإيميل
     bool ok = await ForgetPasswordWebServices().requestReset(widget.fullEmail);
 
     setState(() => _isLoading = false);
@@ -33,16 +31,17 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
     if (ok) {
       if (!mounted) return;
       Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => OtpScreen(email: widget.fullEmail))
+        context,
+        MaterialPageRoute(builder: (_) => OtpScreen(email: widget.fullEmail)),
       );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error sending OTP. Please try again."),
-            backgroundColor: Colors.redAccent, // إضافة لون تنبيه للخطأ
-          )
+        const SnackBar(
+          content: Text("Error sending OTP. Please try again."),
+          backgroundColor:
+              Colors.redAccent, // Ø¥Ø¶Ø§ÙØ© Ù„ÙˆÙ† ØªÙ†Ø¨ÙŠÙ‡ Ù„Ù„Ø®Ø·Ø£
+        ),
       );
     }
   }
@@ -52,9 +51,9 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: const BackButton(color: Colors.black)
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const BackButton(color: Colors.black),
       ),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -62,9 +61,16 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(height: 40.h),
-            Icon(Icons.mark_email_read_outlined, size: 80.w, color: const Color(0xFF065D45)),
+            Icon(
+              Icons.mark_email_read_outlined,
+              size: 80.w,
+              color: const Color(0xFF065D45),
+            ),
             SizedBox(height: 30.h),
-            Text("Is this your email?", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold)),
+            Text(
+              "Is this your email?",
+              style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 15.h),
             Text(
               "We found an account linked to:",
@@ -77,9 +83,9 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
               width: double.infinity,
               padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
               decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: Colors.grey.shade200)
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: Colors.grey.shade200),
               ),
               child: Text(
                 maskedEmail,
@@ -104,16 +110,28 @@ class _ConfirmEmailScreenState extends State<ConfirmEmailScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF065D45),
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
                 ),
                 onPressed: _isLoading ? null : _sendOtp,
                 child: _isLoading
                     ? SizedBox(
-                    width: 24.w,
-                    height: 24.w,
-                    child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                )
-                    : Text("Yes, Send Code", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold)),
+                        width: 24.w,
+                        height: 24.w,
+                        child: const CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "Yes, Send Code",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             SizedBox(height: 40.h),

@@ -19,7 +19,8 @@ class TrackingView extends StatefulWidget {
   State<TrackingView> createState() => _TrackingViewState();
 }
 
-class _TrackingViewState extends State<TrackingView> with TickerProviderStateMixin {
+class _TrackingViewState extends State<TrackingView>
+    with TickerProviderStateMixin {
   final HomeRepository _repository = HomeRepository();
   final MapController _mapController = MapController();
 
@@ -40,6 +41,9 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   double? _busHeading;
   int _nextStationIndex = 0;
   Timer? _fallbackTimer;
+  Timer? _routeDebounce; // prevents overlapping route fetches
+  bool _routeFetchScheduled = false;
+  bool _userIsInteracting = false; // true while user is panning/zooming
   RealtimeChannel? _broadcastChannel;
   AnimationController? _movementController;
   final Color appGreen = const Color(0xFF1B4D3E);
@@ -48,22 +52,24 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isDataInitialized) {
-      final originalArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final originalArgs =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (originalArgs != null) {
         args = Map<String, dynamic>.from(originalArgs);
-        // Ensure stations list is mutable
         if (args!['stations'] != null) {
           args!['stations'] = List<Map<String, dynamic>>.from(
-            (args!['stations'] as List).map((s) => Map<String, dynamic>.from(s))
+            (args!['stations'] as List).map(
+              (s) => Map<String, dynamic>.from(s),
+            ),
           );
         }
-        
+
         _isDataInitialized = true;
-        
+
         if (args!['lat'] != null && args!['lng'] != null) {
           _busLocation = LatLng(
-            (args!['lat'] as num).toDouble(), 
-            (args!['lng'] as num).toDouble()
+            (args!['lat'] as num).toDouble(),
+            (args!['lng'] as num).toDouble(),
           );
         }
 
@@ -85,6 +91,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     _busStreamSubscription?.cancel();
     _broadcastChannel?.unsubscribe();
     _fallbackTimer?.cancel();
+    _routeDebounce?.cancel();
     _movementController?.dispose();
     _mapController.dispose();
     super.dispose();
@@ -105,14 +112,15 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     setState(() {
       _stationMarkers = stations.map((s) {
         var p = s['latLong'].toString().split('&');
-        LatLng pos = LatLng(double.parse(p[0].trim()), double.parse(p[1].trim()));
+        LatLng pos = LatLng(
+          double.parse(p[0].trim()),
+          double.parse(p[1].trim()),
+        );
 
-        // Make all stations look the same (no special green pin)
         return _buildStationMarker(pos, routeColor);
       }).toList();
     });
   }
-
 
   void _animatedMapMove(LatLng destLocation, double destZoom) {
     final latTween = Tween<double>(
@@ -132,7 +140,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    final animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeInOut,
+    );
 
     controller.addListener(() {
       _mapController.move(
@@ -142,7 +153,8 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     });
 
     animation.addStatusListener((status) {
-      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
         controller.dispose();
       }
     });
@@ -195,58 +207,67 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   }
 
   Future<void> _fetchFullRoute() async {
-    if (_busLocation == null) return;
-    try {
-      final List<dynamic> stations = args!['stations'] ?? [];
-      final String? startStationName = args!['from'];
+    if (_routeFetchScheduled) return;
+    _routeFetchScheduled = true;
 
-      // Find the user's boarding station index
-      int boardingIndex = stations.indexWhere((s) => s['name'] == startStationName);
-      if (boardingIndex == -1) boardingIndex = stations.length - 1;
+    _routeDebounce?.cancel();
+    _routeDebounce = Timer(const Duration(milliseconds: 800), () async {
+      _routeFetchScheduled = false;
+      if (!mounted || _busLocation == null) return;
+      try {
+        final List<dynamic> stations = args!['stations'] ?? [];
+        final String? startStationName = args!['from'];
 
-      // Start from the closest upcoming station (not from 0) so we don't route backwards
-      List<LatLng> routeWaypoints = [_busLocation!];
-      
-      // If the bus hasn't passed the boarding station yet
-      if (_nextStationIndex <= boardingIndex) {
-        for (int i = _nextStationIndex; i <= boardingIndex; i++) {
-          var p = stations[i]['latLong'].toString().split('&');
-          final stPos = LatLng(double.parse(p[0].trim()), double.parse(p[1].trim()));
-          
-          // Skip station if bus is practically already there
-          final d = Geolocator.distanceBetween(
-            _busLocation!.latitude, _busLocation!.longitude,
-            stPos.latitude, stPos.longitude,
-          );
-          if (d > 30) routeWaypoints.add(stPos);
+        int boardingIndex = stations.indexWhere(
+          (s) => s['name'] == startStationName,
+        );
+        if (boardingIndex == -1) boardingIndex = stations.length - 1;
+
+        List<LatLng> routeWaypoints = [_busLocation!];
+
+        if (_nextStationIndex <= boardingIndex) {
+          for (int i = _nextStationIndex; i <= boardingIndex; i++) {
+            var p = stations[i]['latLong'].toString().split('&');
+            final stPos = LatLng(
+              double.parse(p[0].trim()),
+              double.parse(p[1].trim()),
+            );
+            final d = Geolocator.distanceBetween(
+              _busLocation!.latitude,
+              _busLocation!.longitude,
+              stPos.latitude,
+              stPos.longitude,
+            );
+            if (d > 30) routeWaypoints.add(stPos);
+          }
         }
-      }
 
-      // Must have at least 2 points to draw a route
-      if (routeWaypoints.length < 2) {
-        // Add boarding station directly if not added yet
-        var p = stations[boardingIndex]['latLong'].toString().split('&');
-        routeWaypoints.add(LatLng(double.parse(p[0].trim()), double.parse(p[1].trim())));
-      }
+        if (routeWaypoints.length < 2) {
+          var p = stations[boardingIndex]['latLong'].toString().split('&');
+          routeWaypoints.add(
+            LatLng(double.parse(p[0].trim()), double.parse(p[1].trim())),
+          );
+        }
 
-      debugPrint("Fetching route with ${routeWaypoints.length} waypoints");
+        debugPrint("Fetching route with \${routeWaypoints.length} waypoints");
 
-      final routeData = await _repository.getRouteBetweenStations(
-        routeWaypoints,
-        heading: _busHeading,
-      );
-      if (mounted) {
-        setState(() {
-          _polylinePoints = routeData.points;
-          final distKm = routeData.distanceInMeters / 1000;
-          _distance = distKm.toStringAsFixed(1);
-          final mins = (routeData.durationInSeconds / 60).ceil();
-          _arrivalTime = mins > 0 ? "$mins min" : "Arrived!";
-        });
+        final routeData = await _repository.getRouteBetweenStations(
+          routeWaypoints,
+          heading: _busHeading,
+        );
+        if (mounted) {
+          setState(() {
+            _polylinePoints = routeData.points;
+            final distKm = routeData.distanceInMeters / 1000;
+            _distance = distKm.toStringAsFixed(1);
+            final mins = (routeData.durationInSeconds / 60).ceil();
+            _arrivalTime = mins > 0 ? "\$mins min" : "Arrived!";
+          });
+        }
+      } catch (e) {
+        debugPrint("Route Fetch Error: \$e");
       }
-    } catch (e) {
-      debugPrint("Route Fetch Error: $e");
-    }
+    });
   }
 
   Future<void> _checkArrival(LatLng busPos) async {
@@ -267,8 +288,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           _lastReachedStation = stationName;
           _showArrivalPopup = true;
           _isUserStation = (stationName == args!['from']);
-          
-          // Mark this station and all previous ones as reached
+
           for (int j = 0; j <= i; j++) {
             stations[j]['reached'] = true;
           }
@@ -286,18 +306,23 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     final startLoc = _busLocation!;
     final startHeading = _busHeading ?? 0.0;
 
-    // Shortest path for heading rotation
     final headingDiff = (destHeading - startHeading + 540) % 360 - 180;
     final endHeading = startHeading + headingDiff;
-    
+
     _movementController?.dispose();
     _movementController = AnimationController(
-        vsync: this, 
-        duration: const Duration(milliseconds: 900)
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
     );
 
-    final latTween = Tween<double>(begin: startLoc.latitude, end: destLocation.latitude);
-    final lngTween = Tween<double>(begin: startLoc.longitude, end: destLocation.longitude);
+    final latTween = Tween<double>(
+      begin: startLoc.latitude,
+      end: destLocation.latitude,
+    );
+    final lngTween = Tween<double>(
+      begin: startLoc.longitude,
+      end: destLocation.longitude,
+    );
     final headingTween = Tween<double>(begin: startHeading, end: endHeading);
 
     _movementController!.addListener(() {
@@ -305,20 +330,21 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       final val = _movementController!.value;
       final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
       final animHeading = headingTween.transform(val);
-      
+
       setState(() {
         _busLocation = animLoc;
         _busHeading = animHeading;
       });
-      _mapController.move(animLoc, _mapController.camera.zoom);
+      if (!_userIsInteracting) {
+        _mapController.move(animLoc, _mapController.camera.zoom);
+      }
     });
-
 
     _movementController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _prunePathBehindBus(destLocation);
         _checkArrival(destLocation);
-        if (_calculateRemainingDistance() < 300) {
+        if (_calculateRemainingDistance() < 150) {
           _fetchFullRoute();
         }
       }
@@ -327,14 +353,25 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     _movementController!.forward();
   }
 
-
   StreamSubscription<List<Map<String, dynamic>>>? _busStreamSubscription;
+  DateTime _lastBroadcastTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _handleTrackingUpdate(Map<String, dynamic> data) {
+    final bool isBroadcast = data.containsKey('timestamp');
+    final DateTime now = DateTime.now();
+
+    if (isBroadcast) {
+      _lastBroadcastTime = now;
+    } else {
+      if (now.difference(_lastBroadcastTime).inSeconds < 4) {
+        return;
+      }
+    }
+
     debugPrint("TrackingView: Processing data for keys: ${data.keys.toList()}");
     final lat = data['current_lat'] ?? data['lat'] ?? data['latitude'];
     final lng = data['current_lng'] ?? data['lng'] ?? data['longitude'];
-    
+
     if (lat == null || lng == null) {
       debugPrint("TrackingView: Warning - received data with null coordinates");
       return;
@@ -350,43 +387,52 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       int closest = 0;
       for (int i = 0; i < stations.length; i++) {
         var p = stations[i]['latLong'].toString().split('&');
-        final pos = LatLng(double.parse(p[0].trim()), double.parse(p[1].trim()));
+        final pos = LatLng(
+          double.parse(p[0].trim()),
+          double.parse(p[1].trim()),
+        );
         final d = Geolocator.distanceBetween(
-          newLoc.latitude, newLoc.longitude, pos.latitude, pos.longitude);
-        if (d < minD) { minD = d; closest = i; }
+          newLoc.latitude,
+          newLoc.longitude,
+          pos.latitude,
+          pos.longitude,
+        );
+        if (d < minD) {
+          minD = d;
+          closest = i;
+        }
       }
       _nextStationIndex = closest;
-      setState(() { 
-        _busLocation = newLoc; 
+      setState(() {
+        _busLocation = newLoc;
         _busHeading = newHeading;
-        _isFirstUpdate = false; 
+        _isFirstUpdate = false;
       });
       _mapController.move(newLoc, 15);
       _fetchFullRoute();
     } else {
       final moved = Geolocator.distanceBetween(
-        _busLocation!.latitude, _busLocation!.longitude,
-        newLoc.latitude, newLoc.longitude,
+        _busLocation!.latitude,
+        _busLocation!.longitude,
+        newLoc.latitude,
+        newLoc.longitude,
       );
       final double headingDiff = (newHeading - (_busHeading ?? 0.0)).abs();
 
-      debugPrint("TrackingView: Bus moved $moved meters, heading change $headingDiff");
-      // Threshold lowered to 2 meters or 5 degrees to avoid missing small movements
+      debugPrint(
+        "TrackingView: Bus moved $moved meters, heading change $headingDiff",
+      );
       if (moved > 2 || headingDiff > 5) {
         _startGlidingAnimation(newLoc, newHeading);
       }
     }
-
-
   }
-
 
   Future<void> _startLiveTracking(dynamic busId, dynamic busNum) async {
     _busStreamSubscription?.cancel();
-    debugPrint("🚀 TrackingView: Starting Realtime Monitor for busId=$busId");
+    debugPrint("ðŸš€ TrackingView: Starting Realtime Monitor for busId=$busId");
 
     try {
-      // 1. Resolve exact Bus UUID
       var initialData = await SupabaseConfig.client
           .from(ApiConstants.busesTable)
           .select()
@@ -402,38 +448,40 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
       if (initialData != null && mounted) {
         _handleTrackingUpdate(initialData);
         final String resolvedId = initialData['id'].toString();
-        debugPrint("✅ TrackingView: Resolved bus UUID = $resolvedId");
+        debugPrint("âœ… TrackingView: Resolved bus UUID = $resolvedId");
 
-        // 2. Start Realtime Stream (DB updates)
         _busStreamSubscription = SupabaseConfig.client
             .from(ApiConstants.busesTable)
             .stream(primaryKey: ['id'])
             .eq('id', resolvedId)
-            .listen((List<Map<String, dynamic>> data) {
-          if (!_isTracking || !mounted) return;
-          
-          if (data.isNotEmpty) {
-            final update = data.first;
-            _handleTrackingUpdate(update);
-          }
-        }, onError: (error) {
-          debugPrint("🛑 TrackingView: Stream Error: $error");
-        });
+            .listen(
+              (List<Map<String, dynamic>> data) {
+                if (!_isTracking || !mounted) return;
 
-        // 2.5 Start Realtime Broadcast (60fps updates)
+                if (data.isNotEmpty) {
+                  final update = data.first;
+                  _handleTrackingUpdate(update);
+                }
+              },
+              onError: (error) {
+                debugPrint("ðŸ›‘ TrackingView: Stream Error: $error");
+              },
+            );
+
         _broadcastChannel?.unsubscribe();
         _broadcastChannel = SupabaseConfig.client.channel('public-tracking');
-        _broadcastChannel!.onBroadcast(
-          event: 'bus_moved',
-          callback: (payload) {
-            if (!_isTracking || !mounted || payload == null) return;
-            if (payload['bus_id']?.toString() == resolvedId) {
-              _handleTrackingUpdate(payload);
-            }
-          }
-        ).subscribe();
+        _broadcastChannel!
+            .onBroadcast(
+              event: 'bus_moved',
+              callback: (payload) {
+                if (!_isTracking || !mounted || payload == null) return;
+                if (payload['bus_id']?.toString() == resolvedId) {
+                  _handleTrackingUpdate(payload);
+                }
+              },
+            )
+            .subscribe();
 
-        // 3. Fallback: Polling (Every 5 seconds)
         _fallbackTimer?.cancel();
         _fallbackTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
           if (!_isTracking || !mounted) return;
@@ -443,23 +491,24 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 .select()
                 .eq('id', resolvedId)
                 .maybeSingle();
-            
+
             if (latest != null && mounted) {
-              debugPrint("🔄 TrackingView: Fallback Polling update received");
+              debugPrint("ðŸ”„ TrackingView: Fallback Polling update received");
               _handleTrackingUpdate(latest);
             }
           } catch (e) {
-            debugPrint("⚠️ TrackingView: Polling Error: $e");
+            debugPrint("âš ï¸ TrackingView: Polling Error: $e");
           }
         });
       } else {
-        debugPrint("🛑 TrackingView: Could not resolve bus data for tracking!");
+        debugPrint(
+          "ðŸ›‘ TrackingView: Could not resolve bus data for tracking!",
+        );
       }
     } catch (e) {
-      debugPrint("🛑 TrackingView: Setup Error: $e");
+      debugPrint("ðŸ›‘ TrackingView: Setup Error: $e");
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -476,11 +525,24 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _busLocation ?? const LatLng(30.0444, 31.2357),
+                    initialCenter:
+                        _busLocation ?? const LatLng(30.0444, 31.2357),
                     initialZoom: 15,
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all,
                     ),
+                    onMapEvent: (MapEvent event) {
+                      if (event is MapEventMoveStart &&
+                          event.source == MapEventSource.dragStart) {
+                        _userIsInteracting = true;
+                      } else if (event is MapEventMoveEnd ||
+                          event is MapEventFlingAnimationEnd) {
+                        Future.delayed(
+                          const Duration(seconds: 3),
+                          () => _userIsInteracting = false,
+                        );
+                      }
+                    },
                     onMapReady: () {
                       if (_busLocation != null) {
                         _mapController.move(_busLocation!, 15);
@@ -489,7 +551,8 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                      urlTemplate:
+                          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
                       subdomains: const ['a', 'b', 'c', 'd'],
                       retinaMode: RetinaMode.isHighDensity(context),
                     ),
@@ -522,20 +585,46 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     ),
                   ],
                 ),
-                // Recenter Button — sits just above the bottom sheet
+
                 Positioned(
                   bottom: 0.35.sh + 12.h,
                   right: 16.w,
-                  child: FloatingActionButton.small(
-                    heroTag: "recenter_tracking",
-                    onPressed: () {
-                      if (_busLocation != null) {
-                        _animatedMapMove(_busLocation!, 15.0);
-                      }
-                    },
-                    backgroundColor: Colors.white,
-                    elevation: 4,
-                    child: Icon(Icons.my_location, color: appGreen),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_userIsInteracting)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 6.h),
+                          child: FloatingActionButton.small(
+                            heroTag: "follow_bus",
+                            onPressed: () {
+                              setState(() => _userIsInteracting = false);
+                              if (_busLocation != null) {
+                                _animatedMapMove(_busLocation!, 15.0);
+                              }
+                            },
+                            backgroundColor: const Color(0xFF1B4D3E),
+                            elevation: 4,
+                            child: const Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      FloatingActionButton.small(
+                        heroTag: "recenter_tracking",
+                        onPressed: () {
+                          setState(() => _userIsInteracting = false);
+                          if (_busLocation != null) {
+                            _animatedMapMove(_busLocation!, 15.0);
+                          }
+                        },
+                        backgroundColor: Colors.white,
+                        elevation: 4,
+                        child: Icon(Icons.my_location, color: appGreen),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -547,9 +636,15 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                     return Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(30.r),
+                        ),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 15, offset: const Offset(0, -5))
+                          BoxShadow(
+                            color: Colors.black.withAlpha(25),
+                            blurRadius: 15,
+                            offset: const Offset(0, -5),
+                          ),
                         ],
                       ),
                       child: SingleChildScrollView(
@@ -601,7 +696,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           bottom: 10.h,
           child: Container(
             padding: EdgeInsets.all(5.w),
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
             child: Icon(Icons.directions_bus, color: color, size: 26.sp),
           ),
         ),
@@ -626,7 +724,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
             ),
           ),
           SizedBox(height: 15.h),
-          // Header: boarding station label
           Row(
             children: [
               Icon(Icons.location_pin, color: appGreen, size: 18.sp),
@@ -645,7 +742,6 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
             ],
           ),
           SizedBox(height: 14.h),
-          // ETA + Distance row
           Container(
             padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
             decoration: BoxDecoration(
@@ -661,7 +757,7 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 Container(width: 1, height: 40, color: Colors.grey[300]),
                 _dataDetail(
                   _distance == "..." ? "---" : "$_distance km",
-                  "📍 Distance",
+                  "ðŸ“ Distance",
                 ),
               ],
             ),
@@ -772,17 +868,29 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
     );
   }
 
-
   Widget _dataDetail(String value, String label) => Column(
     children: [
-      Text(value, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: appGreen)),
-      Text(label, style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 18.sp,
+          fontWeight: FontWeight.bold,
+          color: appGreen,
+        ),
+      ),
+      Text(
+        label,
+        style: TextStyle(color: Colors.grey, fontSize: 12.sp),
+      ),
     ],
   );
 
   Widget _buildPulseEtaText(String eta) {
-    final bool isClose = eta.contains("1 min") || eta.contains("2 min") || eta.contains("Arrived");
-    
+    final bool isClose =
+        eta.contains("1 min") ||
+        eta.contains("2 min") ||
+        eta.contains("Arrived");
+
     return Column(
       children: [
         if (isClose)
@@ -795,7 +903,11 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                 scale: value,
                 child: Text(
                   eta,
-                  style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.red),
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
                 ),
               );
             },
@@ -804,15 +916,28 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
             },
           )
         else
-          Text(eta, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: appGreen)),
-        Text("⏱  ETA", style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
+          Text(
+            eta,
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
+              color: appGreen,
+            ),
+          ),
+        Text(
+          "â±  ETA",
+          style: TextStyle(color: Colors.grey, fontSize: 12.sp),
+        ),
       ],
     );
   }
 
   Widget _infoColumn(String label, String value) => Column(
     children: [
-      Text(label, style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
+      Text(
+        label,
+        style: TextStyle(color: Colors.grey, fontSize: 12.sp),
+      ),
       SizedBox(
         width: 80.w,
         child: Text(
@@ -827,17 +952,27 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
 
   Widget _buildHeader() {
     return Container(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 5.h, bottom: 10.h),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 5.h,
+        bottom: 10.h,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
       ),
       child: Row(
         children: [
-          IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back)),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back),
+          ),
           Text(
             "TransitWay",
-            style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: appGreen),
+            style: TextStyle(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.bold,
+              color: appGreen,
+            ),
           ),
           const Spacer(),
           const CustomPointsBadge(),
@@ -850,7 +985,9 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
   Widget _buildArrivalNotification() {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 600),
-      top: _showArrivalPopup ? MediaQuery.of(context).padding.top + 10.h : -150.h,
+      top: _showArrivalPopup
+          ? MediaQuery.of(context).padding.top + 10.h
+          : -150.h,
       left: 15.w,
       right: 15.w,
       child: Container(
@@ -859,7 +996,11 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           color: appGreen,
           borderRadius: BorderRadius.circular(20.r),
           boxShadow: [
-            BoxShadow(color: Colors.black.withAlpha(76), blurRadius: 15, offset: const Offset(0, 8)),
+            BoxShadow(
+              color: Colors.black.withAlpha(76),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
         child: Column(
@@ -869,8 +1010,15 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
               children: [
                 Container(
                   padding: EdgeInsets.all(8.w),
-                  decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-                  child: Icon(Icons.directions_bus, color: Colors.white, size: 22.sp),
+                  decoration: const BoxDecoration(
+                    color: Colors.white24,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.directions_bus,
+                    color: Colors.white,
+                    size: 22.sp,
+                  ),
                 ),
                 SizedBox(width: 12.w),
                 Expanded(
@@ -889,7 +1037,10 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                         _isUserStation
                             ? "Get ready to ride at $_lastReachedStation"
                             : "Reached: $_lastReachedStation",
-                        style: TextStyle(color: Colors.white70, fontSize: 13.sp),
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13.sp,
+                        ),
                       ),
                     ],
                   ),
@@ -907,9 +1058,14 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                   backgroundColor: Colors.white,
                   foregroundColor: appGreen,
                   minimumSize: Size(double.infinity, 45.h),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
                 ),
-                child: const Text("Scan QR to Pay", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "Scan QR to Pay",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               )
             else
               SizedBox(
@@ -919,9 +1075,14 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: appGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
                   ),
-                  child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "OK",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
           ],
@@ -946,7 +1107,11 @@ class _TrackingViewState extends State<TrackingView> with TickerProviderStateMix
           padding: const EdgeInsets.all(2.0),
           child: Container(
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: const Icon(Icons.departure_board, color: Colors.white, size: 12),
+            child: const Icon(
+              Icons.departure_board,
+              color: Colors.white,
+              size: 12,
+            ),
           ),
         ),
       ),

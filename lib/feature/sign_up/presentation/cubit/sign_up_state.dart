@@ -1,4 +1,4 @@
-abstract class SignUpState {}
+﻿abstract class SignUpState {}
 
 class SignUpInitial extends SignUpState {}
 

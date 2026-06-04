@@ -17,7 +17,6 @@ class DriverAuthServices {
         throw 'Invalid email or password';
       }
 
-      // Fetch driver data — simple select to avoid relationship errors
       final driverData = await _client
           .from(ApiConstants.driversTable)
           .select()
@@ -25,9 +24,10 @@ class DriverAuthServices {
           .maybeSingle();
 
       if (driverData != null) {
-        final isBanned = driverData['is_banned'] == true || 
-                         driverData['status']?.toString().toLowerCase() == 'banned' || 
-                         driverData['status']?.toString().toLowerCase() == 'blocked';
+        final isBanned =
+            driverData['is_banned'] == true ||
+            driverData['status']?.toString().toLowerCase() == 'banned' ||
+            driverData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
           await _client.auth.signOut();
           throw 'Your account has been banned by the admin.';
@@ -38,10 +38,7 @@ class DriverAuthServices {
         throw 'Driver account not found';
       }
 
-      return {
-        'token': authResponse.session?.accessToken ?? '',
-        ...driverData,
-      };
+      return {'token': authResponse.session?.accessToken ?? '', ...driverData};
     } on AuthException catch (e) {
       throw e.message;
     } catch (e) {
@@ -50,7 +47,6 @@ class DriverAuthServices {
     }
   }
 
-  /// Fetches driver data with their assigned bus details (joined).
   Future<Map<String, dynamic>> getDriverData(String driverId) async {
     try {
       var response = await _client
@@ -72,15 +68,14 @@ class DriverAuthServices {
 
       return response ?? {};
     } catch (e) {
-      debugPrint("🛑 getDriverData Error: $e");
+      debugPrint("ðŸ›‘ getDriverData Error: $e");
       if (e is PostgrestException) {
-        debugPrint("🛑 Postgrest Error Details: ${e.message} | ${e.details}");
+        debugPrint("ðŸ›‘ Postgrest Error Details: ${e.message} | ${e.details}");
       }
       return {};
     }
   }
 
-  /// Fetches a single bus record directly by its integer ID.
   Future<Map<String, dynamic>?> getBusData(int busId) async {
     try {
       final response = await _client
@@ -90,12 +85,11 @@ class DriverAuthServices {
           .maybeSingle();
       return response;
     } catch (e) {
-      debugPrint("🛑 getBusData Error: $e");
+      debugPrint("ðŸ›‘ getBusData Error: $e");
       return null;
     }
   }
 
-  /// Fetches a bus record by its bus_number (String or int).
   Future<Map<String, dynamic>?> getBusByNumber(String busNumber) async {
     try {
       final response = await _client
@@ -105,16 +99,13 @@ class DriverAuthServices {
           .maybeSingle();
       return response;
     } catch (e) {
-      debugPrint("🛑 getBusByNumber Error: $e");
+      debugPrint("ðŸ›‘ getBusByNumber Error: $e");
       return null;
     }
   }
 
-  /// Fetches a bus record by searching for the driver's ID in the buses table.
-  /// Useful if the link is defined in the buses table instead of the drivers table.
   Future<Map<String, dynamic>?> getBusByDriverId(String driverId) async {
     try {
-      // Trying only 'driver_id' first as 'assigned_driver_id' failed in logs
       final response = await _client
           .from(ApiConstants.busesTable)
           .select()
@@ -122,7 +113,7 @@ class DriverAuthServices {
           .maybeSingle();
       return response;
     } catch (e) {
-      debugPrint("🛑 getBusByDriverId Error: $e");
+      debugPrint("ðŸ›‘ getBusByDriverId Error: $e");
       return null;
     }
   }

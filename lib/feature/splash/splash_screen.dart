@@ -29,12 +29,18 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
   @override
   void initState() {
     super.initState();
-    _controller =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _fade = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
-    _scale = Tween<double>(begin: 0.75, end: 1)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _fade = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    _scale = Tween<double>(
+      begin: 0.75,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
     _controller.forward();
 
     Future.delayed(const Duration(seconds: 3), () {
@@ -59,16 +65,15 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
           opacity: _fade,
           child: ScaleTransition(
             scale: _scale,
-            child: widget.subTitle == 'Driver' 
-              ? _buildDriverSplashContent() 
-              : _buildDefaultSplashContent(),
+            child: widget.subTitle == 'Driver'
+                ? _buildDriverSplashContent()
+                : _buildDefaultSplashContent(),
           ),
         ),
       ),
     );
   }
 
-  // Driver splash content
   Widget _buildDriverSplashContent() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -76,10 +81,13 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
         Stack(
           alignment: Alignment.center,
           children: [
-            Image.asset(ImageAssets.logo, height: 180.h), // Main logo with bus and marker
+            Image.asset(
+              ImageAssets.logo,
+              height: 180.h,
+            ), // Main logo with bus and marker
             Positioned(
               right: 90.w, // Position text next to the marker in the logo
-              top: 50.h,  // Align vertically with the marker position
+              top: 50.h, // Align vertically with the marker position
               child: Text(
                 'Driver',
                 style: TextStyle(
@@ -98,9 +106,7 @@ class _CommonSplashScreenState extends State<CommonSplashScreen>
   Widget _buildDefaultSplashContent() {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Image.asset(ImageAssets.logo, height: 120.h),
-      ],
+      children: [Image.asset(ImageAssets.logo, height: 120.h)],
     );
   }
 }

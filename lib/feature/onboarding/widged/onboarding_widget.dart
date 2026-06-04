@@ -17,13 +17,13 @@ class OnboardingItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isLastPage = currentIndex == OnboardingModel.onboardingPages.length - 1;
+    bool isLastPage =
+        currentIndex == OnboardingModel.onboardingPages.length - 1;
 
     return Column(
       children: [
-        // Expand the image area to reduce the white section
         Expanded(
-          flex: 6, 
+          flex: 6,
           child: SizedBox(
             width: double.infinity,
             child: Image.asset(
@@ -34,12 +34,16 @@ class OnboardingItem extends StatelessWidget {
           ),
         ),
 
-        // Text and buttons section
         Expanded(
           flex: 4, // White section takes 40% of screen
           child: Container(
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(25.w, 30.h, 25.w, 0), // No bottom padding
+            padding: EdgeInsets.fromLTRB(
+              25.w,
+              30.h,
+              25.w,
+              0,
+            ), // No bottom padding
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.only(
@@ -70,10 +74,9 @@ class OnboardingItem extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
-                  
+
                   const Spacer(),
 
-                  // Page indicator dots
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
@@ -84,10 +87,11 @@ class OnboardingItem extends StatelessWidget {
 
                   const Spacer(),
 
-                  // Get started button
                   if (isLastPage)
                     Padding(
-                      padding: EdgeInsets.only(bottom: 20.h), // Extra safety padding
+                      padding: EdgeInsets.only(
+                        bottom: 20.h,
+                      ), // Extra safety padding
                       child: SizedBox(
                         width: double.infinity,
                         height: 50.h, // Slightly reduced button height
@@ -95,7 +99,9 @@ class OnboardingItem extends StatelessWidget {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (context) => const LoginScreen()),
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
                             );
                           },
                           style: ElevatedButton.styleFrom(

@@ -67,7 +67,6 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
       return;
     }
 
-    // Prefetch routes/stations for local mapping
     await UserDataManager().prefetchData();
 
     _ticketsSubscription?.cancel();
@@ -87,7 +86,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
             }
           },
           onError: (e) {
-            debugPrint("🛑 Tickets Stream Error: $e");
+            debugPrint("ðŸ›‘ Tickets Stream Error: $e");
             if (mounted) setState(() => _isLoading = false);
           },
         );
@@ -96,34 +95,34 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
   Future<List<dynamic>> _enrichTicketsLocally(
     List<Map<String, dynamic>> rawTickets,
   ) async {
-    // Ensure caches are loaded
     await UserDataManager().prefetchData();
 
-    final enriched = await Future.wait(rawTickets.map((t) async {
-      final ticket = Map<String, dynamic>.from(t);
-      final routeIdVal = ticket['route_id']?.toString();
-      final busIdVal = ticket['bus_id']?.toString();
+    final enriched = await Future.wait(
+      rawTickets.map((t) async {
+        final ticket = Map<String, dynamic>.from(t);
+        final routeIdVal = ticket['route_id']?.toString();
+        final busIdVal = ticket['bus_id']?.toString();
 
-      // Resolve route name via UUID cache
-      String routeName = '---';
-      if (routeIdVal != null) {
-        routeName = await UserDataManager().getRouteNameByUuid(routeIdVal) ?? '---';
-      }
-      ticket['routes'] = {'name': routeName, 'price': ticket['price'] ?? 0.0};
+        String routeName = '---';
+        if (routeIdVal != null) {
+          routeName =
+              await UserDataManager().getRouteNameByUuid(routeIdVal) ?? '---';
+        }
+        ticket['routes'] = {'name': routeName, 'price': ticket['price'] ?? 0.0};
 
-      // Resolve bus number via UUID cache
-      String busNumber = '---';
-      if (busIdVal != null) {
-        busNumber = await UserDataManager().getBusNumberById(busIdVal) ?? '---';
-      }
-      ticket['buses'] = {'bus_number': busNumber};
+        String busNumber = '---';
+        if (busIdVal != null) {
+          busNumber =
+              await UserDataManager().getBusNumberById(busIdVal) ?? '---';
+        }
+        ticket['buses'] = {'bus_number': busNumber};
 
-      return ticket;
-    }));
+        return ticket;
+      }),
+    );
 
     return enriched;
   }
-
 
   List<dynamic> get _activeTickets => _allTickets.where((t) {
     final status = t['status']?.toString().toLowerCase() ?? '';

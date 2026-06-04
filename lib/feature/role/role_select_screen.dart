@@ -13,9 +13,7 @@ class RoleSelectScreen extends StatelessWidget {
         builder: (context, constraints) {
           return SingleChildScrollView(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight,
-              ),
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
                 child: Column(
                   children: [
@@ -26,14 +24,17 @@ class RoleSelectScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const SizedBox(height: 60),
-                            Image.asset(ImageAssets.logo)
+                            Image.asset(ImageAssets.logo),
                           ],
                         ),
                       ),
                     ),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 30,
+                        vertical: 40,
+                      ),
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.only(
@@ -46,16 +47,21 @@ class RoleSelectScreen extends StatelessWidget {
                         children: [
                           const Text(
                             "Welcome to TransitWay",
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             "Choose how you want to Sign In",
-                            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
                           ),
                           const SizedBox(height: 30),
-                
-                          // Passenger Image
+
                           Image.asset(
                             'assets/images/sgin in user.png',
                             height: 100,
@@ -66,13 +72,15 @@ class RoleSelectScreen extends StatelessWidget {
                             text: "Sign In as Passenger",
                             color: const Color(0XFF054F3A),
                             onPressed: () {
-                              Navigator.pushNamed(context, RoutesManager.onboardingScreen);
+                              Navigator.pushNamed(
+                                context,
+                                RoutesManager.onboardingScreen,
+                              );
                             },
                           ),
-                
+
                           const SizedBox(height: 30),
-                
-                          // Driver Image
+
                           Image.asset(
                             'assets/images/sgin in driver.png',
                             height: 100,
@@ -83,7 +91,10 @@ class RoleSelectScreen extends StatelessWidget {
                             text: "Sign In as Driver",
                             color: const Color(0XFF054F3A),
                             onPressed: () {
-                              Navigator.pushNamed(context, RoutesManager.driverSplash);
+                              Navigator.pushNamed(
+                                context,
+                                RoutesManager.driverSplash,
+                              );
                             },
                           ),
                           const SizedBox(height: 20),
@@ -100,7 +111,11 @@ class RoleSelectScreen extends StatelessWidget {
     );
   }
 
-  Widget buildSignButton({required String text, required Color color, required VoidCallback onPressed}) {
+  Widget buildSignButton({
+    required String text,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
     return SizedBox(
       width: double.infinity,
       height: 55,

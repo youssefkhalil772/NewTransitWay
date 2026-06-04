@@ -31,7 +31,10 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
     final phone = _phoneController.text.trim();
 
     if (phone.isEmpty || phone.length < 11) {
-      setState(() => _errorMessage = 'Please enter a valid wallet phone number (11 digits).');
+      setState(
+        () => _errorMessage =
+            'Please enter a valid wallet phone number (11 digits).',
+      );
       return;
     }
 
@@ -48,14 +51,9 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
         throw Exception('User not found. Please log in again.');
       }
 
-      // Call PayMob edge function
       final response = await SupabaseConfig.client.functions.invoke(
         'paymob-pay',
-        body: {
-          'userId': userId,
-          'amount': widget.amount,
-          'walletPhone': phone,
-        },
+        body: {'userId': userId, 'amount': widget.amount, 'walletPhone': phone},
       );
 
       final data = response.data;
@@ -64,9 +62,7 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
         throw Exception(data['error'].toString());
       }
 
-      // Payment initiated successfully
       if (data is Map && data['success'] == true) {
-        // Update wallet balance
         final newBalance = data['newBalance'];
         if (newBalance != null) {
           final balance = (newBalance as num).toInt();
@@ -83,14 +79,16 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
           );
         }
       } else {
-        // If payment requires redirect (e.g. OTP), handle it
-        final redirectUrl = data is Map ? data['redirectUrl']?.toString() : null;
+        final redirectUrl = data is Map
+            ? data['redirectUrl']?.toString()
+            : null;
         if (redirectUrl != null) {
-          // For now, show a message that OTP verification is needed
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Payment is being processed. Please check your wallet app for OTP confirmation.'),
+                content: Text(
+                  'Payment is being processed. Please check your wallet app for OTP confirmation.',
+                ),
                 backgroundColor: Colors.orange,
                 behavior: SnackBarBehavior.floating,
                 duration: Duration(seconds: 5),
@@ -126,7 +124,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
     if (msg.contains('not found') || msg.contains('404')) {
       return 'Payment service unavailable. Try again later.';
     }
-    // Extract message from Exception
     if (msg.startsWith('Exception: ')) {
       return msg.replaceFirst('Exception: ', '');
     }
@@ -146,7 +143,11 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
         ),
         title: Text(
           "Charge My Points",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18.sp),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18.sp,
+          ),
         ),
         centerTitle: true,
       ),
@@ -157,7 +158,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
           children: [
             SizedBox(height: 20.h),
 
-            // Step Indicator
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 80.w),
               child: Row(
@@ -173,7 +173,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
 
             SizedBox(height: 32.h),
 
-            // Payment Method Header
             Container(
               width: double.infinity,
               padding: EdgeInsets.all(20.w),
@@ -190,7 +189,11 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.account_balance_wallet, color: Colors.white, size: 28.sp),
+                      Icon(
+                        Icons.account_balance_wallet,
+                        color: Colors.white,
+                        size: 28.sp,
+                      ),
                       SizedBox(width: 12.w),
                       Text(
                         'Electronic Wallet',
@@ -205,10 +208,7 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                   SizedBox(height: 8.h),
                   Text(
                     'Pay via Vodafone Cash, Orange Money, Etisalat Cash, or any e-wallet',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12.sp,
-                    ),
+                    style: TextStyle(color: Colors.white70, fontSize: 12.sp),
                   ),
                 ],
               ),
@@ -216,7 +216,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
 
             SizedBox(height: 28.h),
 
-            // Amount display
             Container(
               width: double.infinity,
               padding: EdgeInsets.all(16.w),
@@ -228,7 +227,11 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.monetization_on_outlined, color: _green, size: 24.sp),
+                  Icon(
+                    Icons.monetization_on_outlined,
+                    color: _green,
+                    size: 24.sp,
+                  ),
                   SizedBox(width: 8.w),
                   Text(
                     'Charging: ${widget.amount} EGP = ${widget.amount} Points',
@@ -244,7 +247,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
 
             SizedBox(height: 24.h),
 
-            // Phone number input
             Text(
               'WALLET PHONE NUMBER',
               style: TextStyle(
@@ -260,7 +262,9 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                 color: const Color(0xFFF8F9FA),
                 borderRadius: BorderRadius.circular(14.r),
                 border: Border.all(
-                  color: _errorMessage != null ? Colors.red.shade300 : Colors.grey.shade200,
+                  color: _errorMessage != null
+                      ? Colors.red.shade300
+                      : Colors.grey.shade200,
                   width: 1.5,
                 ),
               ),
@@ -271,24 +275,38 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(11),
                 ],
-                style: TextStyle(fontSize: 16.sp, color: Colors.black87, letterSpacing: 1.2),
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  color: Colors.black87,
+                  letterSpacing: 1.2,
+                ),
                 decoration: InputDecoration(
                   hintText: '01X XXXX XXXX',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15.sp),
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 15.sp,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 16.h,
+                  ),
                   prefixIcon: Padding(
                     padding: EdgeInsets.only(left: 12.w, right: 8.w),
-                    child: Icon(Icons.phone_android, color: _green, size: 22.sp),
+                    child: Icon(
+                      Icons.phone_android,
+                      color: _green,
+                      size: 22.sp,
+                    ),
                   ),
                 ),
                 onChanged: (_) {
-                  if (_errorMessage != null) setState(() => _errorMessage = null);
+                  if (_errorMessage != null)
+                    setState(() => _errorMessage = null);
                 },
               ),
             ),
 
-            // Error message
             if (_errorMessage != null) ...[
               SizedBox(height: 8.h),
               Row(
@@ -307,7 +325,6 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
 
             SizedBox(height: 32.h),
 
-            // Pay Button
             SizedBox(
               width: double.infinity,
               height: 55.h,
@@ -316,7 +333,9 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   disabledBackgroundColor: _green.withValues(alpha: 0.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
                   elevation: 0,
                 ),
                 child: _isProcessing
@@ -334,28 +353,42 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
                           SizedBox(width: 12.w),
                           Text(
                             'Processing...',
-                            style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       )
                     : Text(
                         'Pay ${widget.amount} EGP',
-                        style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ),
 
             SizedBox(height: 20.h),
 
-            // Security note
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock_outline, color: Colors.grey.shade400, size: 14.sp),
+                Icon(
+                  Icons.lock_outline,
+                  color: Colors.grey.shade400,
+                  size: 14.sp,
+                ),
                 SizedBox(width: 6.w),
                 Text(
                   'Secured by PayMob',
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12.sp),
+                  style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 12.sp,
+                  ),
                 ),
               ],
             ),
@@ -380,7 +413,11 @@ class _ChargePointsScreenState extends State<ChargePointsScreen> {
             ? Icon(Icons.check, color: Colors.white, size: 16.sp)
             : Text(
                 "$n",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.sp),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14.sp,
+                ),
               ),
       ),
     );

@@ -74,8 +74,14 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
       await prefs.setString('userId', userData['userId'].toString());
       await prefs.setString('fullName', userData['fullName'] ?? '');
       await prefs.setString('email', userData['email'] ?? '');
-      await prefs.setString('phone', userData['phone'] ?? userData['phone_number'] ?? '');
-      await prefs.setString('userPhoto', userData['photo'] ?? userData['avatar_url'] ?? '');
+      await prefs.setString(
+        'phone',
+        userData['phone'] ?? userData['phone_number'] ?? '',
+      );
+      await prefs.setString(
+        'userPhoto',
+        userData['photo'] ?? userData['avatar_url'] ?? '',
+      );
       await prefs.setString('userRole', 'passenger');
 
       if (!mounted) return;
@@ -127,30 +133,42 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
             .maybeSingle();
 
         if (userData != null) {
-          // Check for ban FIRST before doing anything else
           final rawBanned = userData['is_banned'];
-          final isBanned = rawBanned == true || 
-                           rawBanned == 1 ||
-                           rawBanned?.toString().toLowerCase() == 'true' ||
-                           rawBanned?.toString().toLowerCase() == 'yes' ||
-                           userData['status']?.toString().toLowerCase() == 'banned' || 
-                           userData['status']?.toString().toLowerCase() == 'blocked';
-          debugPrint('🔍 Ban check: is_banned=$rawBanned (${rawBanned.runtimeType}), status=${userData['status']}, isBanned=$isBanned');
+          final isBanned =
+              rawBanned == true ||
+              rawBanned == 1 ||
+              rawBanned?.toString().toLowerCase() == 'true' ||
+              rawBanned?.toString().toLowerCase() == 'yes' ||
+              userData['status']?.toString().toLowerCase() == 'banned' ||
+              userData['status']?.toString().toLowerCase() == 'blocked';
+          debugPrint(
+            'ðŸ” Ban check: is_banned=$rawBanned (${rawBanned.runtimeType}), status=${userData['status']}, isBanned=$isBanned',
+          );
           if (isBanned) {
             await supabase.auth.signOut();
             if (!mounted) return;
             setState(() => _isLoading = false);
-            final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended by the admin.';
+            final reason =
+                userData['ban_reason']?.toString() ??
+                'Your account has been suspended by the admin.';
             showDialog(
               context: context,
               barrierDismissible: false,
               builder: (ctx) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 title: const Row(
                   children: [
                     Icon(Icons.block, color: Colors.red, size: 28),
                     SizedBox(width: 8),
-                    Text('Account Suspended', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Account Suspended',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 content: Column(
@@ -159,14 +177,20 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   children: [
                     const Text('Your account has been suspended by the admin.'),
                     const SizedBox(height: 12),
-                    const Text('Reason:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Reason:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     Text(reason, style: const TextStyle(color: Colors.red)),
                   ],
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('OK', style: TextStyle(color: Colors.red)),
+                    child: const Text(
+                      'OK',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
                 ],
               ),
@@ -185,7 +209,10 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
           await prefs.setString('email', email);
           await prefs.setString(
             'phone',
-            userData['phone_number'] ?? userData['phone'] ?? userData['phoneNumber'] ?? '',
+            userData['phone_number'] ??
+                userData['phone'] ??
+                userData['phoneNumber'] ??
+                '',
           );
           await prefs.setString(
             'userPhoto',
@@ -194,8 +221,7 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
           await prefs.setString('userRole', 'passenger');
 
           if (!mounted) return;
-          
-          // Start notifications monitor immediately upon successful login
+
           InAppNotificationService().startMonitoring();
 
           setState(() => _isLoading = false);
@@ -273,7 +299,6 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                // ─── Email Field ──────────────────────────────────────────
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -301,7 +326,6 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   },
                 ),
                 const SizedBox(height: 20),
-                // ─── Password Field ───────────────────────────────────────
                 TextFormField(
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
@@ -353,7 +377,6 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // ─── Sign In Button ───────────────────────────────────────
                 SizedBox(
                   width: double.infinity,
                   height: 55,
@@ -386,7 +409,6 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   ),
                 ),
                 const SizedBox(height: 28),
-                // ─── OR divider ───────────────────────────────────────────
                 Row(
                   children: [
                     Expanded(
@@ -409,13 +431,11 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // ─── Google Sign-In Button ────────────────────────────────
                 _GoogleSignInButton(
                   isLoading: _isGoogleLoading,
                   onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
                 ),
                 const SizedBox(height: 30),
-                // ─── Sign Up link ─────────────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -449,9 +469,6 @@ class _LoginScreenBodyState extends State<LoginScreenBody> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Premium Google Sign-In Button widget
-// ─────────────────────────────────────────────────────────────────────────────
 class _GoogleSignInButton extends StatelessWidget {
   final bool isLoading;
   final VoidCallback? onPressed;
@@ -524,9 +541,6 @@ class _GoogleSignInButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Custom painter for the official Google "G" multicolor logo
-// ─────────────────────────────────────────────────────────────────────────────
 class _GoogleLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -534,26 +548,18 @@ class _GoogleLogoPainter extends CustomPainter {
     final double cy = size.height / 2;
     final double r = size.width / 2;
 
-    // Stroke width proportional to icon size
     final double strokeW = size.width * 0.28;
-    // Orbit radius
     final double orbit = r * 0.72;
 
-    // Blue (right + top-right arc) — from -23° sweeping ~262°
     _arc(canvas, cx, cy, orbit, -23, 262, const Color(0xFF4285F4), strokeW);
-    // Green (bottom-right) — from 115° sweeping ~73°
     _arc(canvas, cx, cy, orbit, 115, 73, const Color(0xFF34A853), strokeW);
-    // Yellow (bottom-left) — from 188° sweeping ~90°
     _arc(canvas, cx, cy, orbit, 188, 90, const Color(0xFFFBBC05), strokeW);
-    // Red (top-left) — from 278° sweeping ~75°
     _arc(canvas, cx, cy, orbit, 278, 75, const Color(0xFFEA4335), strokeW);
 
-    // Horizontal bar cutout (white rectangle)
     canvas.drawRect(
       Rect.fromLTWH(cx - 1, cy - strokeW / 2, r + 2, strokeW),
       Paint()..color = Colors.white,
     );
-    // Inner circle cutout
     canvas.drawCircle(Offset(cx, cy), r * 0.44, Paint()..color = Colors.white);
   }
 

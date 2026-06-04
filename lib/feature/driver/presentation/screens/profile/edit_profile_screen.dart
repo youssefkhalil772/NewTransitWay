@@ -66,7 +66,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.camera);
+                  final image = await picker.pickImage(
+                    source: ImageSource.camera,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -76,7 +78,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.gallery);
+                  final image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -90,9 +94,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _cropImage(String filePath) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => _CropScreen(imagePath: filePath),
-      ),
+      MaterialPageRoute(builder: (_) => _CropScreen(imagePath: filePath)),
     );
     if (result != null && result is String) {
       setState(() => _selectedImage = File(result));
@@ -100,7 +102,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _saveChanges() async {
-    if (_nameController.text.trim().isEmpty || _phoneController.text.trim().isEmpty) {
+    if (_nameController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Name and Phone cannot be empty")),
       );
@@ -127,25 +130,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         fileKey: 'photo',
       );
 
-      // Correct keys from Supabase 'drivers' table are likely full_name and phone_number
-      final String updatedName = response['full_name'] ?? response['name'] ?? response['fullName'] ?? _nameController.text;
-      final String updatedPhone = response['phone_number'] ?? response['phone'] ?? response['phoneNumber'] ?? _phoneController.text;
-      
+      final String updatedName =
+          response['full_name'] ??
+          response['name'] ??
+          response['fullName'] ??
+          _nameController.text;
+      final String updatedPhone =
+          response['phone_number'] ??
+          response['phone'] ??
+          response['phoneNumber'] ??
+          _phoneController.text;
+
       await prefs.setString('driverName', updatedName);
       await prefs.setString('driverPhone', updatedPhone);
-      
+
       if (response['photo'] != null) {
         await prefs.setString('driverPhoto', response['photo']);
       }
-      
+
       if (mounted) {
         _showSuccessDialog();
       }
-        } catch (e) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Update failed: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Update failed: $e")));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -159,7 +169,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: ColorManager.white,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28.r),
+        ),
         contentPadding: EdgeInsets.symmetric(vertical: 30.h, horizontal: 25.w),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -171,12 +183,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 color: ColorManager.lightGreen.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_outline_rounded, color: ColorManager.lightGreen, size: 50),
+              child: const Icon(
+                Icons.check_circle_outline_rounded,
+                color: ColorManager.lightGreen,
+                size: 50,
+              ),
             ),
             SizedBox(height: 24.h),
             Text(
               "Profile Updated",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20.sp, color: ColorManager.black),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20.sp,
+                color: ColorManager.black,
+              ),
             ),
             SizedBox(height: 12.h),
             Text(
@@ -189,7 +209,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: ColorManager.lightGreen,
                 minimumSize: Size(double.infinity, 52.h),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
                 elevation: 0,
               ),
               onPressed: () {
@@ -198,7 +220,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               },
               child: Text(
                 "OK",
-                style: TextStyle(color: ColorManager.white, fontWeight: FontWeight.bold, fontSize: 16.sp),
+                style: TextStyle(
+                  color: ColorManager.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16.sp,
+                ),
               ),
             ),
           ],
@@ -230,7 +256,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       color: ColorManager.white.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.arrow_back, color: ColorManager.white, size: 20),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: ColorManager.white,
+                      size: 20,
+                    ),
                   ),
                 ),
                 Expanded(
@@ -244,7 +274,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 40.w), 
+                SizedBox(width: 40.w),
               ],
             ),
           ),
@@ -257,18 +287,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 height: 85.w,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: ColorManager.white.withValues(alpha: 0.4), width: 3),
+                  border: Border.all(
+                    color: ColorManager.white.withValues(alpha: 0.4),
+                    width: 3,
+                  ),
                   color: ColorManager.white.withValues(alpha: 0.2),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: _selectedImage != null
                     ? Image.file(_selectedImage!, fit: BoxFit.cover)
-                    : (widget.currentPhoto.isNotEmpty && widget.currentPhoto.startsWith('http')
-                        ? Image.network(widget.currentPhoto, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                        : (widget.currentPhoto.length > 200 
-                            ? Image.memory(base64Decode(widget.currentPhoto.contains(',') ? widget.currentPhoto.split(',').last : widget.currentPhoto), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                            : Icon(Icons.person, color: ColorManager.white, size: 40.sp))),
+                    : (widget.currentPhoto.isNotEmpty &&
+                              widget.currentPhoto.startsWith('http')
+                          ? Image.network(
+                              widget.currentPhoto,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.person,
+                                color: ColorManager.white,
+                                size: 40.sp,
+                              ),
+                            )
+                          : (widget.currentPhoto.length > 200
+                                ? Image.memory(
+                                    base64Decode(
+                                      widget.currentPhoto.contains(',')
+                                          ? widget.currentPhoto.split(',').last
+                                          : widget.currentPhoto,
+                                    ),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c, e, s) => Icon(
+                                      Icons.person,
+                                      color: ColorManager.white,
+                                      size: 40.sp,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.person,
+                                    color: ColorManager.white,
+                                    size: 40.sp,
+                                  ))),
               ),
               Positioned(
                 bottom: 0,
@@ -281,9 +338,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     decoration: BoxDecoration(
                       color: ColorManager.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: ColorManager.lightGreen, width: 2),
+                      border: Border.all(
+                        color: ColorManager.lightGreen,
+                        width: 2,
+                      ),
                     ),
-                    child: Icon(Icons.camera_alt_rounded, color: ColorManager.lightGreen, size: 14.sp),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      color: ColorManager.lightGreen,
+                      size: 14.sp,
+                    ),
                   ),
                 ),
               ),
@@ -292,7 +356,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           SizedBox(height: 8.h),
           Text(
             'tap to change photo',
-            style: TextStyle(color: ColorManager.white.withValues(alpha: 0.7), fontSize: 11.sp),
+            style: TextStyle(
+              color: ColorManager.white.withValues(alpha: 0.7),
+              fontSize: 11.sp,
+            ),
           ),
           SizedBox(height: 15.h),
 
@@ -324,7 +391,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Divider(color: ColorManager.grey.withValues(alpha: 0.1), thickness: 1),
+                            child: Divider(
+                              color: ColorManager.grey.withValues(alpha: 0.1),
+                              thickness: 1,
+                            ),
                           ),
                           _buildField(
                             label: 'Phone number',
@@ -334,7 +404,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Divider(color: ColorManager.grey.withValues(alpha: 0.1), thickness: 1),
+                            child: Divider(
+                              color: ColorManager.grey.withValues(alpha: 0.1),
+                              thickness: 1,
+                            ),
                           ),
                           _buildReadOnlyField(),
                         ],
@@ -350,7 +423,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         onPressed: _isLoading ? null : _saveChanges,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: ColorManager.lightGreen,
-                          disabledBackgroundColor: ColorManager.lightGreen.withValues(alpha: 0.6),
+                          disabledBackgroundColor: ColorManager.lightGreen
+                              .withValues(alpha: 0.6),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16.r),
                           ),
@@ -360,7 +434,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(color: ColorManager.white, strokeWidth: 2.5),
+                                child: CircularProgressIndicator(
+                                  color: ColorManager.white,
+                                  strokeWidth: 2.5,
+                                ),
                               )
                             : Text(
                                 'Save changes',
@@ -404,23 +481,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
-          style: TextStyle(fontSize: 14.sp, color: ColorManager.black, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 14.sp,
+            color: ColorManager.black,
+            fontWeight: FontWeight.w600,
+          ),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: ColorManager.lightGreen, size: 20),
             filled: true,
             fillColor: ColorManager.white,
-            contentPadding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+            contentPadding: EdgeInsets.symmetric(
+              vertical: 12.h,
+              horizontal: 16.w,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: ColorManager.grey.withValues(alpha: 0.1)),
+              borderSide: BorderSide(
+                color: ColorManager.grey.withValues(alpha: 0.1),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: ColorManager.grey.withValues(alpha: 0.1)),
+              borderSide: BorderSide(
+                color: ColorManager.grey.withValues(alpha: 0.1),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: const BorderSide(color: ColorManager.lightGreen, width: 1.5),
+              borderSide: const BorderSide(
+                color: ColorManager.lightGreen,
+                width: 1.5,
+              ),
             ),
           ),
         ),
@@ -457,7 +548,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               Expanded(
                 child: Text(
                   widget.currentEmail,
-                  style: TextStyle(fontSize: 14.sp, color: ColorManager.grey, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: ColorManager.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               Container(
@@ -500,7 +595,10 @@ class _CropScreenState extends State<_CropScreen> {
       backgroundColor: ColorManager.black,
       appBar: AppBar(
         backgroundColor: ColorManager.lightGreen,
-        title: const Text('Crop Photo', style: TextStyle(color: ColorManager.white, fontSize: 18)),
+        title: const Text(
+          'Crop Photo',
+          style: TextStyle(color: ColorManager.white, fontSize: 18),
+        ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: ColorManager.white),
         actions: [
@@ -508,11 +606,15 @@ class _CropScreenState extends State<_CropScreen> {
             onPressed: () async {
               try {
                 final bitmap = await _controller.crop();
-                
+
                 final dir = await getTemporaryDirectory();
-                final file = File('${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                final data = await bitmap.toByteData(format: ui.ImageByteFormat.png);
-                
+                final file = File(
+                  '${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                );
+                final data = await bitmap.toByteData(
+                  format: ui.ImageByteFormat.png,
+                );
+
                 if (data != null) {
                   await file.writeAsBytes(data.buffer.asUint8List());
                   if (context.mounted) {
@@ -523,7 +625,13 @@ class _CropScreenState extends State<_CropScreen> {
                 debugPrint("Crop Error: $e");
               }
             },
-            child: const Text('DONE', style: TextStyle(color: ColorManager.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'DONE',
+              style: TextStyle(
+                color: ColorManager.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),

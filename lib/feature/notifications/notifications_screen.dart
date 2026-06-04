@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/networking/api_constants.dart';
+import '../../core/networking/supabase_init.dart';
 import '../../core/routes/routes_manager.dart';
 import 'data/notification_model.dart';
 import 'data/notification_service.dart';
@@ -13,49 +17,126 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final InAppNotificationService _notificationService = InAppNotificationService();
+  final InAppNotificationService _notificationService =
+      InAppNotificationService();
+
+  StreamSubscription<List<Map<String, dynamic>>>? _notifStream;
   List<NotificationModel> _notifications = [];
   bool _isLoading = true;
+  String? _userId;
 
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    _initRealtime();
   }
 
-  Future<void> _loadNotifications() async {
-    setState(() => _isLoading = true);
-    final response = await _notificationService.fetchNotifications();
+  @override
+  void dispose() {
+    _notifStream?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initRealtime() async {
+    _userId = SupabaseConfig.client.auth.currentUser?.id;
+    if (_userId == null || _userId!.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getString('userId');
+    }
+
+    if (_userId == null || _userId!.isEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    _notifStream?.cancel();
+    _notifStream = SupabaseConfig.client
+        .from(ApiConstants.notificationsTable)
+        .stream(primaryKey: ['id'])
+        .eq('user_id', _userId!)
+        .listen(
+          (List<Map<String, dynamic>> data) {
+            if (!mounted) return;
+
+            final List<NotificationModel> notifList = data
+                .map((i) => NotificationModel.fromJson(i))
+                .toList();
+
+            _appendUserWarningIfNeeded(notifList);
+          },
+          onError: (e) {
+            debugPrint('ðŸ“¡ NotificationsScreen stream error: $e');
+            if (mounted) setState(() => _isLoading = false);
+          },
+        );
+  }
+
+  Future<void> _appendUserWarningIfNeeded(
+    List<NotificationModel> notifList,
+  ) async {
+    try {
+      if (_userId != null) {
+        final userData = await SupabaseConfig.client
+            .from(ApiConstants.usersTable)
+            .select('warning, worning, created_at')
+            .eq('id', _userId!)
+            .maybeSingle();
+
+        if (userData != null) {
+          final userWarning = userData['warning'] ?? userData['worning'];
+          if (userWarning != null && userWarning.toString().isNotEmpty) {
+            notifList.insert(
+              0,
+              NotificationModel(
+                id: '-99',
+                title: 'Account Warning',
+                body: userWarning.toString(),
+                type: 'warning',
+                isRead: false,
+                createdAt:
+                    DateTime.tryParse(
+                      userData['created_at']?.toString() ?? '',
+                    ) ??
+                    DateTime.now(),
+              ),
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
+    notifList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    final unread = notifList.where((n) => !n.isRead).length;
+    _notificationService.updateUnreadCountPublic(unread);
+
     if (mounted) {
       setState(() {
-        _notifications = response?.notifications ?? [];
+        _notifications = notifList;
         _isLoading = false;
       });
     }
   }
 
+  Future<void> _refresh() async {
+    setState(() => _isLoading = true);
+    await _initRealtime();
+  }
+
   Future<void> _markAllRead() async {
     final success = await _notificationService.markAllAsRead();
-    if (success && mounted) {
-      _loadNotifications();
-    }
+    if (success && mounted) {}
   }
 
   Future<void> _onNotificationTap(NotificationModel notification) async {
-    // Navigate to notification details page
     RoutesManager.navigateTo(
       context,
       RoutesManager.notificationDetails,
       arguments: notification,
     );
 
-    // If notification is unread, mark it as read in background
     if (!notification.isRead) {
-      final success = await _notificationService.markAsRead(notification.id);
-      if (success && mounted) {
-        // Refresh the list locally so it appears read when user returns
-        _loadNotifications();
-      }
+      await _notificationService.markAsRead(notification.id);
     }
   }
 
@@ -71,29 +152,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "Notifications",
+          'Notifications',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
           TextButton(
             onPressed: _markAllRead,
-            child: const Text("Mark all read", style: TextStyle(color: Color(0xFF39C449))),
+            child: const Text(
+              'Mark all read',
+              style: TextStyle(color: Color(0xFF39C449)),
+            ),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF064E3B)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF064E3B)),
+            )
           : RefreshIndicator(
-              onRefresh: _loadNotifications,
+              onRefresh: _refresh,
               child: _notifications.isEmpty
                   ? _buildEmptyState()
                   : ListView.separated(
                       padding: EdgeInsets.all(20.w),
                       itemCount: _notifications.length,
-                      separatorBuilder: (context, index) => SizedBox(height: 15.h),
-                      itemBuilder: (context, index) {
-                        return _buildNotificationCard(_notifications[index]);
-                      },
+                      separatorBuilder: (_, __) => SizedBox(height: 15.h),
+                      itemBuilder: (context, index) =>
+                          _buildNotificationCard(_notifications[index]),
                     ),
             ),
     );
@@ -103,16 +188,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.7, // Take up most of the screen to allow scrolling
+        height: MediaQuery.of(context).size.height * 0.7,
         alignment: Alignment.center,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_none_outlined, size: 80.sp, color: Colors.grey),
+            Icon(
+              Icons.notifications_none_outlined,
+              size: 80.sp,
+              color: Colors.grey,
+            ),
             SizedBox(height: 16.h),
-            const Text("No notifications yet", style: TextStyle(color: Colors.grey, fontSize: 16)),
+            const Text(
+              'No notifications yet',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
             SizedBox(height: 8.h),
-            const Text("Pull down to refresh", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Text(
+              'Pull down to refresh',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -126,8 +221,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final title = notification.title.toLowerCase();
     final type = notification.type.toLowerCase();
-    
-    if (type == 'ban' || title.contains('suspended') || title.contains('banned')) {
+
+    if (type == 'ban' ||
+        title.contains('suspended') ||
+        title.contains('banned')) {
       color = Colors.red;
       icon = Icons.block;
       bgColor = const Color(0xFFFCEBEB);
@@ -135,11 +232,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       color = Colors.orange;
       icon = Icons.warning_amber_rounded;
       bgColor = const Color(0xFFFFF9F0);
-    } else if (type == 'success' || title.contains('restored') || title.contains('success')) {
+    } else if (type == 'success' ||
+        title.contains('restored') ||
+        title.contains('success')) {
       color = Colors.green;
       icon = Icons.check_circle_outline;
       bgColor = const Color(0xFFF0FFF4);
-    } else if (type == 'info' || title.contains('info') || title.contains('update')) {
+    } else if (type == 'info' ||
+        title.contains('info') ||
+        title.contains('update')) {
       color = Colors.blue;
       icon = Icons.info_outline;
       bgColor = const Color(0xFFF0F7FF);
@@ -152,7 +253,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return GestureDetector(
       onTap: () => _onNotificationTap(notification),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
           color: bgColor,
@@ -172,7 +274,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           children: [
             Container(
               padding: EdgeInsets.all(10.w),
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
               child: Icon(icon, color: color, size: 24.sp),
             ),
             SizedBox(width: 15.w),
@@ -183,14 +288,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        notification.title,
-                        style: TextStyle(
-                          fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
-                          fontSize: 14.sp,
+                      Expanded(
+                        child: Text(
+                          notification.title,
+                          style: TextStyle(
+                            fontWeight: notification.isRead
+                                ? FontWeight.normal
+                                : FontWeight.bold,
+                            fontSize: 14.sp,
+                          ),
                         ),
                       ),
-                      Text(timeAgo, style: TextStyle(color: Colors.grey, fontSize: 12.sp)),
+                      Text(
+                        timeAgo,
+                        style: TextStyle(color: Colors.grey, fontSize: 12.sp),
+                      ),
                     ],
                   ),
                   SizedBox(height: 5.h),
@@ -212,7 +324,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 margin: EdgeInsets.only(left: 8.w, top: 4.h),
                 width: 8.w,
                 height: 8.w,
-                decoration: const BoxDecoration(color: Color(0xFF39C449), shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF39C449),
+                  shape: BoxShape.circle,
+                ),
               ),
           ],
         ),

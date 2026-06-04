@@ -21,12 +21,11 @@ class CustomTicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // تحديد لون الحالة
     Color statusColor = Colors.grey;
     final String normalizedStatus = status?.toLowerCase() ?? '';
-    
+
     if (normalizedStatus == 'sold' || normalizedStatus == 'valid') {
-      statusColor = ColorManager.green; // تغيير لـ Green الغامق
+      statusColor = ColorManager.green; // ØªØºÙŠÙŠØ± Ù„Ù€ Green Ø§Ù„ØºØ§Ù…Ù‚
     } else if (normalizedStatus == 'expired') {
       statusColor = Colors.redAccent;
     }
@@ -37,10 +36,10 @@ class CustomTicketCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(30.r),
         border: Border.all(
-          color: normalizedStatus == 'expired' 
-              ? Colors.redAccent.withOpacity(0.3) 
-              : ColorManager.green.withOpacity(0.5), 
-          width: 1
+          color: normalizedStatus == 'expired'
+              ? Colors.redAccent.withOpacity(0.3)
+              : ColorManager.green.withOpacity(0.5),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -52,7 +51,6 @@ class CustomTicketCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── الجزء الأيمن (هيئة النقل العام) ────────────────────────
           Container(
             width: 60.w,
             padding: EdgeInsets.symmetric(vertical: 10.h),
@@ -81,8 +79,7 @@ class CustomTicketCard extends StatelessWidget {
               ],
             ),
           ),
-          
-          // ── الجزء الأيسر (بيانات التذكرة) ──────────────────────────
+
           Expanded(
             child: Padding(
               padding: EdgeInsets.fromLTRB(15.w, 15.h, 20.w, 15.h),
@@ -104,29 +101,48 @@ class CustomTicketCard extends StatelessWidget {
                       ],
                     ],
                   ),
-                  
-                  // Brand Logo Top Right
+
                   Positioned(
                     top: 0,
                     right: 0,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text("Transit", style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: Colors.black)),
-                        Text("Way", style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: ColorManager.green)),
+                        Text(
+                          "Transit",
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "Way",
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            color: ColorManager.green,
+                          ),
+                        ),
                         SizedBox(width: 2.w),
-                        Icon(Icons.location_on, color: ColorManager.green, size: 16.sp),
+                        Icon(
+                          Icons.location_on,
+                          color: ColorManager.green,
+                          size: 16.sp,
+                        ),
                       ],
                     ),
                   ),
-                  
-                  // Status Badge
+
                   if (status != null)
                     Positioned(
                       top: 25.h,
                       right: 0,
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8.w,
+                          vertical: 2.h,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(5.r),
@@ -142,8 +158,7 @@ class CustomTicketCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  
-                  // Ticket Type Badge (Manual / QR)
+
                   if (ticketType != null)
                     Positioned(
                       top: 45.h,
@@ -158,7 +173,6 @@ class CustomTicketCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Bottom Right Circle Logo
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -169,17 +183,23 @@ class CustomTicketCard extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: Colors.white,
                         border: Border.all(
-                          color: normalizedStatus == 'expired' ? Colors.redAccent.withOpacity(0.2) : Colors.amber.withOpacity(0.3), 
-                          width: 1
+                          color: normalizedStatus == 'expired'
+                              ? Colors.redAccent.withOpacity(0.2)
+                              : Colors.amber.withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
                       child: ClipOval(
                         child: Opacity(
                           opacity: normalizedStatus == 'expired' ? 0.5 : 1.0,
                           child: Image.asset(
-                            'assets/logo/2.png', 
-                            fit: BoxFit.contain, 
-                            errorBuilder: (c, e, s) => Icon(Icons.qr_code, color: Colors.amber, size: 30.sp)
+                            'assets/logo/2.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (c, e, s) => Icon(
+                              Icons.qr_code,
+                              color: Colors.amber,
+                              size: 30.sp,
+                            ),
                           ),
                         ),
                       ),
@@ -197,12 +217,23 @@ class CustomTicketCard extends StatelessWidget {
   Widget _buildInfoRow(String label, String value) {
     return Row(
       children: [
-        Text(label, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold, color: Colors.black)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
         SizedBox(width: 8.w),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w500, color: Colors.black87),
+            style: TextStyle(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -214,15 +245,29 @@ class CustomTicketCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold, color: Colors.black)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
         SizedBox(width: 8.w),
         Expanded(
           child: Padding(
-            padding: EdgeInsets.only(right: 65.w), // حماية منطقة اللوجو
+            padding: EdgeInsets.only(
+              right: 65.w,
+            ), // Ø­Ù…Ø§ÙŠØ© Ù…Ù†Ø·Ù‚Ø© Ø§Ù„Ù„ÙˆØ¬Ùˆ
             child: Text(
               value,
               maxLines: 2,
-              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500, color: Colors.black87, height: 1.1),
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+                height: 1.1,
+              ),
               overflow: TextOverflow.visible,
             ),
           ),
@@ -235,7 +280,10 @@ class CustomTicketCard extends StatelessWidget {
 class DottedVerticalLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = ColorManager.green.withOpacity(0.3)..strokeWidth = 1..style = PaintingStyle.stroke;
+    final paint = Paint()
+      ..color = ColorManager.green.withOpacity(0.3)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
     const dashHeight = 5.0, dashSpace = 5.0;
     double startY = 0.0;
     while (startY < size.height) {
@@ -243,5 +291,7 @@ class DottedVerticalLinePainter extends CustomPainter {
       startY += dashHeight + dashSpace;
     }
   }
-  @override bool shouldRepaint(CustomPainter oldDelegate) => false;
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

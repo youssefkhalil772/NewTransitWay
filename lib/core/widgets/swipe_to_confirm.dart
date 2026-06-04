@@ -48,7 +48,7 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
 
   void _onPanUpdate(DragUpdateDetails details, double maxWidth) {
     if (_confirmed || widget.isLoading) return;
-    
+
     setState(() {
       _dragPosition += details.delta.dx;
       if (_dragPosition < 0) _dragPosition = 0;
@@ -60,7 +60,6 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
     if (_confirmed || widget.isLoading) return;
 
     if (_dragPosition > (maxWidth - 60.h) * 0.8) {
-      // Confirmed
       setState(() {
         _dragPosition = maxWidth - 60.h;
         _confirmed = true;
@@ -68,7 +67,6 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
       HapticFeedback.heavyImpact();
       widget.onConfirm();
     } else {
-      // Snap back
       _controller.value = _dragPosition;
       _controller.animateTo(0.0, curve: Curves.easeOutBack);
       HapticFeedback.lightImpact();
@@ -79,7 +77,6 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
   void didUpdateWidget(SwipeToConfirm oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!widget.isLoading && oldWidget.isLoading && _confirmed) {
-      // Reset if it finished loading and we stayed on the screen
       setState(() {
         _confirmed = false;
         _dragPosition = 0.0;
@@ -105,10 +102,11 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
           ),
           child: Stack(
             children: [
-              // Background Text
               Center(
                 child: Padding(
-                  padding: EdgeInsets.only(left: 30.w), // Shift right to balance thumb
+                  padding: EdgeInsets.only(
+                    left: 30.w,
+                  ), // Shift right to balance thumb
                   child: Opacity(
                     opacity: (1 - (_dragPosition / maxDrag)).clamp(0.0, 1.0),
                     child: Text(
@@ -123,8 +121,7 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
                   ),
                 ),
               ),
-              
-              // Progress Fill
+
               Positioned(
                 left: 0,
                 top: 0,
@@ -138,7 +135,6 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
                 ),
               ),
 
-              // Draggable Thumb
               Positioned(
                 left: _dragPosition,
                 top: 0,
@@ -157,21 +153,26 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
                           color: widget.baseColor.withValues(alpha: 0.4),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
-                        )
+                        ),
                       ],
                     ),
                     child: Center(
-                      child: widget.isLoading 
-                        ? SizedBox(
-                            width: 20.sp, 
-                            height: 20.sp, 
-                            child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)
-                          )
-                        : Icon(
-                            _confirmed ? Icons.check : Icons.keyboard_double_arrow_right_rounded,
-                            color: Colors.white,
-                            size: 28.sp,
-                          ),
+                      child: widget.isLoading
+                          ? SizedBox(
+                              width: 20.sp,
+                              height: 20.sp,
+                              child: const CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Icon(
+                              _confirmed
+                                  ? Icons.check
+                                  : Icons.keyboard_double_arrow_right_rounded,
+                              color: Colors.white,
+                              size: 28.sp,
+                            ),
                     ),
                   ),
                 ),

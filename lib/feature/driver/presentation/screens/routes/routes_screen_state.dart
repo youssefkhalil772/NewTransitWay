@@ -1,25 +1,21 @@
 part of 'routes_screen.dart';
 
-// ignore_for_file: use_build_context_synchronously
-
 class _RoutesScreenState extends State<RoutesScreen>
     with TickerProviderStateMixin {
-  // ─── Controllers ──────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   final TrackingService _trackingService = TrackingService();
   final HomeRepository _repository = HomeRepository();
 
-  // ─── Location & movement ──────────────────────────────────────────────────
   LatLng? _currentLocation;
   double _currentSpeed = 0.0;
   double _currentHeading = 0.0;
-  final bool _followBus = true; // auto-follow — toggled off when user pans map
+  final bool _followBus =
+      true; // auto-follow â€” toggled off when user pans map
 
-  
   List<StationModel> _localStations = [];
-  List<StationModel> get activeStations => _localStations.isNotEmpty ? _localStations : widget.stations;
+  List<StationModel> get activeStations =>
+      _localStations.isNotEmpty ? _localStations : widget.stations;
 
-  // ─── Trip state ───────────────────────────────────────────────────────────
   bool _isTripActive = false;
   bool _isMapReady = false;
   bool _isProcessingArrival = false;
@@ -27,26 +23,23 @@ class _RoutesScreenState extends State<RoutesScreen>
   bool _isEndingTrip = false;
   bool _isInitialized = false;
 
-  // ─── Route & stations ─────────────────────────────────────────────────────
   List<LatLng> _polylinePoints = [];
   int _nextStationIndex = 0;
   String _currentNextStationName = "Searching...";
   String _etaToNextStation = "...";
 
-  // ─── Subscriptions & timers ───────────────────────────────────────────────
   StreamSubscription? _locationSubscription;
   Timer? _rerouteDebounce;
 
-  // ─── SOS / Crash Detection ────────────────────────────────────────────────
   late final CrashDetector _crashDetector;
   bool _showSosCountdown = false;
   bool _showSosConfirmation = false;
+  bool _showSafeConfirmation = false;
   int _sosCountdownSeconds = 15;
   bool _isSendingSos = false;
   Timer? _sosTimer;
   String? _currentAlertId;
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -59,7 +52,6 @@ class _RoutesScreenState extends State<RoutesScreen>
   @override
   void didUpdateWidget(covariant RoutesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // لو الـ refreshTrigger اتغير أو حتى لو بنرجع للـ tab والرحلة مش شغالة
     if (widget.refreshTrigger != oldWidget.refreshTrigger) {
       _checkTripStatus();
     }
@@ -77,11 +69,9 @@ class _RoutesScreenState extends State<RoutesScreen>
     super.dispose();
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (!_isTripActive) return buildNoTripView();
-    // Always show the map — never block. Fallback center is used if GPS not ready yet.
     return Stack(
       children: [
         buildMainScreen(),
@@ -95,28 +85,32 @@ class _RoutesScreenState extends State<RoutesScreen>
                   onSendNow: _sendSosManually,
                 )
               : _showSosConfirmation
-                  ? SosSentConfirmation(
-                      key: const ValueKey('confirmation'),
-                      onDismiss: () => setState(() => _showSosConfirmation = false),
-                    )
-                  : const SizedBox.shrink(key: ValueKey('none')),
+              ? SosSentConfirmation(
+                  key: const ValueKey('confirmation'),
+                  onDismiss: () => setState(() => _showSosConfirmation = false),
+                )
+              : _showSafeConfirmation
+              ? SosSentConfirmation(
+                  key: const ValueKey('safe_confirmation'),
+                  isSafeMode: true,
+                  onDismiss: () =>
+                      setState(() => _showSafeConfirmation = false),
+                )
+              : const SizedBox.shrink(key: ValueKey('none')),
         ),
       ],
     );
   }
 
-  // ─── State helpers ────────────────────────────────────────────────────────
-  
-  /// Load position instantly: try last known, then actively request current
   Future<void> _loadLastKnownPosition() async {
     try {
-      // 1. Try cached (instant)
       final cached = await Geolocator.getLastKnownPosition();
       if (cached != null && mounted) {
-        setState(() => _currentLocation = LatLng(cached.latitude, cached.longitude));
+        setState(
+          () => _currentLocation = LatLng(cached.latitude, cached.longitude),
+        );
         return;
       }
-      // 2. Actively request with short timeout
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.low,
@@ -127,7 +121,6 @@ class _RoutesScreenState extends State<RoutesScreen>
         setState(() => _currentLocation = LatLng(pos.latitude, pos.longitude));
       }
     } catch (_) {
-      // 3. Absolute fallback: Cairo center — map always shows
       if (mounted && _currentLocation == null) {
         setState(() => _currentLocation = const LatLng(30.0444, 31.2357));
       }
@@ -152,6 +145,7 @@ class _RoutesScreenState extends State<RoutesScreen>
         _currentHeading = 0.0;
         _showSosCountdown = false;
         _showSosConfirmation = false;
+        _showSafeConfirmation = false;
         _sosTimer?.cancel();
         _currentAlertId = null;
       });
@@ -160,7 +154,6 @@ class _RoutesScreenState extends State<RoutesScreen>
   }
 
   Future<void> _checkTripStatus() async {
-    // Primary: if stations were passed in, the trip IS active — no async needed
     if (activeStations.isNotEmpty) {
       if (mounted) {
         setState(() => _isTripActive = true);
@@ -169,7 +162,6 @@ class _RoutesScreenState extends State<RoutesScreen>
       return;
     }
 
-    // Fallback: check SharedPreferences (for when screen rebuilds from tab switch)
     final prefs = await SharedPreferences.getInstance();
     final bool active = prefs.getBool('isTripActive') ?? false;
     if (mounted) {
@@ -193,18 +185,22 @@ class _RoutesScreenState extends State<RoutesScreen>
       final prefs = await SharedPreferences.getInstance();
       final routeId = prefs.getInt('routeId');
       if (routeId == null) return;
-      
+
       final allRoutes = await DriverDataManager().getRoutes();
       final allStations = await DriverDataManager().getStations();
-      
-      final matchedRoute = allRoutes.firstWhere((r) => r.id == routeId, orElse: () => allRoutes.first);
-      
+
+      final matchedRoute = allRoutes.firstWhere(
+        (r) => r.id == routeId,
+        orElse: () => allRoutes.first,
+      );
+
       final rZone = matchedRoute.zone.toLowerCase().replaceAll(' ', '');
-      final stations = allStations
-          .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
-          .toList()
-        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-      
+      final stations =
+          allStations
+              .where((s) => s.zone.toLowerCase().replaceAll(' ', '') == rZone)
+              .toList()
+            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
       if (mounted) {
         setState(() {
           _localStations = stations;
@@ -217,7 +213,6 @@ class _RoutesScreenState extends State<RoutesScreen>
     } catch (_) {}
   }
 
-  // ─── Station logic ────────────────────────────────────────────────────────
   void _findNearestStationIndex() {
     if (activeStations.isEmpty || _currentLocation == null) return;
 
@@ -265,18 +260,14 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
-  // ─── Map movement ────────────────────────────────────────────────────────
   void _moveMapToLocation(LatLng location, double heading) {
     if (!_isMapReady || !_followBus) return;
-    // Direct move — no animation delay for real-time feel
     _mapController.move(location, _mapController.camera.zoom);
     _mapController.rotate(heading);
   }
 
-  // ─── Location stream ──────────────────────────────────────────────────────
   void _listenToLiveUpdates() {
-    _locationSubscription =
-        _trackingService.locationStream.listen((position) {
+    _locationSubscription = _trackingService.locationStream.listen((position) {
       if (!mounted || !_isTripActive) return;
 
       final LatLng newLoc = LatLng(position.latitude, position.longitude);
@@ -292,7 +283,6 @@ class _RoutesScreenState extends State<RoutesScreen>
         return;
       }
 
-      // 60fps Smooth Interpolation (Gliding)
       final startLoc = _currentLocation ?? newLoc;
       final startHeading = _currentHeading;
       final headingDiff = (position.heading - startHeading + 540) % 360 - 180;
@@ -300,37 +290,47 @@ class _RoutesScreenState extends State<RoutesScreen>
 
       _movementController?.dispose();
       _movementController = AnimationController(
-        vsync: this, 
-        duration: const Duration(milliseconds: 900) // Slightly less than 1s to finish before next tick
+        vsync: this,
+        duration: const Duration(
+          milliseconds: 900,
+        ), // Slightly less than 1s to finish before next tick
       );
 
-      final latTween = Tween<double>(begin: startLoc.latitude, end: newLoc.latitude);
-      final lngTween = Tween<double>(begin: startLoc.longitude, end: newLoc.longitude);
+      final latTween = Tween<double>(
+        begin: startLoc.latitude,
+        end: newLoc.latitude,
+      );
+      final lngTween = Tween<double>(
+        begin: startLoc.longitude,
+        end: newLoc.longitude,
+      );
       final headingTween = Tween<double>(begin: startHeading, end: endHeading);
 
       _movementController!.addListener(() {
         if (!mounted) return;
         final val = _movementController!.value;
-        final animLoc = LatLng(latTween.transform(val), lngTween.transform(val));
-        
+        final animLoc = LatLng(
+          latTween.transform(val),
+          lngTween.transform(val),
+        );
+
         final animHeading = headingTween.transform(val);
-        
+
         setState(() {
           _currentLocation = animLoc;
           _currentHeading = animHeading;
           _currentSpeed = position.speed * 3.6; // Speed updates instantly
         });
-        
+
         _moveMapToLocation(animLoc, animHeading);
       });
-      
+
       _movementController!.forward();
 
-      // Logic calculations still use the actual new GPS target, not the animated frame
       if (_polylinePoints.isNotEmpty) {
         final bool onPath = _prunePathBehindBus(newLoc);
         if (!onPath && !_isFetchingRoute) {
-          debugPrint("🚨 Off track detected (> 10m). Rerouting...");
+          debugPrint("ðŸš¨ Off track detected (> 10m). Rerouting...");
           _scheduleReroute();
         }
       }
@@ -347,22 +347,19 @@ class _RoutesScreenState extends State<RoutesScreen>
     });
   }
 
-  // ─── Rerouting ────────────────────────────────────────────────────────────
   void _scheduleReroute() {
     _rerouteDebounce?.cancel();
     _rerouteDebounce = Timer(const Duration(seconds: 2), () {
       if (mounted && !_isFetchingRoute) {
-        debugPrint("🔄 Rerouting after leaving path...");
+        debugPrint("ðŸ”„ Rerouting after leaving path...");
         setState(() => _polylinePoints = []);
         _updateSmartRoute();
       }
     });
   }
 
-  // ─── ETA ──────────────────────────────────────────────────────────────────
   void _calculateETA(LatLng busPos) {
-    if (activeStations.isEmpty ||
-        _nextStationIndex >= activeStations.length) {
+    if (activeStations.isEmpty || _nextStationIndex >= activeStations.length) {
       _etaToNextStation = "0 min";
       return;
     }
@@ -382,7 +379,6 @@ class _RoutesScreenState extends State<RoutesScreen>
     _etaToNextStation = minutes < 1 ? "< 1 min" : "~$minutes min";
   }
 
-  // ─── Path pruning ─────────────────────────────────────────────────────────
   bool _prunePathBehindBus(LatLng busPos) {
     if (_polylinePoints.length < 2) return true;
 
@@ -415,7 +411,6 @@ class _RoutesScreenState extends State<RoutesScreen>
     return true;
   }
 
-  // ─── Route fetching ───────────────────────────────────────────────────────
   Future<void> _updateSmartRoute() async {
     if (_isFetchingRoute ||
         activeStations.isEmpty ||
@@ -434,15 +429,13 @@ class _RoutesScreenState extends State<RoutesScreen>
       }
 
       if (waypoints.length >= 2) {
-        final routeData =
-            await _repository.getRouteBetweenStations(waypoints);
+        final routeData = await _repository.getRouteBetweenStations(waypoints);
         if (mounted) {
           setState(() {
             _polylinePoints = routeData.points;
-            _currentNextStationName =
-                _nextStationIndex < activeStations.length
-                    ? activeStations[_nextStationIndex].name
-                    : "Trip Completed";
+            _currentNextStationName = _nextStationIndex < activeStations.length
+                ? activeStations[_nextStationIndex].name
+                : "Trip Completed";
           });
         }
       }
@@ -453,23 +446,19 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
-  // ─── SOS / Crash Detection ────────────────────────────────────────────────
-
-  /// Initialises CrashDetector with callbacks that update the UI via setState.
   void _initCrashDetector() {
     _crashDetector = CrashDetector(
       onCrashDetected: () async {
-        debugPrint("💥 CrashDetector Callback Triggered!");
+        debugPrint("ðŸ’¥ CrashDetector Callback Triggered!");
         if (!mounted || _showSosCountdown) return;
 
-        // 1. Show the UI IMMEDIATELY (Critical Path)
         setState(() {
           _showSosCountdown = true;
           _sosCountdownSeconds = 15;
           _showSosConfirmation = false;
+          _showSafeConfirmation = false;
         });
 
-        // 2. Start the countdown timer immediately
         _sosTimer?.cancel();
         _sosTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
           if (!mounted) {
@@ -484,22 +473,20 @@ class _RoutesScreenState extends State<RoutesScreen>
             _executeEmergency();
           }
         });
-
-        // ✅ NO DB write here — only write if driver confirms or countdown ends.
       },
     );
   }
 
-  /// Cancel an in-progress countdown — driver indicated they are fine.
   void _cancelSos() async {
     _sosTimer?.cancel();
     final alertId = _currentAlertId;
-    
+
     if (mounted) {
       setState(() {
         _showSosCountdown = false;
         _sosCountdownSeconds = 15;
         _currentAlertId = null;
+        _showSafeConfirmation = true;
       });
     }
 
@@ -508,7 +495,6 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 
-  /// Driver manually pressed the red SOS button (not from crash detection).
   void _sendSosManually() {
     _sosTimer?.cancel();
     if (mounted) {
@@ -517,108 +503,254 @@ class _RoutesScreenState extends State<RoutesScreen>
         _sosCountdownSeconds = 15;
       });
     }
-    _showSosDialog(context);
+    _showSosBottomSheet(context);
   }
 
-  /// Shows a dialog letting the driver choose between Breakdown Report or Emergency.
-  void _showSosDialog(BuildContext context) {
+  void _showSosBottomSheet(BuildContext context) {
     final messageController = TextEditingController();
     bool isSendingBreakdown = false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-              SizedBox(width: 8),
-              Text('SOS — Report Issue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'What happened?',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: messageController,
-                  maxLines: 3,
-                  maxLength: 200,
-                  decoration: InputDecoration(
-                    hintText: 'Describe the issue (e.g. engine stopped, flat tire…)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
+        builder: (ctx, setSheetState) {
+          return Container(
+            margin: EdgeInsets.only(top: 60.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(50),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5),
                 ),
               ],
             ),
-          ),
-          actions: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Emergency (Primary, Red, at the top)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () {
-                    final msg = messageController.text.trim();
-                    Navigator.pop(ctx);
-                    _triggerAndSendEmergency(msg.isNotEmpty ? msg : null);
-                  },
-                  icon: const Icon(Icons.emergency, size: 20, color: Colors.white),
-                  label: const Text('Emergency!', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 30.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 50.w,
+                        height: 5.h,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 24.h),
+
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10.w),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.orange,
+                            size: 28.sp,
+                          ),
+                        ),
+                        SizedBox(width: 16.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Emergency & Reports',
+                                style: TextStyle(
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(height: 4.h),
+                              Text(
+                                'Report an issue or call for immediate help',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 30.h),
+
+                    Text(
+                      'What happened?',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    TextField(
+                      controller: messageController,
+                      maxLines: 4,
+                      maxLength: 200,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Describe the issue (e.g., engine stopped, flat tire...)',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1B4D3E),
+                            width: 2,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        contentPadding: EdgeInsets.all(16.w),
+                      ),
+                    ),
+                    SizedBox(height: 24.h),
+
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                        ),
+                      ),
+                      onPressed: () {
+                        final msg = messageController.text.trim();
+                        Navigator.pop(ctx);
+                        _triggerAndSendEmergency(msg.isNotEmpty ? msg : null);
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.emergency,
+                            size: 22.sp,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 12.w),
+                          Text(
+                            'SOS Emergency',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                        ),
+                      ),
+                      onPressed: isSendingBreakdown
+                          ? null
+                          : () async {
+                              final msg = messageController.text.trim();
+                              if (msg.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Please describe the issue first.',
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+                              setSheetState(() => isSendingBreakdown = true);
+                              Navigator.pop(ctx);
+                              await _sendBreakdownReport(msg);
+                            },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          isSendingBreakdown
+                              ? SizedBox(
+                                  width: 22.sp,
+                                  height: 22.sp,
+                                  child: const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.build,
+                                  size: 22.sp,
+                                  color: Colors.white,
+                                ),
+                          SizedBox(width: 12.w),
+                          Text(
+                            isSendingBreakdown
+                                ? 'Sending...'
+                                : 'Report Breakdown',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                // Breakdown Report
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: isSendingBreakdown ? null : () async {
-                    final msg = messageController.text.trim();
-                    if (msg.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please describe the issue first.')),
-                      );
-                      return;
-                    }
-                    setDialogState(() => isSendingBreakdown = true);
-                    Navigator.pop(ctx);
-                    await _sendBreakdownReport(msg);
-                  },
-                  icon: const Icon(Icons.build, size: 20, color: Colors.white),
-                  label: const Text('Report Breakdown', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(height: 10),
-                // Cancel
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                ),
-              ],
-            )
-          ],
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  /// Sends a breakdown report with a message — NOT an emergency.
   Future<void> _sendBreakdownReport(String message) async {
     try {
       final ids = await SosService.loadIds();
@@ -631,19 +763,17 @@ class _RoutesScreenState extends State<RoutesScreen>
         setState(() => _showSosConfirmation = true);
       }
     } catch (e) {
-      debugPrint('🛑 Breakdown report failed: $e');
+      debugPrint('ðŸ›‘ Breakdown report failed: $e');
     }
   }
 
-  /// Trigger a brand-new SOS alert and immediately escalate to emergency.
-  /// Used when the driver presses the manual SOS button without a crash event.
   Future<void> _triggerAndSendEmergency([String? message]) async {
     if (_isSendingSos) return;
     _isSendingSos = true;
 
     try {
       final ids = await SosService.loadIds();
-      debugPrint('🆘 Manual SOS: triggering with ids=$ids');
+      debugPrint('ðŸ†˜ Manual SOS: triggering with ids=$ids');
 
       final alertId = await SosService.triggerSos(
         driverId: ids.driverId,
@@ -653,7 +783,7 @@ class _RoutesScreenState extends State<RoutesScreen>
 
       if (alertId != null) {
         await SosService.sendEmergency(alertId);
-        debugPrint('🚨 Manual SOS: emergency sent for alertId=$alertId');
+        debugPrint('ðŸš¨ Manual SOS: emergency sent for alertId=$alertId');
       }
 
       if (mounted) {
@@ -663,13 +793,12 @@ class _RoutesScreenState extends State<RoutesScreen>
         });
       }
     } catch (e) {
-      debugPrint('🛑 Manual SOS failed: $e');
+      debugPrint('ðŸ›‘ Manual SOS failed: $e');
     } finally {
       _isSendingSos = false;
     }
   }
 
-  /// Shared logic that actually fires the SOS call and shows the confirmation.
   Future<void> _executeEmergency() async {
     if (_isSendingSos) return;
     if (mounted) setState(() => _isSendingSos = true);
@@ -677,19 +806,17 @@ class _RoutesScreenState extends State<RoutesScreen>
     try {
       var alertId = _currentAlertId;
 
-      // If no alertId yet (background trigger still running), wait a bit
       if (alertId == null) {
-        debugPrint('⏳ _executeEmergency: waiting for alertId...');
+        debugPrint('â³ _executeEmergency: waiting for alertId...');
         await Future.delayed(const Duration(seconds: 2));
         alertId = _currentAlertId;
       }
 
       if (alertId != null) {
         await SosService.sendEmergency(alertId);
-        debugPrint('🚨 Emergency sent for alertId=$alertId');
+        debugPrint('ðŸš¨ Emergency sent for alertId=$alertId');
       } else {
-        // Last resort: trigger a new one and send emergency
-        debugPrint('⚠️ No alertId — triggering new SOS for emergency');
+        debugPrint('âš ï¸ No alertId â€” triggering new SOS for emergency');
         final ids = await SosService.loadIds();
         final newId = await SosService.triggerSos(
           driverId: ids.driverId,
@@ -708,7 +835,7 @@ class _RoutesScreenState extends State<RoutesScreen>
         });
       }
     } catch (e) {
-      debugPrint('🛑 SOS execution failed: $e');
+      debugPrint('ðŸ›‘ SOS execution failed: $e');
       if (mounted) {
         setState(() {
           _showSosCountdown = false;
@@ -720,4 +847,3 @@ class _RoutesScreenState extends State<RoutesScreen>
     }
   }
 }
-

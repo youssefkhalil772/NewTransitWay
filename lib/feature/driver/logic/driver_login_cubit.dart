@@ -4,7 +4,8 @@ import '../data/driver_auth_service.dart';
 part 'driver_login_state.dart';
 
 class DriverLoginCubit extends Cubit<DriverLoginState> {
-  final DriverAuthServices _authService; // تم تغيير التسمية لـ Services
+  final DriverAuthServices
+  _authService; // ØªÙ… ØªØºÙŠÙŠØ± Ø§Ù„ØªØ³Ù…ÙŠØ© Ù„Ù€ Services
 
   DriverLoginCubit(this._authService) : super(DriverLoginInitial());
 

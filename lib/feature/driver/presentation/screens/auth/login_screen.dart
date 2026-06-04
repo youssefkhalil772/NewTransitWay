@@ -29,19 +29,28 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
 
   Future<void> _saveDriverData(Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     if (data['id'] != null) {
       await prefs.setString('driverId', data['id'].toString());
-      await prefs.setString('userId', data['id'].toString()); 
+      await prefs.setString('userId', data['id'].toString());
     }
-    
-    await prefs.setString('driverName', data['name'] ?? data['full_name'] ?? data['fullName'] ?? "");
+
+    await prefs.setString(
+      'driverName',
+      data['name'] ?? data['full_name'] ?? data['fullName'] ?? "",
+    );
     await prefs.setString('driverEmail', data['email'] ?? "");
-    await prefs.setString('driverPhone', data['phone'] ?? data['phone_number'] ?? "");
-    await prefs.setString('licenseNumber', data['licenseNumber'] ?? data['license_number'] ?? "");
+    await prefs.setString(
+      'driverPhone',
+      data['phone'] ?? data['phone_number'] ?? "",
+    );
+    await prefs.setString(
+      'licenseNumber',
+      data['licenseNumber'] ?? data['license_number'] ?? "",
+    );
     await prefs.setString('driverStatus', data['status'] ?? "Inactive");
     await prefs.setString('driverPhoto', data['photo'] ?? data['image'] ?? "");
-    
+
     if (data['busId'] != null) {
       await prefs.setString('busId', data['busId'].toString());
     }
@@ -55,7 +64,10 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
       listener: (context, state) {
         if (state is DriverLoginSuccess) {
           _saveDriverData(state.driverData).then((_) {
-            RoutesManager.navigateAndRemoveUntil(context, RoutesManager.driverHome);
+            RoutesManager.navigateAndRemoveUntil(
+              context,
+              RoutesManager.driverHome,
+            );
           });
         } else if (state is DriverLoginError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -67,7 +79,9 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
               backgroundColor: Colors.redAccent,
               behavior: SnackBarBehavior.floating,
               margin: EdgeInsets.all(20.w),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
             ),
           );
         }
@@ -117,10 +131,16 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _buildInputDecoration('Email', Icons.email_outlined),
+                    decoration: _buildInputDecoration(
+                      'Email',
+                      Icons.email_outlined,
+                    ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter your email';
-                      if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      if (value == null || value.isEmpty)
+                        return 'Please enter your email';
+                      if (!RegExp(
+                        r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Please enter a valid email address';
                       }
                       return null;
@@ -131,24 +151,27 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: !_isPasswordVisible,
-                    decoration: _buildInputDecoration(
-                      'Password (at least 8 characters)',
-                      Icons.lock_outline,
-                    ).copyWith(
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPasswordVisible
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          color: ColorManager.grey4,
-                          size: 24.sp,
+                    decoration:
+                        _buildInputDecoration(
+                          'Password (at least 8 characters)',
+                          Icons.lock_outline,
+                        ).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: ColorManager.grey4,
+                              size: 24.sp,
+                            ),
+                            onPressed: () => setState(
+                              () => _isPasswordVisible = !_isPasswordVisible,
+                            ),
+                          ),
                         ),
-                        onPressed: () => setState(
-                                () => _isPasswordVisible = !_isPasswordVisible),
-                      ),
-                    ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter your password';
+                      if (value == null || value.isEmpty)
+                        return 'Please enter your password';
                       if (value.length < 8) return 'Password is too short';
                       return null;
                     },
@@ -158,10 +181,11 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                     alignment: Alignment.centerRight,
                     child: GestureDetector(
                       onTap: () {
-                        // تعديل الربط لفتح شاشة استعادة كلمة مرور السائق
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const DriverRecoveryScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const DriverRecoveryScreen(),
+                          ),
                         );
                       },
                       child: Text(
@@ -185,13 +209,13 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                           onPressed: state is DriverLoginLoading
                               ? null
                               : () {
-                            if (_formKey.currentState!.validate()) {
-                              context.read<DriverLoginCubit>().login(
-                                _emailController.text.trim(),
-                                _passwordController.text,
-                              );
-                            }
-                          },
+                                  if (_formKey.currentState!.validate()) {
+                                    context.read<DriverLoginCubit>().login(
+                                      _emailController.text.trim(),
+                                      _passwordController.text,
+                                    );
+                                  }
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: ColorManager.lightGreen,
                             shape: RoundedRectangleBorder(
@@ -201,18 +225,21 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                           ),
                           child: state is DriverLoginLoading
                               ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(color: ColorManager.white, strokeWidth: 2),
-                          )
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: ColorManager.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
                               : Text(
-                            'Sign In',
-                            style: TextStyle(
-                              color: ColorManager.white,
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                                  'Sign In',
+                                  style: TextStyle(
+                                    color: ColorManager.white,
+                                    fontSize: 18.sp,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       );
                     },
@@ -244,7 +271,10 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15.r),
-        borderSide: const BorderSide(color: ColorManager.lightGreen, width: 1.5),
+        borderSide: const BorderSide(
+          color: ColorManager.lightGreen,
+          width: 1.5,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15.r),

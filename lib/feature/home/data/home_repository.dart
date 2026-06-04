@@ -14,7 +14,11 @@ class RouteData {
   final double distanceInMeters;
   final double durationInSeconds;
 
-  RouteData({required this.points, this.distanceInMeters = 0, this.durationInSeconds = 0});
+  RouteData({
+    required this.points,
+    this.distanceInMeters = 0,
+    this.durationInSeconds = 0,
+  });
 }
 
 class HomeRepository {
@@ -35,7 +39,10 @@ class HomeRepository {
       return (response as List).map((json) {
         return RouteModel.fromJson({
           'id': int.tryParse(json['line_number']?.toString() ?? '') ?? 0,
-          'name': json['name']?.toString() ?? json['start_point']?.toString() ?? json['line_number'].toString(),
+          'name':
+              json['name']?.toString() ??
+              json['start_point']?.toString() ??
+              json['line_number'].toString(),
           'zone': json['end_point']?.toString() ?? 'Unknown',
           'price': double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
         });
@@ -45,7 +52,10 @@ class HomeRepository {
     }
   }
 
-  Future<RouteData> getRouteBetweenStations(List<LatLng> waypoints, {double? heading}) async {
+  Future<RouteData> getRouteBetweenStations(
+    List<LatLng> waypoints, {
+    double? heading,
+  }) async {
     if (waypoints.length < 2) return RouteData(points: waypoints);
 
     final List<LatLng> effectiveWaypoints = waypoints.length > 20
@@ -84,10 +94,10 @@ class HomeRepository {
         if (geometry is Map<String, dynamic>) {
           final coords = geometry['coordinates'] as List<dynamic>;
           points = coords
-              .map((c) => LatLng(
-                    (c[1] as num).toDouble(),
-                    (c[0] as num).toDouble(),
-                  ))
+              .map(
+                (c) =>
+                    LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+              )
               .toList();
         }
 
@@ -108,7 +118,6 @@ class HomeRepository {
 
   Future<dynamic> getNearestBus(String startStationId) async {
     try {
-      // 1. Get the route_id for the start station
       final stationData = await SupabaseConfig.client
           .from(ApiConstants.stationsTable)
           .select('route_id')
@@ -121,7 +130,6 @@ class HomeRepository {
 
       final routeId = stationData['route_id'];
 
-      // 2. Get an active bus on this route
       final busesData = await SupabaseConfig.client
           .from(ApiConstants.busesTable)
           .select('*')
@@ -130,12 +138,11 @@ class HomeRepository {
           .limit(1);
 
       if (busesData.isNotEmpty) {
-        // Add a mock ETA since we aren't calculating real distance here
         final bus = Map<String, dynamic>.from(busesData[0]);
         bus['eta_minutes'] = 5;
         return [bus];
       }
-      
+
       return [];
     } catch (e) {
       debugPrint('Error in getNearestBus fallback: $e');

@@ -18,8 +18,10 @@ class DriverForgetPasswordWebServices {
 
       if (response != null && response is String) {
         return response;
-      } else if (response != null && response is Map && response.containsKey('email')) {
-         return response['email'] as String?;
+      } else if (response != null &&
+          response is Map &&
+          response.containsKey('email')) {
+        return response['email'] as String?;
       }
       return response?.toString();
     } catch (e) {
@@ -63,15 +65,13 @@ class DriverForgetPasswordWebServices {
   }
 
   Future<bool> confirmReset({
-    required String email, 
-    required String code, 
-    required String newPassword
+    required String email,
+    required String code,
+    required String newPassword,
   }) async {
     try {
       log("Requesting confirmReset for email: $email with code: $code");
-      await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
       return true;
     } catch (e) {
       log("Error in confirmReset: $e");

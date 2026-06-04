@@ -29,14 +29,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+    InAppNotificationService.userProfileNotifier.addListener(_onProfileUpdated);
+  }
+
+  @override
+  void dispose() {
+    InAppNotificationService.userProfileNotifier.removeListener(
+      _onProfileUpdated,
+    );
+    super.dispose();
+  }
+
+  void _onProfileUpdated() {
+    final userData = InAppNotificationService.userProfileNotifier.value;
+    if (userData == null || !mounted) return;
+
+    final newName = userData['full_name'] ?? userData['fullName'];
+    final newEmail = userData['email'];
+    final newPhone = userData['phone_number'] ?? userData['phone'];
+    final newPhoto = userData['profile_picture'] ?? userData['userPhoto'];
+
+    SharedPreferences.getInstance().then((prefs) {
+      if (newName != null) prefs.setString('fullName', newName);
+      if (newEmail != null) prefs.setString('email', newEmail);
+      if (newPhone != null) prefs.setString('phone', newPhone);
+      if (newPhoto != null) prefs.setString('userPhoto', newPhoto);
+    });
+
+    if (mounted) {
+      setState(() {
+        if (newName != null && newName.toString().isNotEmpty)
+          _userName = newName;
+        if (newEmail != null && newEmail.toString().isNotEmpty)
+          _userEmail = newEmail;
+        if (newPhone != null) _userPhone = newPhone;
+        if (newPhoto != null && newPhoto.toString().isNotEmpty)
+          _userPhoto = newPhoto;
+      });
+    }
   }
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     String? savedName = prefs.getString('fullName');
     String? savedEmail = prefs.getString('email');
-    String? savedPhone = prefs.getString('phone') ?? prefs.getString('phoneNumber');
+    String? savedPhone =
+        prefs.getString('phone') ?? prefs.getString('phoneNumber');
     String? savedPhoto = prefs.getString('userPhoto');
 
     debugPrint("--- DEBUG: LOADING PROFILE DATA ---");
@@ -50,7 +89,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _userName = savedName ?? "Passenger User";
       _userEmail = savedEmail ?? "passenger@transit.com";
       _userPhone = savedPhone ?? "";
-      _userPhoto = (savedPhoto != null && savedPhoto.isNotEmpty) ? savedPhoto : '';
+      _userPhoto = (savedPhoto != null && savedPhoto.isNotEmpty)
+          ? savedPhoto
+          : '';
     });
   }
 
@@ -87,15 +128,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? Image.network(
                       _userPhoto,
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.person, color: Colors.grey, size: 100.sp),
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.person, color: Colors.grey, size: 100.sp),
                     )
-                  : (_userPhoto.contains('assets') 
-                      ? Image.asset(_userPhoto, fit: BoxFit.contain)
-                      : (_userPhoto.isNotEmpty 
-                          ? (_userPhoto.length > 200 
-                              ? Image.memory(base64Decode(_userPhoto.contains(',') ? _userPhoto.split(',').last : _userPhoto), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp))
-                              : Image.file(File(_userPhoto), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.grey, size: 100.sp)))
-                          : Icon(Icons.person, color: Colors.grey, size: 100.sp))),
+                  : (_userPhoto.contains('assets')
+                        ? Image.asset(_userPhoto, fit: BoxFit.contain)
+                        : (_userPhoto.isNotEmpty
+                              ? (_userPhoto.length > 200
+                                    ? Image.memory(
+                                        base64Decode(
+                                          _userPhoto.contains(',')
+                                              ? _userPhoto.split(',').last
+                                              : _userPhoto,
+                                        ),
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (c, e, s) => Icon(
+                                          Icons.person,
+                                          color: Colors.grey,
+                                          size: 100.sp,
+                                        ),
+                                      )
+                                    : Image.file(
+                                        File(_userPhoto),
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (c, e, s) => Icon(
+                                          Icons.person,
+                                          color: Colors.grey,
+                                          size: 100.sp,
+                                        ),
+                                      ))
+                              : Icon(
+                                  Icons.person,
+                                  color: Colors.grey,
+                                  size: 100.sp,
+                                ))),
             ),
             SizedBox(height: 15.h),
             CircleAvatar(
@@ -104,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close, color: Colors.black),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -119,11 +185,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ValueListenableBuilder<Map<String, dynamic>?>(
         valueListenable: InAppNotificationService.userProfileNotifier,
         builder: (context, userData, child) {
-          final liveName = userData?['full_name'] ?? userData?['fullName'] ?? _userName;
+          final liveName =
+              userData?['full_name'] ?? userData?['fullName'] ?? _userName;
           final liveEmail = userData?['email'] ?? _userEmail;
-          final livePhone = userData?['phone_number'] ?? userData?['phone'] ?? _userPhone;
-          final livePhoto = userData?['profile_picture'] ?? userData?['userPhoto'] ?? _userPhoto;
-          
+          final livePhone =
+              userData?['phone_number'] ?? userData?['phone'] ?? _userPhone;
+          final livePhoto =
+              userData?['profile_picture'] ??
+              userData?['userPhoto'] ??
+              _userPhoto;
+
           return CommonProfileView(
             name: liveName,
             email: liveEmail,
@@ -142,21 +213,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.star,
                 text: 'Charge My Points',
                 iconColor: Colors.amber,
-                onTap: () => RoutesManager.navigateTo(context, RoutesManager.chargeMyPoints),
+                onTap: () => RoutesManager.navigateTo(
+                  context,
+                  RoutesManager.chargeMyPoints,
+                ),
               ),
               ProfileMenuItem(
                 icon: Icons.notifications_none_outlined,
                 text: 'Notifications',
                 iconColor: Colors.blueAccent,
-                onTap: () => RoutesManager.navigateTo(context, RoutesManager.notifications),
+                onTap: () => RoutesManager.navigateTo(
+                  context,
+                  RoutesManager.notifications,
+                ),
                 trailing: StreamBuilder<int>(
                   stream: InAppNotificationService().unreadCountStream,
                   initialData: InAppNotificationService().latestUnreadCount,
                   builder: (context, snapshot) {
                     final count = snapshot.data ?? 0;
-                    if (count == 0) return const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey);
+                    if (count == 0)
+                      return const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey,
+                      );
                     return Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 4.h,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(12.r),
@@ -191,7 +276,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 iconColor: Colors.deepOrange,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ReportComplaintScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ReportComplaintScreen(),
+                  ),
                 ),
               ),
               ProfileMenuItem(
@@ -203,7 +290,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   await prefs.clear();
                   await SupabaseConfig.client.auth.signOut();
                   if (context.mounted) {
-                    RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
+                    RoutesManager.navigateAndRemoveUntil(
+                      context,
+                      RoutesManager.role,
+                    );
                   }
                 },
               ),

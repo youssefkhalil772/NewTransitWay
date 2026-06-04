@@ -24,15 +24,16 @@ class QRScannerPage extends StatefulWidget {
   State<QRScannerPage> createState() => _QRScannerPageState();
 }
 
-class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateMixin, RouteAware {
+class _QRScannerPageState extends State<QRScannerPage>
+    with TickerProviderStateMixin, RouteAware {
   MobileScannerController? cameraController;
   late AnimationController _animationController;
   late Animation<double> _animation;
 
   bool isProcessing = false;
   bool showCamera = false;
-  bool isDialogShowing = false; 
-  int _scannerResetKey = 0; 
+  bool isDialogShowing = false;
+  int _scannerResetKey = 0;
 
   @override
   void initState() {
@@ -53,8 +54,13 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
   }
 
   void _initAnimation() {
-    _animationController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -80,11 +86,11 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         isProcessing = false;
         isDialogShowing = false;
         showCamera = false;
-        _scannerResetKey++; 
-        _initializeScanner(); 
+        _scannerResetKey++;
+        _initializeScanner();
       });
     }
-    
+
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted && widget.isActive && cameraController != null) {
         setState(() => showCamera = true);
@@ -127,15 +133,12 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) {
-        throw Exception('User not found — please log in');
+        throw Exception('User not found â€” please log in');
       }
 
       final response = await Supabase.instance.client.functions.invoke(
         'scan-pay',
-        body: {
-          'userId': userId,
-          'qrToken': qrCode,
-        },
+        body: {'userId': userId, 'qrToken': qrCode},
       );
 
       final data = response.data;
@@ -147,7 +150,8 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
             isProcessing = false;
             isDialogShowing = false;
           });
-          if (errorMsg.toLowerCase().contains('insufficient') || errorMsg.toLowerCase().contains('balance')) {
+          if (errorMsg.toLowerCase().contains('insufficient') ||
+              errorMsg.toLowerCase().contains('balance')) {
             _showInsufficientBalanceDialog(context);
           } else {
             _showErrorDialog(context, customMessage: errorMsg);
@@ -156,7 +160,6 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         return;
       }
 
-      // Update local balance
       if (data is Map && data['remainingBalance'] != null) {
         final int balance = (data['remainingBalance'] as num).toInt();
         CustomPointsBadge.updateGlobalBalance(balance);
@@ -174,14 +177,15 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         );
       }
     } catch (e) {
-      debugPrint('🛑 scan-pay Edge Function Error: $e');
+      debugPrint('ðŸ›‘ scan-pay Edge Function Error: $e');
       if (mounted) {
         setState(() {
           isProcessing = false;
           isDialogShowing = false;
         });
         final errStr = e.toString();
-        if (errStr.toLowerCase().contains('insufficient') || errStr.toLowerCase().contains('balance')) {
+        if (errStr.toLowerCase().contains('insufficient') ||
+            errStr.toLowerCase().contains('balance')) {
           _showInsufficientBalanceDialog(context);
         } else {
           _showErrorDialog(context, customMessage: _translateError(errStr));
@@ -207,16 +211,35 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: Row(children: [
-          IconButton(icon: Icon(Icons.arrow_back, color: Colors.black, size: 26.sp), onPressed: () => widget.onBackToHome?.call()),
-          Text("Transit", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24.sp)),
-          Text("Way", style: TextStyle(color: const Color(0xFF054F3A), fontWeight: FontWeight.bold, fontSize: 24.sp)),
-        ]),
+        title: Row(
+          children: [
+            IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.black, size: 26.sp),
+              onPressed: () => widget.onBackToHome?.call(),
+            ),
+            Text(
+              "Transit",
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 24.sp,
+              ),
+            ),
+            Text(
+              "Way",
+              style: TextStyle(
+                color: const Color(0xFF054F3A),
+                fontWeight: FontWeight.bold,
+                fontSize: 24.sp,
+              ),
+            ),
+          ],
+        ),
         actions: [
           Padding(
             padding: EdgeInsets.only(right: 16.w),
             child: const Center(child: CustomPointsBadge()),
-          )
+          ),
         ],
       ),
       body: Stack(
@@ -224,10 +247,12 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         children: [
           _buildCameraPreview(),
           _buildScannerOverlay(),
-          if (isProcessing) 
+          if (isProcessing)
             Container(
               color: Colors.black54,
-              child: const Center(child: CircularProgressIndicator(color: Colors.white))
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
         ],
       ),
@@ -240,29 +265,53 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
         key: ValueKey('camera_widget_$_scannerResetKey'),
         controller: cameraController!,
         onDetect: (capture) {
-          if (!isProcessing && isDialogShowing == false && capture.barcodes.isNotEmpty) {
+          if (!isProcessing &&
+              isDialogShowing == false &&
+              capture.barcodes.isNotEmpty) {
             final String code = capture.barcodes.first.rawValue ?? "";
             _handlePayment(code);
           }
         },
       );
     }
-    return const Center(child: CircularProgressIndicator(color: Color(0xFF054F3A)));
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF054F3A)),
+    );
   }
 
   Widget _buildScannerOverlay() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("Scan Now", style: TextStyle(color: Colors.white, fontSize: 24.sp, fontWeight: FontWeight.bold)),
+        Text(
+          "Scan Now",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         SizedBox(height: 25.h),
         Container(
-          width: 270.w, height: 270.w,
-          decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 2.5.w), borderRadius: BorderRadius.circular(35.r)),
-          child: ClipRRect(borderRadius: BorderRadius.circular(32.r), child: Stack(children: [if (showCamera) _buildAnimatedLine()])),
+          width: 270.w,
+          height: 270.w,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white, width: 2.5.w),
+            borderRadius: BorderRadius.circular(35.r),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32.r),
+            child: Stack(children: [if (showCamera) _buildAnimatedLine()]),
+          ),
         ),
         SizedBox(height: 50.h),
-        Text("Align QR code within the frame", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 15.sp)),
+        Text(
+          "Align QR code within the frame",
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 15.sp,
+          ),
+        ),
       ],
     );
   }
@@ -273,26 +322,41 @@ class _QRScannerPageState extends State<QRScannerPage> with TickerProviderStateM
       builder: (context, child) {
         return Positioned(
           top: (_animation.value * 270.w),
-          left: 0, right: 0,
+          left: 0,
+          right: 0,
           child: Container(
             height: 4.h,
-            decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, const Color(0xFF054F3A).withOpacity(0.9), Colors.transparent])),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF054F3A).withOpacity(0.9),
+                  Colors.transparent,
+                ],
+              ),
+            ),
           ),
         );
       },
     );
   }
 
-  void _showSuccessDialog(BuildContext context, {String? routeName, double? fare, int? remainingBalance}) {
+  void _showSuccessDialog(
+    BuildContext context, {
+    String? routeName,
+    double? fare,
+    int? remainingBalance,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ScannerDialogContent(
-        title: "Payment Successful! ✅",
+        title: "Payment Successful! âœ…",
         subtitle: [
           if (routeName != null) 'Route: $routeName',
           if (fare != null) 'Fare Paid: ${fare.toStringAsFixed(0)} EGP',
-          if (remainingBalance != null) 'Remaining Balance: $remainingBalance EGP',
+          if (remainingBalance != null)
+            'Remaining Balance: $remainingBalance EGP',
         ].join('\n'),
         buttonText: "View Your Tickets",
         onPrimaryPressed: () {
@@ -391,29 +455,69 @@ class _ScannerDialogContentState extends State<_ScannerDialogContent> {
         children: [
           if (widget.isError)
             Icon(
-              widget.title.contains("Insufficient") ? Icons.warning_amber_rounded : Icons.error_outline,
-              color: widget.title.contains("Insufficient") ? Colors.orange : Colors.red,
+              widget.title.contains("Insufficient")
+                  ? Icons.warning_amber_rounded
+                  : Icons.error_outline,
+              color: widget.title.contains("Insufficient")
+                  ? Colors.orange
+                  : Colors.red,
               size: 60.sp,
             ),
           if (widget.isError) SizedBox(height: 20.h),
-          Text(widget.title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18.sp, color: Colors.black87)),
+          Text(
+            widget.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18.sp,
+              color: Colors.black87,
+            ),
+          ),
           if (widget.subtitle != null) ...[
             SizedBox(height: 10.h),
-            Text(widget.subtitle!, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey)),
+            Text(
+              widget.subtitle!,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14.sp, color: Colors.grey),
+            ),
           ],
           SizedBox(height: 35.h),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0XFF054F3A), minimumSize: Size(double.infinity, 55.h), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r))),
-            onPressed: isLoading ? null : () async {
-              if (widget.isError) {
-                widget.onPrimaryPressed();
-              } else {
-                setState(() => isLoading = true);
-                await Future.delayed(const Duration(milliseconds: 500));
-                if (mounted) widget.onPrimaryPressed();
-              }
-            },
-            child: isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(widget.buttonText, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17.sp)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0XFF054F3A),
+              minimumSize: Size(double.infinity, 55.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.r),
+              ),
+            ),
+            onPressed: isLoading
+                ? null
+                : () async {
+                    if (widget.isError) {
+                      widget.onPrimaryPressed();
+                    } else {
+                      setState(() => isLoading = true);
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (mounted) widget.onPrimaryPressed();
+                    }
+                  },
+            child: isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Text(
+                    widget.buttonText,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17.sp,
+                    ),
+                  ),
           ),
           if (widget.showSecondaryButton) ...[
             SizedBox(height: 15.h),
@@ -421,7 +525,15 @@ class _ScannerDialogContentState extends State<_ScannerDialogContent> {
               onTap: widget.onSecondaryPressed,
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Text("OK", style: TextStyle(color: const Color(0xFF054F3A), fontWeight: FontWeight.bold, fontSize: 18.sp, decoration: TextDecoration.underline)),
+                child: Text(
+                  "OK",
+                  style: TextStyle(
+                    color: const Color(0xFF054F3A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18.sp,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
               ),
             ),
           ],

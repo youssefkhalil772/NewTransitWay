@@ -33,7 +33,8 @@ class _DriverSplashState extends State<DriverSplash> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              ImageAssets.logo, // تأكد أن اللوجو يحتوي على كلمة Driver كما في الصورة
+              ImageAssets
+                  .logo, // ØªØ£ÙƒØ¯ Ø£Ù† Ø§Ù„Ù„ÙˆØ¬Ùˆ ÙŠØ­ØªÙˆÙŠ Ø¹Ù„Ù‰ ÙƒÙ„Ù…Ø© Driver ÙƒÙ…Ø§ ÙÙŠ Ø§Ù„ØµÙˆØ±Ø©
               width: 250,
             ),
           ],

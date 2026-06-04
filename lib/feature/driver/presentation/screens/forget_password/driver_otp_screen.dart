@@ -54,7 +54,9 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
         margin: EdgeInsets.all(20.w),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
       ),
     );
   }
@@ -73,10 +75,8 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => DriverChangePasswordScreen(
-              email: widget.email,
-              code: fullCode,
-            ),
+            builder: (_) =>
+                DriverChangePasswordScreen(email: widget.email, code: fullCode),
           ),
         );
       } else {
@@ -142,13 +142,16 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
                     onPressed: _canResend
                         ? () async {
                             _startTimer();
-                            await DriverForgetPasswordWebServices().requestReset(widget.email);
+                            await DriverForgetPasswordWebServices()
+                                .requestReset(widget.email);
                           }
                         : null,
                     child: Text(
                       "Resend Code",
                       style: TextStyle(
-                        color: _canResend ? ColorManager.lightGreen : Colors.grey,
+                        color: _canResend
+                            ? ColorManager.lightGreen
+                            : Colors.grey,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -201,7 +204,8 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
       child: KeyboardListener(
         focusNode: FocusNode(skipTraversal: true),
         onKeyEvent: (event) {
-          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
             if (_controllers[index].text.isEmpty && index > 0) {
               _focusNodes[index - 1].requestFocus();
             }
@@ -234,7 +238,10 @@ class _DriverOtpScreenState extends State<DriverOtpScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.w),
-              borderSide: BorderSide(color: ColorManager.lightGreen, width: 1.5),
+              borderSide: BorderSide(
+                color: ColorManager.lightGreen,
+                width: 1.5,
+              ),
             ),
           ),
         ),

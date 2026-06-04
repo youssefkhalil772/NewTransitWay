@@ -10,7 +10,7 @@ class SoundManager {
       await HapticFeedback.mediumImpact();
       player.onPlayerComplete.listen((_) => player.dispose());
     } catch (e) {
-      debugPrint('🔈 Sound Error (notification): $e');
+      debugPrint('ðŸ”ˆ Sound Error (notification): $e');
     }
   }
 
@@ -21,12 +21,9 @@ class SoundManager {
       await HapticFeedback.heavyImpact();
       player.onPlayerComplete.listen((_) => player.dispose());
     } catch (e) {
-      debugPrint('🔈 Sound Error (success): $e');
+      debugPrint('ðŸ”ˆ Sound Error (success): $e');
     }
   }
 
-  static Future<void> dispose() async {
-    // No longer needed for global player
-  }
+  static Future<void> dispose() async {}
 }
-

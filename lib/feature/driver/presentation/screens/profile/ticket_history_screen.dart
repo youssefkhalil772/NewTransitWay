@@ -58,7 +58,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
   TicketStatus? _statusFilter;
   String? _routeFilter;
   String? _dateFilter;
-  
+
   StreamSubscription? _ticketSubscription;
   String? _busId;
   String? _busNumber;
@@ -68,7 +68,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     super.initState();
     _loadAllData();
   }
-  
+
   @override
   void dispose() {
     _ticketSubscription?.cancel();
@@ -77,12 +77,11 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
 
   Future<void> _loadAllData() async {
     if (mounted) setState(() => _isLoading = true);
-    
+
     final prefs = await SharedPreferences.getInstance();
     _busId = prefs.getString('busId');
     _busNumber = prefs.getString('busNumber') ?? '---';
-    
-    // Pre-fetch driver data cache
+
     await DriverDataManager().prefetchData();
     final routes = await DriverDataManager().getRoutes();
     if (mounted) {
@@ -96,7 +95,9 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
 
   void _setupRealtime() async {
     final prefs = await SharedPreferences.getInstance();
-    final driverId = prefs.getString('driverId') ?? SupabaseConfig.client.auth.currentUser?.id;
+    final driverId =
+        prefs.getString('driverId') ??
+        SupabaseConfig.client.auth.currentUser?.id;
 
     if (driverId == null || driverId.isEmpty) {
       if (mounted) setState(() => _isLoading = false);
@@ -109,72 +110,97 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
         .stream(primaryKey: ['id'])
         .eq('driver_id', driverId)
         .listen(
-      (data) async {
-        final items = await _enrichTicketsLocally(data);
-        if (mounted) {
-          setState(() { 
-          _allTickets = items;
-          _isLoading = false; 
-        });
-        }
-      },
-      onError: (error) {
-        debugPrint("History Stream error: $error");
-        if (mounted) setState(() => _isLoading = false);
-      },
-    );
+          (data) async {
+            final items = await _enrichTicketsLocally(data);
+            if (mounted) {
+              setState(() {
+                _allTickets = items;
+                _isLoading = false;
+              });
+            }
+          },
+          onError: (error) {
+            debugPrint("History Stream error: $error");
+            if (mounted) setState(() => _isLoading = false);
+          },
+        );
   }
 
-  Future<List<TicketHistoryItem>> _enrichTicketsLocally(List<Map<String, dynamic>> rawTickets) async {
+  Future<List<TicketHistoryItem>> _enrichTicketsLocally(
+    List<Map<String, dynamic>> rawTickets,
+  ) async {
     final routes = await DriverDataManager().getRoutes();
-    
-    // Sort descending by created_at
-    final sortedTickets = List<Map<String, dynamic>>.from(rawTickets)..sort((a, b) {
-      final tA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
-      final tB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
-      return tB.compareTo(tA);
-    });
 
-    final enriched = await Future.wait(sortedTickets.map((t) async {
-      final routeIdVal = t['route_id']?.toString();
-      
-      String routeName = 'Unknown Route';
-      if (routeIdVal != null) {
-        routeName = await DriverDataManager().getRouteNameByUuid(routeIdVal) ?? 'Unknown Route';
-      }
+    final sortedTickets = List<Map<String, dynamic>>.from(rawTickets)
+      ..sort((a, b) {
+        final tA =
+            DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+            DateTime(2000);
+        final tB =
+            DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+            DateTime(2000);
+        return tB.compareTo(tA);
+      });
 
-      DateTime? createdAt;
-      try { createdAt = DateTime.parse(t['created_at']); } catch (_) {}
+    final enriched = await Future.wait(
+      sortedTickets.map((t) async {
+        final routeIdVal = t['route_id']?.toString();
 
-      final s = t['status']?.toString().toLowerCase() ?? '';
-      TicketStatus status = TicketStatus.other;
-      if (s == 'active' || s == 'sold' || s == 'valid') {
-        status = TicketStatus.sold;
-      } else if (s == 'expired' || s == 'used') status = TicketStatus.expired;
-      
-      final busIdVal = t['bus_id']?.toString();
-      String busNumber = '---';
-      if (busIdVal == _busId && _busNumber != null && _busNumber!.isNotEmpty && _busNumber != '---') {
-        busNumber = _busNumber!;
-      } else if (busIdVal != null) {
-        final busData = await DriverDataManager().getBusById(busIdVal);
-        if (busData != null) {
-          busNumber = busData['bus_number']?.toString() ?? '---';
+        String routeName = 'Unknown Route';
+        if (routeIdVal != null) {
+          routeName =
+              await DriverDataManager().getRouteNameByUuid(routeIdVal) ??
+              'Unknown Route';
         }
-      }
 
-      return TicketHistoryItem(
-        route: routeName,
-        busNumber: busNumber,
-        price: t['price']?.toString() ?? '0',
-        time: createdAt != null ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '--:--',
-        date: createdAt != null ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal()) : '--/--',
-        dateTime: createdAt ?? DateTime.now(),
-        status: status,
-        rawStatus: s == 'active' ? 'Sold' : (t['status']?.toString() ?? 'Unknown'),
-        ticketType: (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false) ? 'Manual Ticket' : 'QR Ticket',
-      );
-    }));
+        DateTime? createdAt;
+        try {
+          createdAt = DateTime.parse(t['created_at']);
+        } catch (_) {}
+
+        final s = t['status']?.toString().toLowerCase() ?? '';
+        TicketStatus status = TicketStatus.other;
+        if (s == 'active' || s == 'sold' || s == 'valid') {
+          status = TicketStatus.sold;
+        } else if (s == 'expired' || s == 'used')
+          status = TicketStatus.expired;
+
+        final busIdVal = t['bus_id']?.toString();
+        String busNumber = '---';
+        if (busIdVal == _busId &&
+            _busNumber != null &&
+            _busNumber!.isNotEmpty &&
+            _busNumber != '---') {
+          busNumber = _busNumber!;
+        } else if (busIdVal != null) {
+          final busData = await DriverDataManager().getBusById(busIdVal);
+          if (busData != null) {
+            busNumber = busData['bus_number']?.toString() ?? '---';
+          }
+        }
+
+        return TicketHistoryItem(
+          route: routeName,
+          busNumber: busNumber,
+          price: t['price']?.toString() ?? '0',
+          time: createdAt != null
+              ? DateFormat('hh:mm a').format(createdAt.toLocal())
+              : '--:--',
+          date: createdAt != null
+              ? DateFormat('dd-MM-yyyy').format(createdAt.toLocal())
+              : '--/--',
+          dateTime: createdAt ?? DateTime.now(),
+          status: status,
+          rawStatus: s == 'active'
+              ? 'Sold'
+              : (t['status']?.toString() ?? 'Unknown'),
+          ticketType:
+              (t['ticket_code']?.toString().startsWith('MANUAL-') ?? false)
+              ? 'Manual Ticket'
+              : 'QR Ticket',
+        );
+      }),
+    );
     return enriched;
   }
 
@@ -184,9 +210,11 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     _setupRealtime();
   }
 
-  List<String> get _displayRoutes => _systemRoutes.isNotEmpty
-      ? _systemRoutes
-      : _allTickets.map((t) => t.route).toSet().toList()..sort();
+  List<String> get _displayRoutes =>
+      _systemRoutes.isNotEmpty
+            ? _systemRoutes
+            : _allTickets.map((t) => t.route).toSet().toList()
+        ..sort();
 
   List<TicketHistoryItem> get _filtered {
     return _allTickets.where((t) {
@@ -203,8 +231,10 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     }).toList();
   }
 
-  int get _soldCount => _allTickets.where((t) => t.status == TicketStatus.sold).length;
-  int get _expiredCount => _allTickets.where((t) => t.status == TicketStatus.expired).length;
+  int get _soldCount =>
+      _allTickets.where((t) => t.status == TicketStatus.sold).length;
+  int get _expiredCount =>
+      _allTickets.where((t) => t.status == TicketStatus.expired).length;
 
   @override
   Widget build(BuildContext context) {
@@ -226,10 +256,17 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
                   ? ListView.separated(
                       physics: const ClampingScrollPhysics(),
                       key: const ValueKey('loading'),
-                      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24.w,
+                        vertical: 20.h,
+                      ),
                       itemCount: 5,
                       separatorBuilder: (_, __) => SizedBox(height: 20.h),
-                      itemBuilder: (_, __) => SkeletonLoader(width: double.infinity, height: 100.h, borderRadius: 16.r),
+                      itemBuilder: (_, __) => SkeletonLoader(
+                        width: double.infinity,
+                        height: 100.h,
+                        borderRadius: 16.r,
+                      ),
                     )
                   : RefreshIndicator(
                       key: const ValueKey('list'),
@@ -239,13 +276,19 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
                           ? _buildEmpty()
                           : ListView.separated(
                               physics: const ClampingScrollPhysics(),
-                              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 24.w,
+                                vertical: 20.h,
+                              ),
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) => SizedBox(height: 20.h),
+                              separatorBuilder: (_, __) =>
+                                  SizedBox(height: 20.h),
                               itemBuilder: (context, i) {
                                 final item = filtered[i];
                                 return CustomTicketCard(
-                                  key: ValueKey('${item.route}_${item.time}_$i'),
+                                  key: ValueKey(
+                                    '${item.route}_${item.time}_$i',
+                                  ),
                                   busNumber: item.busNumber,
                                   price: item.price,
                                   time: item.time,
@@ -265,147 +308,174 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() => AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Container(
-            padding: EdgeInsets.all(6.w),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: _borderGreen, width: 1.2),
-            ),
-            child: const Icon(Icons.chevron_left_rounded, color: _green, size: 20),
-          ),
+    backgroundColor: Colors.white,
+    elevation: 0,
+    leading: IconButton(
+      onPressed: () => Navigator.pop(context),
+      icon: Container(
+        padding: EdgeInsets.all(6.w),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: _borderGreen, width: 1.2),
         ),
-        title: Text(
-          'Ticket History',
-          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: _darkText),
-        ),
-        centerTitle: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(height: 0.5, color: const Color(0xffE5E7EB)),
-        ),
-      );
+        child: const Icon(Icons.chevron_left_rounded, color: _green, size: 20),
+      ),
+    ),
+    title: Text(
+      'Ticket History',
+      style: TextStyle(
+        fontSize: 16.sp,
+        fontWeight: FontWeight.bold,
+        color: _darkText,
+      ),
+    ),
+    centerTitle: false,
+    bottom: PreferredSize(
+      preferredSize: const Size.fromHeight(0.5),
+      child: Container(height: 0.5, color: const Color(0xffE5E7EB)),
+    ),
+  );
 
   Widget _buildSummaryRow() => Padding(
-        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 4.h),
-        child: Row(
-          children: [
-            Expanded(
-              child: _SummaryCard(
-                label: 'Total Sold',
-                value: '$_soldCount',
-                sub: 'lifetime',
-                bgColor: _lightGreen,
-                borderColor: _borderGreen,
-                valueColor: _darkText,
-                subColor: _green,
-              ),
-            ),
-            SizedBox(width: 10.w),
-            Expanded(
-              child: _SummaryCard(
-                label: 'Expired',
-                value: '$_expiredCount',
-                sub: 'lifetime',
-                bgColor: _lightAmber,
-                borderColor: const Color(0xfffcd34d),
-                valueColor: _darkAmber,
-                subColor: _amber,
-              ),
-            ),
-          ],
+    padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 4.h),
+    child: Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            label: 'Total Sold',
+            value: '$_soldCount',
+            sub: 'lifetime',
+            bgColor: _lightGreen,
+            borderColor: _borderGreen,
+            valueColor: _darkText,
+            subColor: _green,
+          ),
         ),
-      );
+        SizedBox(width: 10.w),
+        Expanded(
+          child: _SummaryCard(
+            label: 'Expired',
+            value: '$_expiredCount',
+            sub: 'lifetime',
+            bgColor: _lightAmber,
+            borderColor: const Color(0xfffcd34d),
+            valueColor: _darkAmber,
+            subColor: _amber,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildStatusChips() => Padding(
-        padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 4.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 4.h),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'STATUS',
+          style: TextStyle(
+            fontSize: 10.sp,
+            fontWeight: FontWeight.bold,
+            color: _mutedText,
+            letterSpacing: 0.6,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Row(
           children: [
-            Text(
-              'STATUS',
-              style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.bold, color: _mutedText, letterSpacing: 0.6),
+            _StatusChip(
+              label: 'All',
+              selected: _statusFilter == null,
+              selectedBg: const Color(0xffF0F0F0),
+              selectedBorder: const Color(0xff888888),
+              selectedText: const Color(0xff2C2C2A),
+              onTap: () => setState(() => _statusFilter = null),
             ),
-            SizedBox(height: 8.h),
-            Row(
-              children: [
-                _StatusChip(
-                  label: 'All',
-                  selected: _statusFilter == null,
-                  selectedBg: const Color(0xffF0F0F0),
-                  selectedBorder: const Color(0xff888888),
-                  selectedText: const Color(0xff2C2C2A),
-                  onTap: () => setState(() => _statusFilter = null),
-                ),
-                SizedBox(width: 8.w),
-                _StatusChip(
-                  label: 'Sold',
-                  selected: _statusFilter == TicketStatus.sold,
-                  selectedBg: _lightGreen,
-                  selectedBorder: _green,
-                  selectedText: const Color(0xff27500A),
-                  onTap: () => setState(() => _statusFilter = _statusFilter == TicketStatus.sold ? null : TicketStatus.sold),
-                ),
-                SizedBox(width: 8.w),
-                _StatusChip(
-                  label: 'Expired',
-                  selected: _statusFilter == TicketStatus.expired,
-                  selectedBg: _lightAmber,
-                  selectedBorder: _amber,
-                  selectedText: _darkAmber,
-                  onTap: () => setState(() => _statusFilter = _statusFilter == TicketStatus.expired ? null : TicketStatus.expired),
-                ),
-              ],
+            SizedBox(width: 8.w),
+            _StatusChip(
+              label: 'Sold',
+              selected: _statusFilter == TicketStatus.sold,
+              selectedBg: _lightGreen,
+              selectedBorder: _green,
+              selectedText: const Color(0xff27500A),
+              onTap: () => setState(
+                () => _statusFilter = _statusFilter == TicketStatus.sold
+                    ? null
+                    : TicketStatus.sold,
+              ),
+            ),
+            SizedBox(width: 8.w),
+            _StatusChip(
+              label: 'Expired',
+              selected: _statusFilter == TicketStatus.expired,
+              selectedBg: _lightAmber,
+              selectedBorder: _amber,
+              selectedText: _darkAmber,
+              onTap: () => setState(
+                () => _statusFilter = _statusFilter == TicketStatus.expired
+                    ? null
+                    : TicketStatus.expired,
+              ),
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _buildDropdownFilters() => Padding(
-        padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 12.h),
-        child: Row(
+    padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 12.h),
+    child: Row(
+      children: [
+        Expanded(
+          child: _DropdownFilter(
+            hint: 'All Routes',
+            value: _routeFilter,
+            items: _displayRoutes,
+            onChanged: (v) => setState(() => _routeFilter = v),
+          ),
+        ),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: _DropdownFilter(
+            hint: 'Any Date',
+            value: _dateFilter,
+            items: const ['Today', 'This week', 'This month'],
+            onChanged: (v) => setState(() => _dateFilter = v),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildEmpty() => ListView(
+    physics: const ClampingScrollPhysics(),
+    children: [
+      SizedBox(height: 100.h),
+      Center(
+        child: Column(
           children: [
-            Expanded(
-              child: _DropdownFilter(
-                hint: 'All Routes',
-                value: _routeFilter,
-                items: _displayRoutes,
-                onChanged: (v) => setState(() => _routeFilter = v),
+            Icon(Icons.receipt_long_outlined, size: 48.sp, color: _borderGreen),
+            SizedBox(height: 12.h),
+            Text(
+              'No tickets found',
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: _mutedText,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(width: 10.w),
-            Expanded(
-              child: _DropdownFilter(
-                hint: 'Any Date',
-                value: _dateFilter,
-                items: const ['Today', 'This week', 'This month'],
-                onChanged: (v) => setState(() => _dateFilter = v),
-              ),
+            SizedBox(height: 6.h),
+            Text(
+              'Try changing filters or pull to refresh',
+              style: TextStyle(fontSize: 12.sp, color: _mutedText),
             ),
           ],
         ),
-      );
-
-  Widget _buildEmpty() => ListView(
-        physics: const ClampingScrollPhysics(),
-        children: [
-          SizedBox(height: 100.h),
-          Center(
-            child: Column(
-              children: [
-                Icon(Icons.receipt_long_outlined, size: 48.sp, color: _borderGreen),
-                SizedBox(height: 12.h),
-                Text('No tickets found', style: TextStyle(fontSize: 14.sp, color: _mutedText, fontWeight: FontWeight.bold)),
-                SizedBox(height: 6.h),
-                Text('Try changing filters or pull to refresh', style: TextStyle(fontSize: 12.sp, color: _mutedText)),
-              ],
-            ),
-          ),
-        ],
-      );
+      ),
+    ],
+  );
 }
 
 class _SummaryCard extends StatelessWidget {
@@ -434,11 +504,24 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10.sp, color: const Color(0xff6B7C6E))),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10.sp, color: const Color(0xff6B7C6E)),
+          ),
           SizedBox(height: 4.h),
-          Text(value, style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: valueColor)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22.sp,
+              fontWeight: FontWeight.bold,
+              color: valueColor,
+            ),
+          ),
           SizedBox(height: 2.h),
-          Text(sub, style: TextStyle(fontSize: 10.sp, color: subColor)),
+          Text(
+            sub,
+            style: TextStyle(fontSize: 10.sp, color: subColor),
+          ),
         ],
       ),
     );
@@ -513,21 +596,41 @@ class _DropdownFilter extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          hint: Text(hint, style: TextStyle(fontSize: 11.sp, color: const Color(0xff6B7C6E))),
+          hint: Text(
+            hint,
+            style: TextStyle(fontSize: 11.sp, color: const Color(0xff6B7C6E)),
+          ),
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xff6B7C6E)),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: Color(0xff6B7C6E),
+          ),
           style: TextStyle(fontSize: 11.sp, color: const Color(0xff1A2E1C)),
           items: [
             DropdownMenuItem(
               value: null,
-              child: Text(hint, style: TextStyle(fontSize: 11.sp, color: const Color(0xff6B7C6E))),
+              child: Text(
+                hint,
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  color: const Color(0xff6B7C6E),
+                ),
+              ),
             ),
-            ...items.map((r) => DropdownMenuItem(
-                  value: r,
-                  child: Text(r,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: Color(0xff1A2E1C))),
-                )),
+            ...items.map(
+              (r) => DropdownMenuItem(
+                value: r,
+                child: Text(
+                  r,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xff1A2E1C),
+                  ),
+                ),
+              ),
+            ),
           ],
           onChanged: onChanged,
         ),

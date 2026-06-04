@@ -13,7 +13,8 @@ class SuccessScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          onPressed: () =>
+              Navigator.of(context).popUntil((route) => route.isFirst),
           icon: const Icon(Icons.close, color: Colors.black, size: 28),
         ),
         backgroundColor: Colors.transparent,
@@ -84,10 +85,13 @@ class SuccessScreen extends StatelessWidget {
                 ),
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()), // استبدل LoginScreen باسم كلاس اللوجين عندك
-                          (route) => false,);
-                  },
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(),
+                    ), // Ø§Ø³ØªØ¨Ø¯Ù„ LoginScreen Ø¨Ø§Ø³Ù… ÙƒÙ„Ø§Ø³ Ø§Ù„Ù„ÙˆØ¬ÙŠÙ† Ø¹Ù†Ø¯Ùƒ
+                    (route) => false,
+                  );
+                },
                 child: Text(
                   "Back to Login",
                   style: TextStyle(

@@ -1,4 +1,4 @@
-class NotificationResponse {
+﻿class NotificationResponse {
   final String userId;
   final int unreadCount;
   final List<NotificationModel> notifications;

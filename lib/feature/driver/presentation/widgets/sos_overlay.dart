@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SOS Countdown Overlay
-// Displayed as a full-screen overlay when a crash is detected.
-// Shows a countdown and allows the driver to cancel if it's a false alarm.
-// ─────────────────────────────────────────────────────────────────────────────
 class SosCountdownOverlay extends StatelessWidget {
   final int secondsLeft;
   final VoidCallback onCancel;
@@ -30,7 +25,6 @@ class SosCountdownOverlay extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Warning icon
                 Container(
                   width: 100.w,
                   height: 100.w,
@@ -46,7 +40,6 @@ class SosCountdownOverlay extends StatelessWidget {
                 ),
                 SizedBox(height: 28.h),
 
-                // Title
                 Text(
                   'Crash Detected!',
                   style: TextStyle(
@@ -58,7 +51,6 @@ class SosCountdownOverlay extends StatelessWidget {
                 ),
                 SizedBox(height: 10.h),
 
-                // Subtitle
                 Text(
                   'SOS will be sent automatically in',
                   textAlign: TextAlign.center,
@@ -69,7 +61,6 @@ class SosCountdownOverlay extends StatelessWidget {
                 ),
                 SizedBox(height: 28.h),
 
-                // Countdown circle
                 Container(
                   width: 120.w,
                   height: 120.w,
@@ -90,7 +81,6 @@ class SosCountdownOverlay extends StatelessWidget {
                 ),
                 SizedBox(height: 48.h),
 
-                // "I'm OK" cancel button
                 SizedBox(
                   width: double.infinity,
                   height: 60.h,
@@ -98,7 +88,7 @@ class SosCountdownOverlay extends StatelessWidget {
                     onPressed: onCancel,
                     icon: Icon(Icons.check_circle_outline, size: 24.sp),
                     label: Text(
-                      "I'm OK — Cancel",
+                      "I'm OK â€” Cancel",
                       style: TextStyle(
                         fontSize: 18.sp,
                         fontWeight: FontWeight.w800,
@@ -116,7 +106,6 @@ class SosCountdownOverlay extends StatelessWidget {
                 ),
                 SizedBox(height: 16.h),
 
-                // Manual send now button
                 TextButton(
                   onPressed: onSendNow,
                   child: Text(
@@ -138,14 +127,15 @@ class SosCountdownOverlay extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SOS Sent Confirmation Screen
-// Full-screen green confirmation shown after SOS is sent.
-// ─────────────────────────────────────────────────────────────────────────────
 class SosSentConfirmation extends StatelessWidget {
   final VoidCallback onDismiss;
+  final bool isSafeMode;
 
-  const SosSentConfirmation({super.key, required this.onDismiss});
+  const SosSentConfirmation({
+    super.key,
+    required this.onDismiss,
+    this.isSafeMode = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +149,6 @@ class SosSentConfirmation extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Success icon
                 Container(
                   width: 110.w,
                   height: 110.w,
@@ -176,7 +165,7 @@ class SosSentConfirmation extends StatelessWidget {
                 SizedBox(height: 28.h),
 
                 Text(
-                  'SOS Sent!',
+                  isSafeMode ? 'Alarm Cancelled' : 'SOS Sent!',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 30.sp,
@@ -186,7 +175,9 @@ class SosSentConfirmation extends StatelessWidget {
                 SizedBox(height: 12.h),
 
                 Text(
-                  'Help is on the way.\nStay calm and stay safe.',
+                  isSafeMode
+                      ? 'Stay safe and drive carefully.'
+                      : 'Help is on the way.\nStay calm and stay safe.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.85),

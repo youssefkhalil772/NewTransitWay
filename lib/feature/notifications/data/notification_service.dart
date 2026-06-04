@@ -9,11 +9,11 @@ import '../../../core/utils/sound_manager.dart';
 import '../../home/presentation/widgets/custom_points_badge.dart';
 import 'notification_model.dart';
 
-// Global NavigatorKey for accessing context from anywhere
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class InAppNotificationService {
-  static final InAppNotificationService _instance = InAppNotificationService._internal();
+  static final InAppNotificationService _instance =
+      InAppNotificationService._internal();
   factory InAppNotificationService() => _instance;
   InAppNotificationService._internal();
 
@@ -22,11 +22,12 @@ class InAppNotificationService {
   String? _lastNotificationId;
   final Set<String> _seenNotificationIds = {};
   bool _isInitialized = false;
-  
+
   int _latestUnreadCount = 0;
   int get latestUnreadCount => _latestUnreadCount;
-  
-  static ValueNotifier<Map<String, dynamic>?> userProfileNotifier = ValueNotifier(null);
+
+  static ValueNotifier<Map<String, dynamic>?> userProfileNotifier =
+      ValueNotifier(null);
 
   final _unreadCountController = StreamController<int>.broadcast();
   Stream<int> get unreadCountStream => _unreadCountController.stream;
@@ -36,101 +37,104 @@ class InAppNotificationService {
     _unreadCountController.add(count);
   }
 
+  void updateUnreadCountPublic(int count) => _updateUnreadCount(count);
+
   Future<void> startMonitoring() async {
     stopMonitoring(); // Ensure any existing listeners are cleared
 
     final userId = await _getUserId();
     if (userId == null || userId.isEmpty) return;
 
-    // 1. Listen for Notifications via Stream
     _notificationsSub = SupabaseConfig.client
         .from(ApiConstants.notificationsTable)
         .stream(primaryKey: ['id'])
         .eq('user_id', userId)
-        .listen((List<Map<String, dynamic>> data) {
-          if (data.isEmpty) {
-            _updateUnreadCount(0);
-            _isInitialized = true;
-            return;
-          }
-          
-          // Count unread
-          final unreadCount = data.where((n) => (n['is_read'] ?? n['isRead'] ?? false) == false).length;
-          _updateUnreadCount(unreadCount);
+        .listen(
+          (List<Map<String, dynamic>> data) {
+            if (data.isEmpty) {
+              _updateUnreadCount(0);
+              _isInitialized = true;
+              return;
+            }
 
-          // Find newly inserted notifications by checking seen IDs
-          for (var notif in data) {
-            final id = notif['id']?.toString();
-            final isRead = notif['is_read'] ?? notif['isRead'] ?? false;
-            
-            if (id != null && !_seenNotificationIds.contains(id)) {
-              _seenNotificationIds.add(id);
-              
-              // Only show popup for unread notifications AFTER initial load
-              if (_isInitialized && isRead == false) {
-                debugPrint("📡 Stream New Notification Payload: $notif");
-                _showInAppBanner(notif);
+            final unreadCount = data
+                .where((n) => (n['is_read'] ?? n['isRead'] ?? false) == false)
+                .length;
+            _updateUnreadCount(unreadCount);
+
+            for (var notif in data) {
+              final id = notif['id']?.toString();
+              final isRead = notif['is_read'] ?? notif['isRead'] ?? false;
+
+              if (id != null && !_seenNotificationIds.contains(id)) {
+                _seenNotificationIds.add(id);
+
+                if (_isInitialized && isRead == false) {
+                  debugPrint("ðŸ“¡ Stream New Notification Payload: $notif");
+                  _showInAppBanner(notif);
+                }
               }
             }
-          }
-          
-          _isInitialized = true;
-        }, onError: (err) {
-          debugPrint("📡 Stream Notification Error: $err");
-        });
 
-    // 2. Listen for User Profile Updates (specifically Ban Status)
+            _isInitialized = true;
+          },
+          onError: (err) {
+            debugPrint("ðŸ“¡ Stream Notification Error: $err");
+          },
+        );
+
     _userSub = SupabaseConfig.client
         .from(ApiConstants.usersTable)
         .stream(primaryKey: ['id'])
         .eq('id', userId)
-        .listen((List<Map<String, dynamic>> data) {
-          if (data.isNotEmpty) {
-            final userData = data.first;
-            
-            // Expose the raw userData to the rest of the app (e.g. Profile Screen)
-            userProfileNotifier.value = userData;
-            
-            // 0. Real-time Points / Balance Update
-            final latestPoints = (userData['balance'] ?? userData['points'] ?? 0).toInt();
-            CustomPointsBadge.updateGlobalBalance(latestPoints);
-            
-            // 1. Check for ban status
-            final isBanned = userData['is_banned'] == true || 
-                             userData['status']?.toString().toLowerCase() == 'banned' || 
-                             userData['status']?.toString().toLowerCase() == 'blocked';
-            if (isBanned) {
-              final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
-              _showForcedBanDialog('Account Suspended', reason);
-            }
-            
-            // 2. Check for warning field in users table (instant alert)
-            final userWarning = userData['warning'] ?? userData['worning'];
-            if (userWarning != null && userWarning.toString().isNotEmpty) {
-              _showInAppBanner({
-                'title': 'Account Warning',
-                'body': userWarning.toString(),
-                'is_read': false,
-              });
-            }
-          }
-        }, onError: (err) {
-          debugPrint("📡 Stream User Error: $err");
-        });
+        .listen(
+          (List<Map<String, dynamic>> data) {
+            if (data.isNotEmpty) {
+              final userData = data.first;
 
-    // Initial check
+              userProfileNotifier.value = userData;
+
+              final latestPoints =
+                  (userData['balance'] ?? userData['points'] ?? 0).toInt();
+              CustomPointsBadge.updateGlobalBalance(latestPoints);
+
+              final isBanned =
+                  userData['is_banned'] == true ||
+                  userData['status']?.toString().toLowerCase() == 'banned' ||
+                  userData['status']?.toString().toLowerCase() == 'blocked';
+              if (isBanned) {
+                final reason =
+                    userData['ban_reason']?.toString() ??
+                    'Your account has been suspended.';
+                _showForcedBanDialog('Account Suspended', reason);
+              }
+
+              final userWarning = userData['warning'] ?? userData['worning'];
+              if (userWarning != null && userWarning.toString().isNotEmpty) {
+                _showInAppBanner({
+                  'title': 'Account Warning',
+                  'body': userWarning.toString(),
+                  'is_read': false,
+                });
+              }
+            }
+          },
+          onError: (err) {
+            debugPrint("ðŸ“¡ Stream User Error: $err");
+          },
+        );
+
     checkBanStatus();
   }
 
   void stopMonitoring() {
     _notificationsSub?.cancel();
     _notificationsSub = null;
-    
+
     _userSub?.cancel();
     _userSub = null;
   }
 
-  /// Returns the current user's UUID from Supabase auth first, falling back to SharedPreferences.
   Future<String?> _getUserId() async {
     final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentUserId != null && currentUserId.isNotEmpty) {
@@ -145,7 +149,6 @@ class InAppNotificationService {
       final userId = await _getUserId();
       if (userId == null || userId.isEmpty) return null;
 
-      // 1. Fetch from notifications table
       final notifications = await SupabaseConfig.client
           .from(ApiConstants.notificationsTable)
           .select()
@@ -155,7 +158,6 @@ class InAppNotificationService {
           .map((i) => NotificationModel.fromJson(i))
           .toList();
 
-      // 2. Also check for a global warning in the users table
       final userData = await SupabaseConfig.client
           .from(ApiConstants.usersTable)
           .select()
@@ -165,19 +167,22 @@ class InAppNotificationService {
       if (userData != null) {
         final userWarning = userData['warning'] ?? userData['worning'];
         if (userWarning != null && userWarning.toString().isNotEmpty) {
-          // Add it as a virtual notification at the top
-          notifList.insert(0, NotificationModel(
-            id: '-99', 
-            title: "Account Warning",
-            body: userWarning.toString(),
-            type: 'warning',
-            isRead: false,
-            createdAt: DateTime.tryParse(userData['created_at']?.toString() ?? '') ?? DateTime.now(),
-          ));
+          notifList.insert(
+            0,
+            NotificationModel(
+              id: '-99',
+              title: "Account Warning",
+              body: userWarning.toString(),
+              type: 'warning',
+              isRead: false,
+              createdAt:
+                  DateTime.tryParse(userData['created_at']?.toString() ?? '') ??
+                  DateTime.now(),
+            ),
+          );
         }
       }
 
-      // Sort locally to avoid crashes if created_at column is missing in DB
       notifList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       final int unreadCount = notifList.where((n) => !n.isRead).length;
@@ -191,7 +196,7 @@ class InAppNotificationService {
       _updateUnreadCount(data.unreadCount);
       return data;
     } catch (e) {
-      debugPrint("🛑 Fetch Notifications Error: $e");
+      debugPrint("ðŸ›‘ Fetch Notifications Error: $e");
     }
     return null;
   }
@@ -207,10 +212,10 @@ class InAppNotificationService {
           .eq('id', notificationId)
           .eq('user_id', userId);
 
-      fetchNotifications(); 
+      fetchNotifications();
       return true;
     } catch (e) {
-      debugPrint("🛑 Mark Read Error: $e");
+      debugPrint("ðŸ›‘ Mark Read Error: $e");
     }
     return false;
   }
@@ -229,12 +234,11 @@ class InAppNotificationService {
       _updateUnreadCount(0);
       return true;
     } catch (e) {
-      debugPrint("🛑 Mark All Read Error: $e");
+      debugPrint("ðŸ›‘ Mark All Read Error: $e");
     }
     return false;
   }
 
-  /// Checks if the current user is banned. Returns true if banned.
   Future<bool> checkBanStatus() async {
     try {
       final userId = await _getUserId();
@@ -247,28 +251,29 @@ class InAppNotificationService {
           .maybeSingle();
 
       if (userData != null) {
-        // 1. Check for ban
-        final isBanned = userData['is_banned'] == true || 
-                         userData['status']?.toString().toLowerCase() == 'banned' || 
-                         userData['status']?.toString().toLowerCase() == 'blocked';
+        final isBanned =
+            userData['is_banned'] == true ||
+            userData['status']?.toString().toLowerCase() == 'banned' ||
+            userData['status']?.toString().toLowerCase() == 'blocked';
         if (isBanned) {
-          final reason = userData['ban_reason']?.toString() ?? 'Your account has been suspended.';
+          final reason =
+              userData['ban_reason']?.toString() ??
+              'Your account has been suspended.';
           _showForcedBanDialog('Account Suspended', reason);
           return true;
         }
-        
-        // 2. Check for warning/worning field directly in user table
+
         final userWarning = userData['warning'] ?? userData['worning'];
         if (userWarning != null && userWarning.toString().isNotEmpty) {
-           _showInAppBanner({
-             'title': 'System Warning',
-             'body': userWarning.toString(),
-             'is_read': false,
-           });
+          _showInAppBanner({
+            'title': 'System Warning',
+            'body': userWarning.toString(),
+            'is_read': false,
+          });
         }
       }
     } catch (e) {
-      debugPrint("⚠️ Ban check error: $e");
+      debugPrint("âš ï¸ Ban check error: $e");
     }
     return false;
   }
@@ -280,22 +285,24 @@ class InAppNotificationService {
     String title = (data['title'] ?? "").toString();
     String body = (data['message'] ?? data['body'] ?? "").toString();
     bool isRead = data['is_read'] ?? data['isRead'] ?? false;
-    
-    if (isRead) return; 
 
-    bool isBan = title.toLowerCase().contains('suspended') || 
-                 body.toLowerCase().contains('suspended') ||
-                 body.toLowerCase().contains('banned');
+    if (isRead) return;
+
+    bool isBan =
+        title.toLowerCase().contains('suspended') ||
+        body.toLowerCase().contains('suspended') ||
+        body.toLowerCase().contains('banned');
 
     if (isBan) {
       bgColor = Colors.red;
       iconData = Icons.block;
       _showForcedBanDialog(title, body);
-      return; 
+      return;
     } else if (title.toLowerCase().contains('warning')) {
       bgColor = Colors.orange;
       iconData = Icons.warning_amber_rounded;
-    } else if (title.toLowerCase().contains('restored') || title.toLowerCase().contains('success')) {
+    } else if (title.toLowerCase().contains('restored') ||
+        title.toLowerCase().contains('success')) {
       bgColor = Colors.green;
       iconData = Icons.check_circle_outline;
     }
@@ -305,7 +312,10 @@ class InAppNotificationService {
     showSimpleNotification(
       Text(
         title.isEmpty ? "New Alert" : title,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       subtitle: Text(
         body,
@@ -316,7 +326,10 @@ class InAppNotificationService {
       background: bgColor,
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+        decoration: const BoxDecoration(
+          color: Colors.white24,
+          shape: BoxShape.circle,
+        ),
         child: Icon(iconData, color: Colors.white, size: 20),
       ),
       duration: const Duration(seconds: 5),
@@ -333,7 +346,9 @@ class InAppNotificationService {
       builder: (context) => PopScope(
         canPop: false,
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -345,19 +360,31 @@ class InAppNotificationService {
                   color: Color(0xFFFCEBEB),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.block_rounded, color: Color(0xFFE24B4A), size: 26),
+                child: const Icon(
+                  Icons.block_rounded,
+                  color: Color(0xFFE24B4A),
+                  size: 26,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
                 title.isNotEmpty ? title : 'Account Suspended',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
                 body,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.5),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -365,24 +392,32 @@ class InAppNotificationService {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () async {
-                    // Sign out and stop monitoring
                     stopMonitoring();
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.clear();
                     await SupabaseConfig.client.auth.signOut();
-                    
+
                     if (context.mounted) {
-                      RoutesManager.navigateAndRemoveUntil(context, RoutesManager.role);
+                      RoutesManager.navigateAndRemoveUntil(
+                        context,
+                        RoutesManager.role,
+                      );
                     }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE24B4A),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: 0,
                   ),
                   child: const Text(
                     'Log Out',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

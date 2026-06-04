@@ -69,7 +69,9 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.camera);
+                  final image = await picker.pickImage(
+                    source: ImageSource.camera,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -79,7 +81,9 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final picker = ImagePicker();
-                  final image = await picker.pickImage(source: ImageSource.gallery);
+                  final image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
                   if (image != null) _cropImage(image.path);
                 },
               ),
@@ -93,9 +97,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
   Future<void> _cropImage(String filePath) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => _CropScreen(imagePath: filePath),
-      ),
+      MaterialPageRoute(builder: (_) => _CropScreen(imagePath: filePath)),
     );
     if (result != null && result is String) {
       setState(() => _selectedImage = File(result));
@@ -124,11 +126,34 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
               child: _selectedImage != null
                   ? Image.file(_selectedImage!, fit: BoxFit.contain)
                   : (widget.currentPhoto.startsWith('http')
-                      ? Image.network(widget.currentPhoto, fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Icon(Icons.person, color: Colors.white, size: 100.sp))
-                      : (widget.currentPhoto.length > 200 
-                          ? Image.memory(base64Decode(widget.currentPhoto.contains(',') ? widget.currentPhoto.split(',').last : widget.currentPhoto), fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.person, color: Colors.white, size: 100.sp))
-                          : Icon(Icons.person, color: Colors.white, size: 100.sp))),
+                        ? Image.network(
+                            widget.currentPhoto,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 100.sp,
+                            ),
+                          )
+                        : (widget.currentPhoto.length > 200
+                              ? Image.memory(
+                                  base64Decode(
+                                    widget.currentPhoto.contains(',')
+                                        ? widget.currentPhoto.split(',').last
+                                        : widget.currentPhoto,
+                                  ),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 100.sp,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 100.sp,
+                                ))),
             ),
             Positioned(
               top: 20,
@@ -145,12 +170,12 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
   }
 
   Future<void> _saveChanges() async {
-    if (_nameController.text.trim().isEmpty || 
-        _phoneController.text.trim().isEmpty || 
+    if (_nameController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("All fields are required")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("All fields are required")));
       return;
     }
 
@@ -159,9 +184,9 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString('userId');
       userId ??= prefs.getString('id');
-      
+
       if (userId == null || userId.isEmpty) {
-         throw Exception("User ID not found. Please log in again.");
+        throw Exception("User ID not found. Please log in again.");
       }
 
       Map<String, dynamic> fields = {
@@ -180,30 +205,42 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
 
       final userData = response['data'] ?? response;
 
-        // Save with multiple keys to ensure consistency across the app
-        String finalName = userData['fullName'] ?? userData['FullName'] ?? _nameController.text.trim();
-        String finalEmail = userData['email'] ?? userData['Email'] ?? _emailController.text.trim();
-        String finalPhone = userData['phone'] ?? userData['Phone'] ?? _phoneController.text.trim();
+      String finalName =
+          userData['fullName'] ??
+          userData['FullName'] ??
+          _nameController.text.trim();
+      String finalEmail =
+          userData['email'] ??
+          userData['Email'] ??
+          _emailController.text.trim();
+      String finalPhone =
+          userData['phone'] ??
+          userData['Phone'] ??
+          _phoneController.text.trim();
 
-        await prefs.setString('fullName', finalName);
-        await prefs.setString('email', finalEmail);
-        await prefs.setString('phone', finalPhone);
-        await prefs.setString('phoneNumber', finalPhone);
-        
-        String? newPhoto = userData['photo'] ?? userData['Photo'] ?? userData['photoUrl'] ?? userData['image'];
-        if (newPhoto != null) {
-          await prefs.setString('userPhoto', newPhoto);
-        }
-        
-        if (mounted) {
-          _showSuccessDialog();
-        }
+      await prefs.setString('fullName', finalName);
+      await prefs.setString('email', finalEmail);
+      await prefs.setString('phone', finalPhone);
+      await prefs.setString('phoneNumber', finalPhone);
+
+      String? newPhoto =
+          userData['photo'] ??
+          userData['Photo'] ??
+          userData['photoUrl'] ??
+          userData['image'];
+      if (newPhoto != null) {
+        await prefs.setString('userPhoto', newPhoto);
+      }
+
+      if (mounted) {
+        _showSuccessDialog();
+      }
     } catch (e) {
       debugPrint("Update Profile Error: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Update failed: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Update failed: $e")));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -217,7 +254,9 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: ColorManager.white,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28.r),
+        ),
         contentPadding: EdgeInsets.symmetric(vertical: 30.h, horizontal: 25.w),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -229,12 +268,20 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                 color: ColorManager.green.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_outline_rounded, color: ColorManager.green, size: 50),
+              child: const Icon(
+                Icons.check_circle_outline_rounded,
+                color: ColorManager.green,
+                size: 50,
+              ),
             ),
             SizedBox(height: 24.h),
             Text(
               "Profile Updated",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20.sp, color: ColorManager.black),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20.sp,
+                color: ColorManager.black,
+              ),
             ),
             SizedBox(height: 12.h),
             Text(
@@ -247,7 +294,9 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: ColorManager.green,
                 minimumSize: Size(double.infinity, 52.h),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
                 elevation: 0,
               ),
               onPressed: () {
@@ -256,7 +305,11 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
               },
               child: Text(
                 "OK",
-                style: TextStyle(color: ColorManager.white, fontWeight: FontWeight.bold, fontSize: 16.sp),
+                style: TextStyle(
+                  color: ColorManager.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16.sp,
+                ),
               ),
             ),
           ],
@@ -288,7 +341,11 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                       color: ColorManager.white.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.arrow_back, color: ColorManager.white, size: 20),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: ColorManager.white,
+                      size: 20,
+                    ),
                   ),
                 ),
                 Expanded(
@@ -302,7 +359,7 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 40.w), 
+                SizedBox(width: 40.w),
               ],
             ),
           ),
@@ -317,18 +374,46 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                   height: 85.w,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: ColorManager.white.withOpacity(0.4), width: 3),
+                    border: Border.all(
+                      color: ColorManager.white.withOpacity(0.4),
+                      width: 3,
+                    ),
                     color: ColorManager.white.withOpacity(0.2),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: _selectedImage != null
                       ? Image.file(_selectedImage!, fit: BoxFit.cover)
                       : (widget.currentPhoto.startsWith('http')
-                          ? Image.network(widget.currentPhoto, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                          : (widget.currentPhoto.length > 200 
-                              ? Image.memory(base64Decode(widget.currentPhoto.contains(',') ? widget.currentPhoto.split(',').last : widget.currentPhoto), fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.person, color: ColorManager.white, size: 40.sp))
-                              : Icon(Icons.person, color: ColorManager.white, size: 40.sp))),
+                            ? Image.network(
+                                widget.currentPhoto,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.person,
+                                  color: ColorManager.white,
+                                  size: 40.sp,
+                                ),
+                              )
+                            : (widget.currentPhoto.length > 200
+                                  ? Image.memory(
+                                      base64Decode(
+                                        widget.currentPhoto.contains(',')
+                                            ? widget.currentPhoto
+                                                  .split(',')
+                                                  .last
+                                            : widget.currentPhoto,
+                                      ),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => Icon(
+                                        Icons.person,
+                                        color: ColorManager.white,
+                                        size: 40.sp,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.person,
+                                      color: ColorManager.white,
+                                      size: 40.sp,
+                                    ))),
                 ),
               ),
               Positioned(
@@ -344,7 +429,11 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                       shape: BoxShape.circle,
                       border: Border.all(color: ColorManager.green, width: 2),
                     ),
-                    child: Icon(Icons.camera_alt_rounded, color: ColorManager.green, size: 14.sp),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      color: ColorManager.green,
+                      size: 14.sp,
+                    ),
                   ),
                 ),
               ),
@@ -353,7 +442,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
           SizedBox(height: 8.h),
           Text(
             'tap photo to view, icon to change',
-            style: TextStyle(color: ColorManager.white.withOpacity(0.7), fontSize: 11.sp),
+            style: TextStyle(
+              color: ColorManager.white.withOpacity(0.7),
+              fontSize: 11.sp,
+            ),
           ),
           SizedBox(height: 15.h),
 
@@ -386,7 +478,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Divider(color: ColorManager.grey.withOpacity(0.1), thickness: 1),
+                            child: Divider(
+                              color: ColorManager.grey.withOpacity(0.1),
+                              thickness: 1,
+                            ),
                           ),
                           _buildField(
                             label: 'Phone number',
@@ -396,7 +491,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Divider(color: ColorManager.grey.withOpacity(0.1), thickness: 1),
+                            child: Divider(
+                              color: ColorManager.grey.withOpacity(0.1),
+                              thickness: 1,
+                            ),
                           ),
                           _buildField(
                             label: 'Email address',
@@ -418,7 +516,8 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                         onPressed: _isLoading ? null : _saveChanges,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: ColorManager.green,
-                          disabledBackgroundColor: ColorManager.green.withOpacity(0.6),
+                          disabledBackgroundColor: ColorManager.green
+                              .withOpacity(0.6),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16.r),
                           ),
@@ -428,7 +527,10 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(color: ColorManager.white, strokeWidth: 2.5),
+                                child: CircularProgressIndicator(
+                                  color: ColorManager.white,
+                                  strokeWidth: 2.5,
+                                ),
                               )
                             : Text(
                                 'Save changes',
@@ -475,15 +577,24 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
           keyboardType: keyboardType,
           readOnly: readOnly,
           style: TextStyle(
-            fontSize: 14.sp, 
-            color: readOnly ? ColorManager.grey : ColorManager.black, 
-            fontWeight: FontWeight.w600
+            fontSize: 14.sp,
+            color: readOnly ? ColorManager.grey : ColorManager.black,
+            fontWeight: FontWeight.w600,
           ),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: readOnly ? ColorManager.grey : ColorManager.green, size: 20),
+            prefixIcon: Icon(
+              icon,
+              color: readOnly ? ColorManager.grey : ColorManager.green,
+              size: 20,
+            ),
             filled: true,
-            fillColor: readOnly ? ColorManager.grey.withOpacity(0.05) : ColorManager.white,
-            contentPadding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+            fillColor: readOnly
+                ? ColorManager.grey.withOpacity(0.05)
+                : ColorManager.white,
+            contentPadding: EdgeInsets.symmetric(
+              vertical: 12.h,
+              horizontal: 16.w,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
               borderSide: BorderSide(color: ColorManager.grey.withOpacity(0.1)),
@@ -494,7 +605,12 @@ class _UserEditProfileScreenState extends State<UserEditProfileScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: readOnly ? ColorManager.grey.withOpacity(0.1) : ColorManager.green, width: 1.5),
+              borderSide: BorderSide(
+                color: readOnly
+                    ? ColorManager.grey.withOpacity(0.1)
+                    : ColorManager.green,
+                width: 1.5,
+              ),
             ),
           ),
         ),
@@ -520,7 +636,10 @@ class _CropScreenState extends State<_CropScreen> {
       backgroundColor: ColorManager.black,
       appBar: AppBar(
         backgroundColor: ColorManager.green,
-        title: const Text('Crop Photo', style: TextStyle(color: ColorManager.white, fontSize: 18)),
+        title: const Text(
+          'Crop Photo',
+          style: TextStyle(color: ColorManager.white, fontSize: 18),
+        ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: ColorManager.white),
         actions: [
@@ -528,11 +647,15 @@ class _CropScreenState extends State<_CropScreen> {
             onPressed: () async {
               try {
                 final bitmap = await _controller.crop();
-                
+
                 final dir = await getTemporaryDirectory();
-                final file = File('${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                final data = await bitmap.toByteData(format: ui.ImageByteFormat.png);
-                
+                final file = File(
+                  '${dir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                );
+                final data = await bitmap.toByteData(
+                  format: ui.ImageByteFormat.png,
+                );
+
                 if (data != null) {
                   await file.writeAsBytes(data.buffer.asUint8List());
                   if (context.mounted) {
@@ -543,7 +666,13 @@ class _CropScreenState extends State<_CropScreen> {
                 debugPrint("Crop Error: $e");
               }
             },
-            child: const Text('DONE', style: TextStyle(color: ColorManager.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'DONE',
+              style: TextStyle(
+                color: ColorManager.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),

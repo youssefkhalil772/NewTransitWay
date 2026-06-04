@@ -15,12 +15,14 @@ class ForgetPasswordWebServices {
 
       if (response != null && response is String) {
         return response;
-      } else if (response != null && response is Map && response.containsKey('email')) {
-         return response['email'] as String?;
+      } else if (response != null &&
+          response is Map &&
+          response.containsKey('email')) {
+        return response['email'] as String?;
       }
       return response?.toString();
     } catch (e) {
-      debugPrint("🛑 getEmailByPhone Error: $e");
+      debugPrint("ðŸ›‘ getEmailByPhone Error: $e");
       return null;
     }
   }
@@ -38,7 +40,7 @@ class ForgetPasswordWebServices {
       await _client.auth.resetPasswordForEmail(email);
       return true;
     } catch (e) {
-      debugPrint("🛑 requestReset Error: $e");
+      debugPrint("ðŸ›‘ requestReset Error: $e");
       return false;
     }
   }
@@ -52,20 +54,21 @@ class ForgetPasswordWebServices {
       );
       return response.user != null;
     } catch (e) {
-      debugPrint("🛑 verifyOtp Error: $e");
+      debugPrint("ðŸ›‘ verifyOtp Error: $e");
       return false;
     }
   }
 
-  Future<bool> confirmReset(String email, String code, String newPassword) async {
+  Future<bool> confirmReset(
+    String email,
+    String code,
+    String newPassword,
+  ) async {
     try {
-      // At this point user should be authenticated via OTP verification
-      await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
       return true;
     } catch (e) {
-      debugPrint("🛑 confirmReset Error: $e");
+      debugPrint("ðŸ›‘ confirmReset Error: $e");
       return false;
     }
   }
