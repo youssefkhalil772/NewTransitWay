@@ -261,7 +261,7 @@ class _TrackingViewState extends State<TrackingView>
             final distKm = routeData.distanceInMeters / 1000;
             _distance = distKm.toStringAsFixed(1);
             final mins = (routeData.durationInSeconds / 60).ceil();
-            _arrivalTime = mins > 0 ? "\$mins min" : "Arrived!";
+            _arrivalTime = mins > 0 ? "$mins min" : "Arrived!";
           });
         }
       } catch (e) {
@@ -757,7 +757,7 @@ class _TrackingViewState extends State<TrackingView>
                 Container(width: 1, height: 40, color: Colors.grey[300]),
                 _dataDetail(
                   _distance == "..." ? "---" : "$_distance km",
-                  "ðŸ“ Distance",
+                  "Distance",
                 ),
               ],
             ),
@@ -925,7 +925,7 @@ class _TrackingViewState extends State<TrackingView>
             ),
           ),
         Text(
-          "â±  ETA",
+          "ETA",
           style: TextStyle(color: Colors.grey, fontSize: 12.sp),
         ),
       ],

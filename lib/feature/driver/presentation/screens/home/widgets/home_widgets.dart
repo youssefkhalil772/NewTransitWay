@@ -40,10 +40,29 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   StreamSubscription? _driverSubscription;
   StreamSubscription? _busSubscription;
   StreamSubscription? _tripSubscription;
+  Timer? _reloadDebounce;
 
+  // Last known state — set by _loadAllData, compared by streams
   String? _lastDriverBusId;
+  bool _pendingReload = false;
   String? _lastBusRouteId;
   String? _lastBusPlate;
+  // For the by-driver_id bus stream we track the last assigned bus id
+  String? _lastAssignedBusIdFromBusStream;
+
+  /// Trigger a reload with debounce to avoid duplicate calls on burst events.
+  void _triggerReload() {
+    if (!mounted) return;
+    _reloadDebounce?.cancel();
+    _reloadDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      if (_isLoading) {
+        _pendingReload = true;
+      } else {
+        _loadAllData();
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -56,6 +75,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     _driverSubscription?.cancel();
     _busSubscription?.cancel();
     _tripSubscription?.cancel();
+    _reloadDebounce?.cancel();
     _trackingService.stopTracking();
     super.dispose();
   }
@@ -64,57 +84,69 @@ class _HomeTabBodyState extends State<HomeTabBody> {
     final currentDriverId = SupabaseConfig.client.auth.currentUser?.id;
     if (currentDriverId == null) return;
 
+    // ── Stream 1: Watch the drivers row (catches drivers.busId changes) ──────
     _driverSubscription?.cancel();
     _driverSubscription = SupabaseConfig.client
         .from(ApiConstants.driversTable)
         .stream(primaryKey: ['id'])
         .eq('id', currentDriverId)
         .listen((data) {
-          if (data.isNotEmpty && mounted && !_isLoading) {
-            final driver = data.first;
-            final newBusId = driver['busId']?.toString();
-
-            if (newBusId != _lastDriverBusId) {
-              _lastDriverBusId = newBusId;
-              debugPrint('ðŸ”„ HomeTab: Driver row changed â†’ reloading');
-              _loadAllData();
-            }
+          if (!mounted || data.isEmpty) return;
+          final newBusId = data.first['busId']?.toString();
+          if (newBusId != _lastDriverBusId) {
+            debugPrint('🔄 HomeTab [drivers]: busId ${_lastDriverBusId} → $newBusId');
+            _triggerReload();
           }
         });
 
+    // ── Stream 2: Watch buses where driver_id = currentDriverId ─────────────
+    // This fires when:
+    //   • A bus is ASSIGNED   → website sets buses.driver_id = currentDriverId
+    //                           stream returns that bus (was empty before)
+    //   • A bus is UNASSIGNED → website sets buses.driver_id = null
+    //                           stream returns empty list (bus leaves the filter)
+    //   • Route/plate changes on the assigned bus
+    _busSubscription?.cancel();
+    _busSubscription = SupabaseConfig.client
+        .from('buses')
+        .stream(primaryKey: ['id'])
+        .eq('driver_id', currentDriverId)
+        .listen((data) {
+          if (!mounted) return;
+          final assignedBusId = data.isNotEmpty ? data.first['id']?.toString() : null;
+          final bRouteId     = data.isNotEmpty ? data.first['route_id']?.toString() : null;
+          final bPlate       = data.isNotEmpty ? data.first['plate_number']?.toString() : null;
+
+          bool changed = false;
+
+          // Bus assigned or unassigned
+          if (assignedBusId != _lastAssignedBusIdFromBusStream) {
+            debugPrint('🔄 HomeTab [buses]: assigned bus '
+                '$_lastAssignedBusIdFromBusStream → $assignedBusId');
+            changed = true;
+          }
+          // Route changed on current bus
+          if (_lastBusRouteId != null && bRouteId != _lastBusRouteId) {
+            debugPrint('🔄 HomeTab [buses]: route_id changed');
+            changed = true;
+          }
+          // Plate changed on current bus
+          if (_lastBusPlate != null && bPlate != _lastBusPlate) {
+            debugPrint('🔄 HomeTab [buses]: plate changed');
+            changed = true;
+          }
+
+          _lastAssignedBusIdFromBusStream = assignedBusId;
+          _lastBusRouteId = bRouteId;
+          _lastBusPlate   = bPlate;
+
+          if (changed) _triggerReload();
+        });
+
+    // ── Stream 3: Watch trips for the currently-assigned bus ─────────────────
     final prefs = await SharedPreferences.getInstance();
-    final busId = prefs.getString('busId');
-
+    final busId  = prefs.getString('busId');
     if (busId != null && busId.isNotEmpty) {
-      _busSubscription?.cancel();
-      _busSubscription = SupabaseConfig.client
-          .from('buses')
-          .stream(primaryKey: ['id'])
-          .eq('id', busId)
-          .listen((data) {
-            if (data.isNotEmpty && !_isLoading) {
-              final bus = data.first;
-              final bRouteId = bus['route_id']?.toString();
-              final bPlate = bus['plate_number']?.toString();
-
-              bool changed = false;
-              if (_lastBusRouteId != null && bRouteId != _lastBusRouteId)
-                changed = true;
-              if (_lastBusPlate != null && bPlate != _lastBusPlate)
-                changed = true;
-
-              _lastBusRouteId = bRouteId;
-              _lastBusPlate = bPlate;
-
-              if (changed) {
-                debugPrint(
-                  "ðŸ”„ HomeTab: Bus Details Realtime update triggered",
-                );
-                _loadAllData();
-              }
-            }
-          });
-
       _tripSubscription?.cancel();
       _tripSubscription = SupabaseConfig.client
           .from('trips')
@@ -127,15 +159,10 @@ class _HomeTabBodyState extends State<HomeTabBody> {
                 orElse: () => <String, dynamic>{},
               );
               final bool isActive = activeTrip.isNotEmpty;
-
               if (mounted && _hasActiveTrip != isActive) {
-                debugPrint(
-                  "ðŸ”„ HomeTab: Trip Realtime update triggered: $isActive",
-                );
+                debugPrint('🔄 HomeTab [trips]: active=$isActive');
                 prefs.setBool('isTripActive', isActive);
-                setState(() {
-                  _hasActiveTrip = isActive;
-                });
+                setState(() => _hasActiveTrip = isActive);
               }
             }
           });
@@ -146,6 +173,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
   bool _isRouteAssigned = false;
 
   Future<void> _loadAllData() async {
+    _pendingReload = false;
     try {
       if (mounted) setState(() => _isLoading = true);
       DriverDataManager().clearCache(); // Force fresh data
@@ -189,10 +217,12 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           if (resEmail.isNotEmpty) driverDbData = resEmail.first;
         }
       } catch (e) {
-        debugPrint('âš ï¸ Error fetching driverDbData: $e');
+        debugPrint('⚠️ Error fetching driverDbData: $e');
       }
 
       final String? assignedBusId = driverDbData?['busId']?.toString();
+      // Sync tracker with what the DB actually says right now
+      _lastDriverBusId = assignedBusId;
 
       Map<String, dynamic>? busData;
       try {
@@ -212,7 +242,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           if (resDriverId.isNotEmpty) busData = resDriverId.first;
         }
       } catch (e) {
-        debugPrint('âš ï¸ Error fetching busData: $e');
+        debugPrint('⚠️ Error fetching busData: $e');
       }
 
       if (busData == null) {
@@ -228,6 +258,7 @@ class _HomeTabBodyState extends State<HomeTabBody> {
             _isLoading = false;
           });
         }
+        if (_pendingReload) _loadAllData();
         return;
       }
 
@@ -238,24 +269,24 @@ class _HomeTabBodyState extends State<HomeTabBody> {
 
       final String? oldRouteId = busData!['route_id']?.toString();
       final String? busRouteName = busData!['route_name']?.toString();
-      debugPrint('ðŸšŒ Bus route_id: $oldRouteId, route_name: $busRouteName');
+      debugPrint('🚌 Bus route_id: $oldRouteId, route_name: $busRouteName');
       debugPrint(
-        'ðŸ“‹ Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}',
+        '📋 Available lines: ${allRoutes.map((r) => "id=${r.id} name=${r.name}").toList()}',
       );
 
       RouteModel? matchedRoute;
       if (busRouteName != null && busRouteName.isNotEmpty) {
         try {
           matchedRoute = allRoutes.firstWhere((r) => r.name == busRouteName);
-          debugPrint('âœ… Route matched: ${matchedRoute.name}');
+          debugPrint('✅ Route matched: ${matchedRoute.name}');
         } catch (_) {
           debugPrint(
-            'âŒ No route found with name=$busRouteName in ${allRoutes.length} lines',
+            '❌ No route found with name=$busRouteName in ${allRoutes.length} lines',
           );
           matchedRoute = null;
         }
       } else {
-        debugPrint('âš ï¸ bus has invalid or null route_name');
+        debugPrint('⚠️ bus has invalid or null route_name');
       }
 
       final bool routeAssigned = matchedRoute != null;
@@ -271,10 +302,10 @@ class _HomeTabBodyState extends State<HomeTabBody> {
               .map<StationModel>((json) => StationModel.fromJson(json))
               .toList();
           debugPrint(
-            'ðŸ“ Loaded ${_routeStations.length} stations for route ${busData['route_id']}',
+            '📍 Loaded ${_routeStations.length} stations for route ${busData['route_id']}',
           );
         } catch (e) {
-          debugPrint('âš ï¸ Error loading stations by route_id: $e');
+          debugPrint('⚠️ Error loading stations by route_id: $e');
           _routeStations = [];
         }
       } else {
@@ -327,9 +358,11 @@ class _HomeTabBodyState extends State<HomeTabBody> {
           _isLoading = false;
         });
       }
+      if (_pendingReload) _loadAllData();
     } catch (e) {
-      debugPrint('âŒ HomeTab _loadAllData error: $e');
+      debugPrint('❌ HomeTab _loadAllData error: $e');
       if (mounted) setState(() => _isLoading = false);
+      if (_pendingReload) _loadAllData();
     }
   }
 

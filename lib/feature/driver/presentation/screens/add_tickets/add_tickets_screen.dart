@@ -227,6 +227,7 @@ class _AddTicketsScreenState extends State<AddTicketsScreen>
       builder: (ctx) => _IssueTicketsSheet(
         onSuccess: () {
           Navigator.pop(ctx);
+          _manualRefresh();
         },
       ),
     );

@@ -88,7 +88,7 @@ class SosCountdownOverlay extends StatelessWidget {
                     onPressed: onCancel,
                     icon: Icon(Icons.check_circle_outline, size: 24.sp),
                     label: Text(
-                      "I'm OK â€” Cancel",
+                      "I'm OK - Cancel",
                       style: TextStyle(
                         fontSize: 18.sp,
                         fontWeight: FontWeight.w800,
