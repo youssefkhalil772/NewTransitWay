@@ -395,7 +395,7 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
                     )
                   : const Icon(Icons.send_rounded, color: Colors.white),
               label: Text(
-                _isSubmitting ? 'Submittingâ€¦' : 'Submit Report',
+                _isSubmitting ? 'Submitting...' : 'Submit Report',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -482,7 +482,7 @@ class _ReportComplaintScreenState extends State<ReportComplaintScreen> {
         style: TextStyle(fontSize: 14.sp, color: Colors.black87, height: 1.5),
         decoration: InputDecoration(
           hintText:
-              'e.g. The bus on route 55 was 30 minutes late and the driver was rudeâ€¦',
+              'e.g. The bus on route 55 was 30 minutes late and the driver was rude...',
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13.sp),
           border: InputBorder.none,
           contentPadding: EdgeInsets.all(14.w),

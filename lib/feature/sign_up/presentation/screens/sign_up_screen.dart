@@ -286,7 +286,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Letâ€™s Get Started',
+          "Let's Get Started",
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,

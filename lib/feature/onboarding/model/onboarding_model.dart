@@ -23,7 +23,7 @@ class OnboardingModel {
       image: ImageAssets.phonee,
       title: "Pay Smart, Travel Easy",
       subTitle:
-          "Buy tickets and subscriptions \n securely using multiple digital \npayment options â€” fast and cash-\nfree",
+          "Buy tickets and subscriptions \n securely using multiple digital \npayment options - fast and cash-\nfree",
     ),
 
     OnboardingModel(
