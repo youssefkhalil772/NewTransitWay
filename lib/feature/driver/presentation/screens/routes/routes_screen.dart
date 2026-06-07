@@ -317,7 +317,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "TransitWay Â· Driver",
+                  "TransitWay · Driver",
                   style: TextStyle(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.bold,
@@ -633,7 +633,7 @@ extension _RoutesScreenUI on _RoutesScreenState {
                   ),
                   if (isNext)
                     Text(
-                      "Approaching Â· $_etaToNextStation",
+                      "Approaching · $_etaToNextStation",
                       style: TextStyle(
                         fontSize: 10.sp,
                         color: Colors.orange,
